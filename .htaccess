@@ -2,6 +2,12 @@
 # reescrito para public/, então .env, storage/ e vendor/ nunca são servidos.
 <IfModule mod_rewrite.c>
     RewriteEngine On
+
+    # Barra no fim: redireciona aqui, antes de entrar em public/ (senão o
+    # redirecionamento do public/.htaccess vaza o /public na URL).
+    RewriteCond %{REQUEST_URI} ^(.+)/$
+    RewriteRule ^ %1 [L,R=301]
+
     RewriteRule ^$ public/ [L]
     RewriteRule (.*) public/$1 [L]
 </IfModule>

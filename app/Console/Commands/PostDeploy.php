@@ -46,9 +46,16 @@ class PostDeploy extends Command
                 File::ensureDirectoryExists(storage_path($dir));
             }
 
-            // Chaves do OAuth: geradas uma vez no servidor, fora do git.
+            // Chaves do OAuth: geradas uma vez no servidor, fora do git. A lib de
+            // JWT recusa chaves com permissão mais aberta que 600/660.
             if (! File::exists(storage_path('oauth-private.key'))) {
                 $this->call('passport:keys', ['--no-interaction' => true]);
+            }
+
+            foreach (['oauth-private.key', 'oauth-public.key'] as $key) {
+                if (File::exists(storage_path($key))) {
+                    File::chmod(storage_path($key), 0600);
+                }
             }
 
             // Sem cache de config/rotas: depois de um pull o cache antigo ficaria
