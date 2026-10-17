@@ -73,6 +73,10 @@ return [
         // Link de pré-visualização de uso único devolvido pelo MCP (/p/{token}).
         'preview_ttl_minutes' => (int) env('WARD_PREVIEW_TTL_MINUTES', 60),
 
+        // Depois do primeiro acesso, o mesmo navegador pode recarregar (F5) por
+        // este tempo; outros navegadores recebem 403.
+        'preview_session_minutes' => (int) env('WARD_PREVIEW_SESSION_MINUTES', 720),
+
         // Validade do conteúdo carregado pela pré-visualização (o iframe e os
         // assets dele): curta, porque esse link não exige login.
         'preview_content_ttl_minutes' => 15,
