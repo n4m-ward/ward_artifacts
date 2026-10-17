@@ -1,0 +1,10 @@
+{
+  "name": "ward-artifacts",
+  "version": "1.0.0",
+  "description": "Cria, publica e edita artifacts HTML no Ward Artifacts (artifacts.wardtecnology.com): skills de criação/publicação/edição + servidor MCP remoto com OAuth.",
+  "author": {
+    "name": "Ward Technology"
+  },
+  "homepage": "https://artifacts.wardtecnology.com/connections",
+  "keywords": ["artifacts", "html", "mcp", "ward"]
+}

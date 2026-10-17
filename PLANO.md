@@ -148,13 +148,19 @@ Implementação (Fase 5):
 ## Skills (formato aberto `SKILL.md`, com descrições para auto-invocação)
 
 - `ward-artifact-create`: como montar o HTML a partir do template (inline, base64, responsivo,
-  dark mode, storage com try/catch).
-- `ward-artifact-publish`: quando publicar, como nomear o projeto pela feature, como enviar pelo
-  `upload_url`, e lembrar que o artifact nasce privado.
-- `ward-artifact-edit`: baixar o código, editar e republicar no mesmo id.
+  dark mode, storage com try/catch, quando usar bundle, pré-visualização local).
+- `ward-artifact-publish`: título, projeto pela feature, envio inline ou por `upload_url` com curl,
+  e lembrar que o artifact nasce privado.
+- `ward-artifact-edit`: `get_artifact_source` → editar localmente → `update_artifact` na mesma URL.
 
-Distribuição: plugin do Claude Code + pasta `.agents/skills` e `AGENTS.md` para Codex e OpenCode,
-com instruções de conexão do MCP remoto em cada cliente.
+**Distribuição (decidida): privada, a partir do clone do repositório.** Nada de download público.
+- Fonte única: `integrations/claude-code/ward-artifacts/skills/`.
+- `./integrations/install.sh claude|codex|opencode|all` copia as skills (`~/.claude/skills` ou
+  `~/.agents/skills`, que Codex e OpenCode leem) e registra o MCP em cada cliente. Com
+  `--with-agents-md`, também adiciona as instruções ao `CLAUDE.md`/`AGENTS.md` global.
+- Alternativa no Claude Code: marketplace local (`.claude-plugin/marketplace.json`) com o plugin
+  `ward-artifacts@ward`.
+- Detalhes em `integrations/README.md`.
 
 ## Modelo de dados
 
@@ -181,6 +187,6 @@ oauth_* (Passport) + last_used_at nos access tokens, para a tela de Conexões
 | 3 | Viewer seguro: moldura + iframe no subdomínio de conteúdo, token assinado, views, redirect 301, download | ✅ |
 | 4 | Painel: Meus / Acessados / Todos, renomear, apagar, visibilidade + público temporário | ✅ |
 | 5 | MCP HTTP + OAuth (Passport), `upload_url`, tela de Conexões MCP, template base | ✅ |
-| 6 | Skills, plugin do Claude Code, `AGENTS.md`, guia de conexão para Codex/OpenCode | ⏳ |
+| 6 | Skills, plugin do Claude Code, instalador local, `AGENTS.md`, guia de conexão para Codex/OpenCode | ✅ |
 | 7 | Conta e senha: trocar senha (tela própria, em português), "esqueci minha senha" por e-mail, admin envia link de redefinição para um usuário, app inteiro em pt-BR | ⏳ |
 | 8 | Hardening e deploy na Hostinger (MySQL, SMTP, subdomínio de conteúdo + SSL, limites de upload) | ⏳ |

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "ward-artifacts": {
+      "type": "http",
+      "url": "https://artifacts.wardtecnology.com/mcp"
+    }
+  }
+}

@@ -179,6 +179,16 @@ codex mcp login ward-artifacts</code></pre>
         </div>
     </div>
 
+    {{-- Skills --}}
+    <div class="space-y-2 rounded-xl border border-zinc-200 p-4 sm:p-5 dark:border-zinc-700">
+        <flux:heading>Skills da Ward</flux:heading>
+        <flux:text>
+            Ensinam a IA a criar, publicar e editar artifacts. Não são públicas: instale a partir do clone
+            do repositório <code>ward_artifacts</code>. O instalador também registra o MCP.
+        </flux:text>
+        <pre class="overflow-x-auto rounded-lg border border-zinc-200 bg-zinc-50 p-3 font-mono text-xs dark:border-zinc-700 dark:bg-zinc-900"><code>./integrations/install.sh claude   # ou: codex, opencode, all</code></pre>
+    </div>
+
     {{-- Conexões do usuário --}}
     <div class="space-y-3">
         <flux:heading>Minhas conexões</flux:heading>
