@@ -1,6 +1,6 @@
 # Deploy (Hostinger)
 
-Hospedagem compartilhada Premium da Hostinger, conta `u633753951`, PHP 8.4 e MySQL. O deploy é **Git
+Hospedagem compartilhada Premium da Hostinger, conta `u633753951`, PHP 8.3 (herdado do wardtecnology.com) e MySQL. O deploy é **Git
 auto-deployment da Hostinger acompanhando a branch `deploy`**. Não há SSH no fluxo.
 
 ```
