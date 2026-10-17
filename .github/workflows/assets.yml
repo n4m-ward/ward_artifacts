@@ -1,0 +1,57 @@
+# A Hostinger faz deploy direto da main (git pull + composer install), sem npm.
+# Por isso os assets compilados (public/build) ficam versionados: a cada push na
+# main eles são recompilados e, se mudaram, commitados de volta (o que dispara
+# um novo deploy com o CSS/JS atualizado).
+name: assets
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: assets
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      # O CSS do Flux vem de vendor/, então o composer precisa rodar antes do build.
+      - name: Dependências
+        run: |
+          composer install --no-interaction --prefer-dist --no-progress --no-scripts
+          npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Commitar se mudou
+        run: |
+          if [ -z "$(git status --porcelain public/build)" ]; then
+            echo "Assets já estão atualizados."
+            exit 0
+          fi
+          git config user.name "ward-assets"
+          git config user.email "deploy@wardtecnology.com"
+          git add public/build
+          git commit -m "Atualiza assets compilados" -m "Gerado pelo workflow assets a partir de ${GITHUB_SHA::12}."
+          git push

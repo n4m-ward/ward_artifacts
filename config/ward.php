@@ -22,6 +22,10 @@ return [
     // Fuso usado para mostrar datas no painel (o banco guarda em UTC).
     'display_timezone' => env('WARD_DISPLAY_TIMEZONE', 'America/Sao_Paulo'),
 
+    // Liga o ward:post-deploy (migrations automáticas a cada commit novo).
+    // Só em produção: localmente o scheduler não deve migrar sozinho.
+    'post_deploy' => (bool) env('WARD_POST_DEPLOY', false),
+
     /*
     |--------------------------------------------------------------------------
     | Usernames reservados

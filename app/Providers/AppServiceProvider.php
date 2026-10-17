@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Passport\Passport;
 
@@ -20,6 +21,13 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Em produção tudo é HTTPS e as URLs saem sempre do APP_URL (o
+        // repositório roda numa pasta reescrita para public/ na Hostinger).
+        if ($this->app->isProduction()) {
+            URL::forceScheme('https');
+            URL::forceRootUrl(config('app.url'));
+        }
+
         // Tela onde o usuário aprova a conexão de um cliente MCP (Claude, Codex...).
         Passport::authorizationView(fn (array $parameters) => view('mcp.authorize', $parameters));
 

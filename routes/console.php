@@ -11,3 +11,6 @@ Artisan::command('inspire', function () {
 
 // Remove links de upload vencidos há mais de um dia.
 Schedule::command('model:prune', ['--model' => [ArtifactUpload::class]])->daily();
+
+// Pós-deploy na Hostinger (o cron chama o scheduler a cada minuto).
+Schedule::command('ward:post-deploy')->everyMinute()->withoutOverlapping();
