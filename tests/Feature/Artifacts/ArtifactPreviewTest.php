@@ -51,6 +51,49 @@ class ArtifactPreviewTest extends TestCase
         $this->assertNotNull(ArtifactPreview::sole()->used_at);
     }
 
+    public function test_the_same_browser_can_reload_but_another_cannot(): void
+    {
+        $url = $this->previewUrl();
+
+        $first = $this->get($url)->assertOk();
+        $key = $first->getCookie('ward_preview', decrypt: true)->getValue();
+        $this->assertSame(parse_url($url, PHP_URL_PATH), $first->getCookie('ward_preview', decrypt: true)->getPath());
+
+        // F5 no mesmo navegador (manda o cookie), várias vezes.
+        foreach (range(1, 3) as $reload) {
+            $this->withCookie('ward_preview', $key)->get($url)->assertOk()->assertSee('Pré-visualização');
+        }
+
+        // Outro navegador (sem cookie ou com outro valor). withCookie() vale para as
+        // próximas requisições do teste, então zera os cookies padrão.
+        $this->defaultCookies = [];
+        $this->get($url)->assertForbidden();
+        $this->withCookie('ward_preview', 'chave-inventada')->get($url)->assertForbidden();
+    }
+
+    public function test_the_browser_session_ends_after_its_window(): void
+    {
+        $url = $this->previewUrl();
+        $key = $this->get($url)->getCookie('ward_preview', decrypt: true)->getValue();
+
+        $this->travel(11)->hours();
+        $this->withCookie('ward_preview', $key)->get($url)->assertOk();
+
+        $this->travel(2)->hours();
+        $this->withCookie('ward_preview', $key)->get($url)->assertForbidden();
+    }
+
+    public function test_a_browser_key_from_another_preview_does_not_work(): void
+    {
+        $firstUrl = $this->previewUrl();
+        $key = $this->get($firstUrl)->getCookie('ward_preview', decrypt: true)->getValue();
+
+        $secondUrl = $this->previewUrl();
+        $this->get($secondUrl)->assertOk(); // outro navegador usa o segundo link
+
+        $this->withCookie('ward_preview', $key)->get($secondUrl)->assertForbidden();
+    }
+
     public function test_preview_does_not_cache_and_content_link_is_short_lived(): void
     {
         $response = $this->get($this->previewUrl())->assertOk();
