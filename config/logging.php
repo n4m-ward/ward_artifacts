@@ -65,6 +65,15 @@ return [
             'replace_placeholders' => true,
         ],
 
+        // Diagnóstico do MCP (ver App\Http\Middleware\LogMcpRequests).
+        'mcp' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/mcp.log'),
+            'level' => 'info',
+            'days' => 14,
+            'replace_placeholders' => true,
+        ],
+
         'daily' => [
             'driver' => 'daily',
             'path' => storage_path('logs/laravel.log'),

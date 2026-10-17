@@ -18,9 +18,11 @@ use App\Models\Artifact;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Testing\Fluent\AssertableJson;
 use Laravel\Passport\Passport;
+use Mockery;
 use Tests\Concerns\MakesArtifactFiles;
 use Tests\TestCase;
 
@@ -179,5 +181,24 @@ class DesignAppTest extends TestCase
         $page = app(PublishArtifact::class)->handle($this->owner, 'Pagina', 'Onboarding', $this->htmlFile());
         $csp = $this->get($gateway->url($page->currentVersion))->headers->get('Content-Security-Policy');
         $this->assertStringNotContainsString('claude', $csp);
+    }
+
+    public function test_mcp_requests_are_logged_without_arguments(): void
+    {
+        Passport::actingAs($this->owner, ['mcp:use']);
+        $log = Mockery::spy();
+        Log::shouldReceive('channel')->with('mcp')->andReturn($log);
+
+        $this->rpc('initialize', [
+            'protocolVersion' => '2026-01-26',
+            'capabilities' => ['extensions' => ['io.modelcontextprotocol/ui' => ['mimeTypes' => ['text/html;profile=mcp-app']]]],
+            'clientInfo' => ['name' => 'claude-ai', 'version' => '1'],
+        ])->assertOk();
+        $this->rpc('resources/read', ['uri' => app(DesignApp::class)->uri()])->assertOk();
+        $this->rpc('tools/call', ['name' => 'get_design', 'arguments' => ['design' => $this->design->uuid]])->assertOk();
+
+        $log->shouldHaveReceived('info')->with('initialize', Mockery::on(fn ($c) => $c['client'] === 'claude-ai' && $c['mcp_apps'] === true && $c['user'] === 'nam-ward'));
+        $log->shouldHaveReceived('info')->with('resources/read', Mockery::on(fn ($c) => str_starts_with($c['uri'], 'ui://')));
+        $log->shouldHaveReceived('info')->with('tools/call', ['user' => 'nam-ward', 'tool' => 'get_design']);
     }
 }
