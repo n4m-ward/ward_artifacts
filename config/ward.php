@@ -32,6 +32,15 @@ return [
         'keep_snapshots' => 10,
         // Espaço entre artboards posicionados automaticamente.
         'gap' => 80,
+        // Onde os artboards podem ser embutidos além do próprio app: o MCP App
+        // roda dentro do Claude (claude.ai e o app desktop), num domínio
+        // *.claudemcpcontent.com. Vai no frame-ancestors do conteúdo.
+        'embed_ancestors' => array_filter(explode(' ', (string) env(
+            'WARD_DESIGN_EMBED_ANCESTORS',
+            'https://claude.ai https://*.claude.ai https://*.claudemcpcontent.com',
+        ))),
+        // Por quanto tempo get_design conta o que a pessoa está olhando no app.
+        'viewing_ttl_minutes' => 30,
     ],
 
     // Fuso usado para mostrar datas no painel (o banco guarda em UTC).

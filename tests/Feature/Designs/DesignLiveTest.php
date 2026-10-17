@@ -121,6 +121,19 @@ class DesignLiveTest extends TestCase
         $this->get(str_replace($this->design->uuid, $other->uuid, $signed))->assertForbidden();
     }
 
+    public function test_signed_requests_can_be_read_cross_origin_by_the_mcp_app(): void
+    {
+        app(SetArtifactVisibility::class)->makePublic($this->design, 1);
+        $signed = $this->pageLiveUrl();
+
+        $this->get($signed, ['Origin' => 'https://abc.claudemcpcontent.com'])
+            ->assertOk()
+            ->assertHeader('Access-Control-Allow-Origin', '*');
+
+        // Com sessão (cookies), a resposta não é liberada para outras origens.
+        $this->actingAs($this->owner)->get($this->liveUrl())->assertOk()->assertHeaderMissing('Access-Control-Allow-Origin');
+    }
+
     public function test_public_link_live_url_expires_with_the_link(): void
     {
         app(SetArtifactVisibility::class)->makePublic($this->design, 1);

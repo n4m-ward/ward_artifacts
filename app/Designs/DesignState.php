@@ -6,7 +6,9 @@ use App\Artifacts\ContentGateway;
 use App\Models\Artifact;
 use App\Models\DesignBoard;
 use App\Models\DesignNote;
+use App\Models\User;
 use DateTimeInterface;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\URL;
 
 /**
@@ -56,5 +58,58 @@ class DesignState
     public function liveUrl(Artifact $design, DateTimeInterface $expires): string
     {
         return URL::temporarySignedRoute('designs.live', $expires, ['artifact' => $design->uuid]);
+    }
+
+    /**
+     * Tudo que o MCP App precisa para desenhar e acompanhar o canvas.
+     *
+     * @return array<string, mixed>
+     */
+    public function appConfig(Artifact $design): array
+    {
+        return [
+            'design' => $design->uuid,
+            'title' => $design->title,
+            'url' => $design->url(),
+            'state' => $this->toArray($design),
+            'liveUrl' => $this->liveUrl($design, now()->addMinutes((int) config('ward.artifacts.preview_session_minutes'))),
+            'contentOrigin' => $this->gateway->origin(),
+            'sandbox' => $this->gateway->sandbox(),
+            'allow' => DesignView::ALLOW,
+            // O app busca de novo se o estado for velho (chat reaberto, tokens vencidos).
+            'issuedAt' => now()->getTimestampMs(),
+        ];
+    }
+
+    /**
+     * O MCP App avisa qual artboard a pessoa selecionou; get_design repassa à IA.
+     */
+    public function reportViewing(Artifact $design, User $user, ?string $board): void
+    {
+        $key = $this->viewingKey($design, $user);
+
+        if ($board === null) {
+            Cache::forget($key);
+
+            return;
+        }
+
+        Cache::put($key, ['board' => $board, 'at' => now()->toIso8601String()], now()->addMinutes((int) config('ward.designs.viewing_ttl_minutes')));
+    }
+
+    /**
+     * @return array{board: string, at: string}|null
+     */
+    public function viewing(Artifact $design, User $user): ?array
+    {
+        $viewing = Cache::get($this->viewingKey($design, $user));
+
+        // O artboard pode ter sido apagado ou renomeado depois.
+        return $viewing && $design->boards()->where('name', $viewing['board'])->exists() ? $viewing : null;
+    }
+
+    private function viewingKey(Artifact $design, User $user): string
+    {
+        return "ward:design-viewing:{$design->id}:{$user->id}";
     }
 }

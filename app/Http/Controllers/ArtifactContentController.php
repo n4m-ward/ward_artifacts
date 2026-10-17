@@ -23,7 +23,7 @@ class ArtifactContentController extends Controller
 
             abort_unless($board !== null && $board->storage_path !== '' && $disk->fileExists($board->storage_path), 404);
 
-            return response($this->withRuntime((string) $disk->get($board->storage_path)), 200, $this->headers($gateway, 'index.html'));
+            return response($this->withRuntime((string) $disk->get($board->storage_path)), 200, $this->headers($gateway, 'index.html', board: true));
         }
 
         $version = $gateway->resolve($token);
@@ -54,12 +54,18 @@ class ArtifactContentController extends Controller
     /**
      * @return array<string, string>
      */
-    private function headers(ContentGateway $gateway, string $path): array
+    private function headers(ContentGateway $gateway, string $path, bool $board = false): array
     {
+        // Artboards também aparecem no MCP App, dentro do Claude.
+        $ancestors = implode(' ', [
+            rtrim((string) config('app.url'), '/'),
+            ...($board ? config('ward.designs.embed_ancestors') : []),
+        ]);
+
         return [
             'Content-Type' => $this->contentType($path),
             'Cache-Control' => 'private, max-age=300',
-            'Content-Security-Policy' => "sandbox {$gateway->sandbox()}; frame-ancestors ".rtrim((string) config('app.url'), '/'),
+            'Content-Security-Policy' => "sandbox {$gateway->sandbox()}; frame-ancestors {$ancestors}",
             'X-Content-Type-Options' => 'nosniff',
             'X-Robots-Tag' => 'noindex, nofollow',
             // O token está no caminho: não pode vazar no Referer para CDNs externas.

@@ -1,6 +1,6 @@
 ---
 name: ward-design
-description: Design screens and visuals on a Ward Design canvas (artifacts.wardtecnology.com) through the ward-artifacts MCP server. Use when the user wants mockups, app screens, UI flows, landing page or website layouts, social posts, banners, posters, or several visual variations side by side — "design", "mockup", "tela", "protótipo", "post", "layout", "variações", "Ward Design" — rather than a single standalone page. Covers create_design, the artboard HTML format (fixed vs page), placing and naming artboards, notes, clickable prototypes with board: links, editing an artboard, and saving versions.
+description: Design screens and visuals on a Ward Design canvas (artifacts.wardtecnology.com) through the ward-artifacts MCP server. Use when the user wants mockups, app screens, UI flows, landing page or website layouts, social posts, banners, posters, or several visual variations side by side — "design", "mockup", "tela", "protótipo", "post", "layout", "variações", "Ward Design" — rather than a single standalone page. Covers create_design, open_design (live canvas inside the chat), the artboard HTML format (fixed vs page), placing and naming artboards, notes, clickable prototypes with board: links, editing an artboard, and saving versions.
 ---
 
 # Ward Design
@@ -12,6 +12,9 @@ Um **design** é um canvas com vários **artboards** lado a lado. Cada artboard 
 ## Fluxo
 
 1. `create_design(title, project)`: `project` é a feature da conversa (veja `list_projects`). Guarde o `id`.
+   Em seguida `open_design(design)`: em clientes com MCP Apps (Claude) o canvas aparece no chat e
+   atualiza sozinho; cada `upsert_artboard` também mostra a tela sendo escrita. Nos outros clientes a
+   ferramenta só devolve o link.
 2. `get_design_guide` **antes do primeiro artboard**: regras do formato e dois esqueletos de HTML.
 3. Um `upsert_artboard` por tela, com `name` curto e estável, `kind`, `w`, `h` e o `html` completo.
    - `kind: "fixed"`: post, story, tela de app, pôster, ou seja, tamanho exato (390×844, 1080×1080…).
@@ -32,6 +35,8 @@ Um **design** é um canvas com vários **artboards** lado a lado. Cada artboard 
 
 ## Alterações
 
+- Pedidos que chegam do canvas vêm como `[Ward Design · "Título" (id) · artboard "Nome"] pedido`:
+  altere esse artboard. `get_design` também diz qual artboard a pessoa selecionou (`viewing`).
 - Mudar uma tela: `get_artboard_source(design, name)` → editar → `upsert_artboard` com o **mesmo
   name** (só o `html`, ou só `x`/`y`/`w`/`h`). Nunca crie um design novo para alterar um existente.
 - Antes de uma mudança grande, ou ao terminar uma rodada: `save_design_version(design, label)`.

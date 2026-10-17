@@ -1,5 +1,8 @@
 // Ward Design: canvas ao vivo (pan/zoom, foco, Play, atualização por consulta curta).
-// Lê o estado inicial de <script id="ward-design-config" type="application/json">.
+// Na página do design, lê o estado inicial de <script id="ward-design-config" type="application/json">.
+// O MCP App (resources/views/mcp/design-app.blade.php) embute este mesmo arquivo e cria o
+// canvas com window.WardDesignCanvas, trocando a fonte do ao vivo e reagindo à seleção.
+// Sem imports: o arquivo roda como está, também embutido no app.
 
 const MIN_SCALE = 0.05;
 const MAX_SCALE = 4;
@@ -37,9 +40,20 @@ function storage(key, value) {
 }
 
 class DesignCanvas {
-    constructor(root, config) {
+    /**
+     * options.poll(revision): estado novo, ou null se nada mudou (padrão: fetch em config.liveUrl).
+     * options.onSelect(board | null): artboard selecionado ou aberto em foco.
+     * options.isActive(): false pausa o ao vivo (ex.: app fora da tela).
+     * options.persistView: guarda zoom/posição no localStorage (padrão: true).
+     * options.mobileBreakpoint: abaixo desta largura vira lista (padrão: 640).
+     * options.listMaxHeight: altura máxima de cada artboard na lista (padrão: sem limite).
+     */
+    constructor(root, config, options = {}) {
         this.root = root;
         this.config = config;
+        this.options = {
+            persistView: true, pollVisible: POLL_VISIBLE, mobileBreakpoint: MOBILE_BREAKPOINT, listMaxHeight: Infinity, ...options,
+        };
         this.state = config.state;
         this.view = { x: 0, y: 0, scale: 1 };
         this.boards = new Map(); // id -> { data, node, frame, loaded }
@@ -54,6 +68,7 @@ class DesignCanvas {
         this.zoomLabel = root.querySelector('[data-zoom-label]');
         this.countLabel = document.querySelector('[data-board-count]');
         this.focus = document.querySelector('[data-focus]');
+        this.empty = root.querySelector('[data-empty]');
         this.banner = root.querySelector('[data-banner]');
         this.list = root.querySelector('[data-canvas-list]');
 
@@ -63,7 +78,7 @@ class DesignCanvas {
         this.bindKeyboard();
         this.bindMessages();
 
-        const saved = this.isMobile() ? null : storage(this.viewKey);
+        const saved = this.isMobile() || !this.options.persistView ? null : storage(this.viewKey);
         if (saved && typeof saved.scale === 'number' && saved.scale > 0) {
             this.view = saved;
             this.applyView();
@@ -100,7 +115,7 @@ class DesignCanvas {
             this.countLabel.textContent = `${n} artboard${n === 1 ? '' : 's'}`;
         }
 
-        this.root.querySelector('[data-empty]').hidden = this.state.boards.length > 0;
+        if (this.empty) this.empty.hidden = this.state.boards.length > 0;
         this.loadVisible();
     }
 
@@ -218,9 +233,9 @@ class DesignCanvas {
     updateListItem(entry) {
         const { data } = entry;
         entry.listTitle.textContent = `${data.title || data.name} · ${data.w}×${data.h}`;
-        const width = Math.max(1, this.list.clientWidth || window.innerWidth - 32);
-        const scale = Math.min(1, width / data.w);
-        Object.assign(entry.listBox.style, { height: `${Math.round(data.h * scale)}px` });
+        const width = Math.max(1, (this.list.clientWidth || window.innerWidth) - 32);
+        const scale = Math.min(1, width / data.w, this.options.listMaxHeight / data.h);
+        Object.assign(entry.listBox.style, { width: `${Math.round(data.w * scale)}px`, height: `${Math.round(data.h * scale)}px` });
         Object.assign(entry.listFrame.style, {
             width: `${data.w}px`, height: `${data.h}px`, transform: `scale(${scale})`,
         });
@@ -231,7 +246,9 @@ class DesignCanvas {
     }
 
     isMobile() {
-        return window.innerWidth < MOBILE_BREAKPOINT;
+        const mobile = window.innerWidth < this.options.mobileBreakpoint;
+        this.root.classList.toggle('is-list', mobile);
+        return mobile;
     }
 
     // ---------- pan / zoom ----------
@@ -247,6 +264,7 @@ class DesignCanvas {
             for (const entry of this.boards.values()) if (entry.listNode) this.updateListItem(entry);
             return;
         }
+        if (!this.options.persistView) return;
         clearTimeout(this.saveTimer);
         this.saveTimer = setTimeout(() => storage(this.viewKey, this.view), 300);
     }
@@ -393,8 +411,22 @@ class DesignCanvas {
     }
 
     select(id) {
+        const changed = this.selected !== id;
         this.selected = id;
         for (const [boardId, entry] of this.boards) entry.node.classList.toggle('is-selected', boardId === id);
+        if (changed) this.options.onSelect?.(this.boards.get(id)?.data ?? null);
+    }
+
+    /** Estado novo vindo de fora (ex.: resultado de uma ferramenta no MCP App). */
+    setState(state) {
+        if (!state || state.revision === this.state.revision) return;
+        this.state = state;
+        this.renderAll();
+    }
+
+    destroy() {
+        this.destroyed = true;
+        clearTimeout(this.pollTimer);
     }
 
     // ---------- foco e Play ----------
@@ -508,7 +540,9 @@ class DesignCanvas {
 
     schedulePoll() {
         clearTimeout(this.pollTimer);
-        const delay = document.visibilityState === 'visible' ? POLL_VISIBLE : POLL_HIDDEN;
+        if (this.destroyed) return;
+        const active = document.visibilityState === 'visible' && (this.options.isActive?.() ?? true);
+        const delay = active ? this.options.pollVisible : POLL_HIDDEN;
         this.pollTimer = setTimeout(() => this.poll(), delay);
         if (!this.visibilityBound) {
             this.visibilityBound = true;
@@ -520,6 +554,16 @@ class DesignCanvas {
 
     async poll() {
         clearTimeout(this.pollTimer);
+        if (this.destroyed) return;
+        if (this.options.poll) {
+            try {
+                const state = await this.options.poll(this.state.revision);
+                if (state) this.setState(state);
+            } catch {
+                // a fonte decide se tenta de novo; aqui só segue o ciclo
+            }
+            return this.schedulePoll();
+        }
         try {
             const separator = this.config.liveUrl.includes('?') ? '&' : '?';
             const response = await fetch(`${this.config.liveUrl}${separator}rev=${this.state.revision}`, {
@@ -546,6 +590,8 @@ class DesignCanvas {
         this.banner.hidden = false;
     }
 }
+
+window.WardDesignCanvas = DesignCanvas;
 
 const root = document.querySelector('[data-design-canvas]');
 const configNode = document.getElementById('ward-design-config');

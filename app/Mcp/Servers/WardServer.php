@@ -2,8 +2,11 @@
 
 namespace App\Mcp\Servers;
 
+use App\Mcp\Apps\DesignApp;
 use App\Mcp\Tools\CreateDesignTool;
 use App\Mcp\Tools\DeleteArtboardTool;
+use App\Mcp\Tools\DesignLiveTool;
+use App\Mcp\Tools\DesignReportViewTool;
 use App\Mcp\Tools\GetArtboardSourceTool;
 use App\Mcp\Tools\GetArtifactSourceTool;
 use App\Mcp\Tools\GetDesignGuideTool;
@@ -12,6 +15,7 @@ use App\Mcp\Tools\GetTemplateTool;
 use App\Mcp\Tools\InviteUserTool;
 use App\Mcp\Tools\ListArtifactsTool;
 use App\Mcp\Tools\ListProjectsTool;
+use App\Mcp\Tools\OpenDesignTool;
 use App\Mcp\Tools\PublishArtifactTool;
 use App\Mcp\Tools\RenameArtifactTool;
 use App\Mcp\Tools\SaveDesignVersionTool;
@@ -47,9 +51,11 @@ Fluxo:
 6. Limite: 100 MB por artifact. localStorage pode falhar: use try/catch.
 
 Ward Design (canvas com vários artboards, para mockups, telas de app, landing pages e posts):
-- create_design → get_design_guide → um upsert_artboard por tela → update_layout para organizar.
+- create_design → open_design (mostra o canvas no chat, ao vivo) → get_design_guide → um
+  upsert_artboard por tela → update_layout para organizar.
 - Para mudar uma tela: get_artboard_source → editar → upsert_artboard com o mesmo name.
-- save_design_version para guardar um ponto. get_design mostra o canvas e devolve preview_url.
+- save_design_version para guardar um ponto. get_design mostra o canvas, o artboard que a pessoa
+  selecionou no app (viewing) e devolve preview_url.
 TXT)]
 class WardServer extends Server
 {
@@ -71,5 +77,12 @@ class WardServer extends Server
         GetArtboardSourceTool::class,
         DeleteArtboardTool::class,
         SaveDesignVersionTool::class,
+        OpenDesignTool::class,
+        DesignLiveTool::class,
+        DesignReportViewTool::class,
+    ];
+
+    protected array $resources = [
+        DesignApp::class,
     ];
 }
