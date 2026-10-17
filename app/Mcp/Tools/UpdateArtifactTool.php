@@ -12,7 +12,7 @@ use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Attributes\Name;
 
 #[Name('update_artifact')]
-#[Description('Envia uma NOVA VERSÃO de um artifact existente, mantendo a mesma URL e a visibilidade. Mande o HTML completo no campo "html" (até 2 MB), ou omita para receber um link de upload (arquivos grandes ou bundle .zip). Só o dono ou um admin pode atualizar.')]
+#[Description('Envia uma NOVA VERSÃO de um artifact existente, mantendo a mesma URL e a visibilidade. Mande o HTML completo no campo "html" (até 2 MB), ou omita para receber um link de upload (arquivos grandes ou bundle .zip). Só o dono ou um admin pode atualizar. A resposta traz preview_url (uso único, sem login) para conferir a nova versão no seu navegador.')]
 class UpdateArtifactTool extends WardTool
 {
     public function schema(JsonSchema $schema): array
@@ -48,9 +48,10 @@ class UpdateArtifactTool extends WardTool
         return $this->withInlineHtml($request->get('html'), function (string $path) use ($storeVersion, $artifact, $user) {
             $version = $storeVersion->handle($artifact, $user, $path);
             $artifact->refresh();
+            $preview = $this->previewUrl($user, $artifact);
 
-            return Response::make(Response::text("Versão {$version->number} publicada: {$artifact->url()}"))
-                ->withStructuredContent($this->artifactData($artifact));
+            return Response::make(Response::text("Versão {$version->number} publicada: {$artifact->url()}\n\n".$this->previewHint($preview)))
+                ->withStructuredContent($this->artifactData($artifact) + ['preview_url' => $preview]);
         });
     }
 }

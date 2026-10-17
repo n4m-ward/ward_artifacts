@@ -12,7 +12,7 @@ use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Attributes\Name;
 
 #[Name('publish_artifact')]
-#[Description('Publica um artifact NOVO. Sempre nasce privado (só o dono vê); só o usuário pode compartilhar, na tela do artifact. Envie o HTML completo no campo "html" (até 2 MB), ou omita "html" para receber um link de upload (use para arquivos grandes ou bundles .zip com index.html + assets). Para alterar um artifact existente use update_artifact, não publique outro.')]
+#[Description('Publica um artifact NOVO. Sempre nasce privado (só o dono vê); só o usuário pode compartilhar, na tela do artifact. Envie o HTML completo no campo "html" (até 2 MB), ou omita "html" para receber um link de upload (use para arquivos grandes ou bundles .zip com index.html + assets). Para alterar um artifact existente use update_artifact, não publique outro. A resposta traz preview_url: link de uso único, sem login, para você conferir o resultado no seu navegador (não é o link para o usuário).')]
 class PublishArtifactTool extends WardTool
 {
     public function schema(JsonSchema $schema): array
@@ -43,9 +43,10 @@ class PublishArtifactTool extends WardTool
 
         return $this->withInlineHtml($validated['html'], function (string $path) use ($publish, $user, $validated) {
             $artifact = $publish->handle($user, $validated['title'], $validated['project'], $path);
+            $preview = $this->previewUrl($user, $artifact);
 
-            return Response::make(Response::text("Artifact publicado (privado): {$artifact->url()}"))
-                ->withStructuredContent($this->artifactData($artifact));
+            return Response::make(Response::text("Artifact publicado (privado): {$artifact->url()}\n\n".$this->previewHint($preview)))
+                ->withStructuredContent($this->artifactData($artifact) + ['preview_url' => $preview]);
         });
     }
 }

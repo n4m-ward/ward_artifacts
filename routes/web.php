@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ArtifactDownloadController;
+use App\Http\Controllers\ArtifactPreviewController;
 use App\Http\Controllers\ArtifactViewerController;
 use App\Models\User;
 use Illuminate\Support\Facades\Route;
@@ -28,6 +29,12 @@ Route::middleware(['auth'])->group(function () {
 });
 
 require __DIR__.'/auth.php';
+
+// Pré-visualização de uso único devolvida pelo MCP (para o navegador da IA).
+Route::get('p/{token}', ArtifactPreviewController::class)
+    ->where('token', '[A-Za-z0-9]{48}')
+    ->middleware('throttle:60,1')
+    ->name('artifacts.preview');
 
 Route::get('artifacts/{artifact}/download', ArtifactDownloadController::class)
     ->name('artifacts.download');

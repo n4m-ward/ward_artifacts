@@ -53,9 +53,11 @@ class ContentGateway
         return implode(' ', $flags);
     }
 
-    public function url(ArtifactVersion $version, ?string $path = null): string
+    public function url(ArtifactVersion $version, ?string $path = null, ?int $ttlMinutes = null): string
     {
-        return $this->origin().'/c/'.$this->token($version).'/'.ltrim($path ?? $version->entry_path, '/');
+        $expiresAt = $ttlMinutes !== null ? now()->addMinutes($ttlMinutes)->timestamp : null;
+
+        return $this->origin().'/c/'.$this->token($version, $expiresAt).'/'.ltrim($path ?? $version->entry_path, '/');
     }
 
     public function token(ArtifactVersion $version, ?int $expiresAt = null): string

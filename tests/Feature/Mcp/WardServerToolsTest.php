@@ -80,6 +80,34 @@ class WardServerToolsTest extends TestCase
         $this->assertNull($artifact->public_until);
     }
 
+    public function test_publish_and_source_return_a_single_use_preview_link(): void
+    {
+        $preview = null;
+        WardServer::actingAs($this->user)->tool(PublishArtifactTool::class, [
+            'title' => 'Vila', 'project' => 'Mapas', 'html' => '<p>oi</p>',
+        ])
+            ->assertOk()
+            ->assertSee('/p/')
+            ->assertStructuredContent(function (AssertableJson $json) use (&$preview) {
+                $preview = $json->toArray()['preview_url'];
+                $json->etc();
+            });
+
+        $artifact = Artifact::sole();
+
+        WardServer::actingAs($this->user)->tool(GetArtifactSourceTool::class, ['artifact' => $artifact->uuid])
+            ->assertOk()
+            ->assertSee('/p/');
+
+        WardServer::actingAs($this->user)->tool(UpdateArtifactTool::class, ['artifact' => $artifact->uuid, 'html' => '<p>v2</p>'])
+            ->assertOk()
+            ->assertSee('/p/');
+
+        $this->app['auth']->forgetGuards();
+        $this->get($preview)->assertOk()->assertSee('Pré-visualização');
+        $this->get($preview)->assertForbidden();
+    }
+
     public function test_publish_rejects_invalid_and_oversized_html(): void
     {
         WardServer::actingAs($this->user)->tool(PublishArtifactTool::class, [

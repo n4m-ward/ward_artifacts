@@ -2,6 +2,7 @@
 
 namespace App\Mcp\Tools;
 
+use App\Actions\Artifacts\CreateArtifactPreview;
 use App\Artifacts\InvalidArtifact;
 use App\Models\Artifact;
 use App\Models\User;
@@ -59,6 +60,21 @@ abstract class WardTool extends Tool
     }
 
     /**
+     * Link /p/{token} de uso único para a IA abrir o artifact no navegador
+     * dela sem login (ver ArtifactPreviewController).
+     */
+    protected function previewUrl(User $user, Artifact $artifact): string
+    {
+        return app(CreateArtifactPreview::class)->handle($user, $artifact);
+    }
+
+    protected function previewHint(string $previewUrl): string
+    {
+        return "Pré-visualização para você conferir no seu navegador (sem login, vale uma única vez): {$previewUrl}\n"
+            .'Para o usuário, entregue a URL normal do artifact, não este link.';
+    }
+
+    /**
      * Grava o HTML recebido inline num arquivo temporário e roda $callback.
      */
     protected function withInlineHtml(string $html, Closure $callback): Response|ResponseFactory
@@ -94,8 +110,9 @@ abstract class WardTool extends Tool
         Bundle (.zip com index.html + assets):
           curl -sS -F file=@caminho/site.zip "{$url}"
 
-        A resposta é um JSON com a URL do artifact. Se vier um erro 422, corrija o
-        arquivo e envie de novo para o mesmo link.
+        A resposta é um JSON com a URL do artifact (artifact.url, para o usuário) e
+        um artifact.preview_url de uso único para você conferir no seu navegador.
+        Se vier um erro 422, corrija o arquivo e envie de novo para o mesmo link.
         TXT;
     }
 }
