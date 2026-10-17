@@ -6,6 +6,7 @@
     .ward-viewport.is-panning { cursor: grabbing; }
     .ward-world { position: absolute; left: 0; top: 0; transform-origin: 0 0; --inv: 1; }
     .ward-board { position: absolute; }
+    .ward-board iframe.is-loading { position: absolute; left: 0; top: 0; visibility: hidden; }
     .ward-board iframe { display: block; border: 0; background: #fff; pointer-events: none;
         box-shadow: 0 1px 3px rgb(0 0 0 / .18), 0 0 0 1px rgb(0 0 0 / .08); }
     .dark .ward-board iframe { box-shadow: 0 1px 3px rgb(0 0 0 / .5), 0 0 0 1px rgb(255 255 255 / .08); }

@@ -79,6 +79,8 @@ class DesignCanvas {
         this.bindMessages();
 
         const saved = this.isMobile() || !this.options.persistView ? null : storage(this.viewKey);
+        // Enquanto a pessoa não mexe no zoom/posição, o canvas se reenquadra quando chega artboard novo.
+        this.userMoved = Boolean(saved);
         if (saved && typeof saved.scale === 'number' && saved.scale > 0) {
             this.view = saved;
             this.applyView();
@@ -104,11 +106,15 @@ class DesignCanvas {
             }
         }
 
+        let added = false;
         for (const data of this.state.boards) {
             const entry = this.boards.get(data.id);
-            if (!entry) this.createBoard(data);
-            else this.updateBoard(entry, data);
+            if (!entry) {
+                this.createBoard(data);
+                added = true;
+            } else this.updateBoard(entry, data);
         }
+        if (added && this.userMoved === false) this.fit();
 
         if (this.countLabel) {
             const n = this.state.boards.length;
@@ -182,7 +188,7 @@ class DesignCanvas {
         entry.node.classList.toggle('is-selected', this.selected === data.id);
 
         if (changed && entry.loaded) {
-            entry.frame.src = data.url;
+            this.swapFrame(entry, data.url);
             this.flash(entry);
         } else if (changed) {
             this.flash(entry);
@@ -193,6 +199,20 @@ class DesignCanvas {
         if (this.focusIndex !== null && this.currentFocusId() === data.id && changed) {
             this.renderFocus();
         }
+    }
+
+    /** Carrega a versão nova por baixo e só troca quando ela terminou (sem piscar em branco). */
+    swapFrame(entry, url) {
+        const next = entry.frame.cloneNode(false);
+        next.removeAttribute('src');
+        next.classList.add('is-loading');
+        next.addEventListener('load', () => {
+            next.classList.remove('is-loading');
+            entry.frame.remove();
+            entry.frame = next;
+        }, { once: true });
+        next.src = url;
+        entry.frame.after(next);
     }
 
     flash(entry) {
@@ -264,7 +284,8 @@ class DesignCanvas {
             for (const entry of this.boards.values()) if (entry.listNode) this.updateListItem(entry);
             return;
         }
-        if (!this.options.persistView) return;
+        // Só guarda a visualização que a pessoa escolheu (não o enquadramento automático).
+        if (!this.options.persistView || !this.userMoved) return;
         clearTimeout(this.saveTimer);
         this.saveTimer = setTimeout(() => storage(this.viewKey, this.view), 300);
     }
@@ -363,6 +384,7 @@ class DesignCanvas {
             const dy = event.clientY - drag.y;
             if (!drag.moved && Math.hypot(dx, dy) < 4) return;
             drag.moved = true;
+            this.userMoved = true;
             this.viewport.classList.add('is-panning');
             this.view.x = drag.vx + dx;
             this.view.y = drag.vy + dy;
@@ -392,6 +414,7 @@ class DesignCanvas {
 
         this.viewport.addEventListener('wheel', (event) => {
             event.preventDefault();
+            this.userMoved = true;
             if (event.ctrlKey || event.metaKey) {
                 this.zoomAt(Math.exp(-event.deltaY * 0.01), event.clientX, event.clientY);
             } else {
@@ -403,6 +426,7 @@ class DesignCanvas {
 
         this.root.querySelector('[data-zoom-toolbar]').addEventListener('click', (event) => {
             const action = event.target.closest('[data-zoom]')?.dataset.zoom;
+            if (action) this.userMoved = action !== 'fit';
             if (action === 'in') this.zoomAt(1.25);
             if (action === 'out') this.zoomAt(0.8);
             if (action === 'reset') this.setScale(1);
