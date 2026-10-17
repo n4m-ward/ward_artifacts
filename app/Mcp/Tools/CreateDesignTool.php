@@ -35,7 +35,7 @@ class CreateDesignTool extends WardTool
 
         return Response::make(Response::text(
             "Design criado (privado): {$design->url()}\nid: {$design->uuid}\n\n".
-            "Agora crie os artboards com upsert_artboard (um por tela). As regras do formato estão em get_design_guide.\n\n".
+            "Chame open_design para a pessoa acompanhar o canvas no chat (em clientes com MCP Apps). Depois crie os artboards com upsert_artboard (um por tela). As regras do formato estão em get_design_guide.\n\n".
             $this->previewHint($preview)
         ))->withStructuredContent($this->artifactData($design) + ['preview_url' => $preview]);
     }

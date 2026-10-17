@@ -13,8 +13,9 @@ use Symfony\Component\HttpFoundation\Response;
  * /d/{uuid}/live?rev=N: o canvas pergunta se algo mudou. 204 se a revisão é a
  * mesma; senão, o estado completo (artboards com URLs novas, notas).
  *
- * Quem está logado precisa poder ver o design. Sem sessão (link público ou
- * pré-visualização), vale a URL assinada que a página recebeu.
+ * Quem está logado precisa poder ver o design. Sem sessão (link público,
+ * pré-visualização ou o MCP App no Claude), vale a URL assinada que a página
+ * ou a ferramenta entregou.
  */
 class DesignLiveController extends Controller
 {
@@ -31,6 +32,12 @@ class DesignLiveController extends Controller
         abort_unless($allowed, 403);
 
         $headers = ['Cache-Control' => 'no-store, private', 'X-Robots-Tag' => 'noindex, nofollow'];
+
+        // Sem sessão a credencial é a assinatura: o MCP App (outra origem, sem
+        // cookies) pode ler a resposta.
+        if (! $request->user()) {
+            $headers['Access-Control-Allow-Origin'] = '*';
+        }
 
         if ((int) $request->query('rev', -1) === $design->design_revision) {
             return response()->noContent(204, $headers);

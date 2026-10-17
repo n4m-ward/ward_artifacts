@@ -11,5 +11,5 @@ jogo, simulação, diagrama), entregue como artifact no Ward Artifacts usando o 
 - HTML acima de 2 MB ou bundle: chame a ferramenta sem `html` e envie o arquivo com curl para o `upload_url`.
 - Todo artifact nasce privado. Só o usuário torna público, na tela do artifact. Não diga que o link é público.
 - Nunca coloque segredos, tokens ou dados pessoais no HTML.
-- Várias telas, mockups ou posts lado a lado: use um **design** (`create_design`, `upsert_artboard`,
-  `update_layout`), seguindo a skill `ward-design` e o `get_design_guide`.
+- Várias telas, mockups ou posts lado a lado: use um **design** (`create_design`, `open_design`,
+  `upsert_artboard`, `update_layout`), seguindo a skill `ward-design` e o `get_design_guide`.
