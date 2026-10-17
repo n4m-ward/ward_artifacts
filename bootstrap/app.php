@@ -18,6 +18,10 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->prepend(RestrictContentHost::class);
+
+        // Na Hostinger o app fica atrás da CDN: sem isso todo mundo teria o IP
+        // da CDN e os limites de taxa (login, upload, OAuth) seriam compartilhados.
+        $middleware->trustProxies(at: '*');
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //

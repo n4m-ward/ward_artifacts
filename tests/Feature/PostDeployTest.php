@@ -73,6 +73,21 @@ class PostDeployTest extends TestCase
         $this->assertSame('abc123', File::get($this->appliedFile));
     }
 
+    public function test_oauth_keys_end_up_private(): void
+    {
+        foreach (['oauth-private.key', 'oauth-public.key'] as $key) {
+            if (File::exists(storage_path($key))) {
+                File::chmod(storage_path($key), 0644);
+            }
+        }
+
+        $this->artisan('ward:post-deploy')->assertSuccessful();
+
+        foreach (['oauth-private.key', 'oauth-public.key'] as $key) {
+            $this->assertSame('0600', substr(sprintf('%o', fileperms(storage_path($key))), -4));
+        }
+    }
+
     public function test_fails_when_the_commit_cannot_be_read(): void
     {
         static::$revision = null;
@@ -121,6 +136,7 @@ class PostDeployTest extends TestCase
         $htaccess = File::get(base_path('.htaccess'));
 
         $this->assertStringContainsString('RewriteRule (.*) public/$1 [L]', $htaccess);
+        $this->assertStringContainsString('RewriteRule ^ %1 [L,R=301]', $htaccess);
         $this->assertStringContainsString('Require all denied', $htaccess);
     }
 }
