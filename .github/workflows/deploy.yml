@@ -1,0 +1,85 @@
+# Push (merge) na main: roda o CI e, se passar, publica a branch "deploy" =
+# código da main + public/build compilado. A Hostinger acompanha a branch
+# "deploy" (Git auto-deployment): git pull + composer install a cada push.
+# O cron do servidor roda "ward:post-deploy" (migrations etc.) quando o
+# commit em produção muda. Não edite a branch deploy à mão.
+name: deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  publish:
+    needs: ci
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      # O CSS do Flux vem de vendor/, então o composer precisa rodar antes do build.
+      - name: Build dos assets
+        run: |
+          composer install --no-interaction --prefer-dist --no-progress --no-scripts
+          npm ci
+          npm run build
+
+      - name: Publicar a branch deploy
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          git config user.name "ward-deploy"
+          git config user.email "deploy@wardtecnology.com"
+
+          # Release = arquivos versionados da main + public/build.
+          rm -rf /tmp/release && mkdir /tmp/release
+          git archive "$SOURCE_SHA" | tar -x -C /tmp/release
+          cp -R public/build /tmp/release/public/build
+          sed -i '/^\/public\/build$/d' /tmp/release/.gitignore
+
+          if git ls-remote --exit-code --heads origin deploy >/dev/null; then
+            git fetch origin deploy
+            git worktree add /tmp/deploy origin/deploy
+            git -C /tmp/deploy checkout -B deploy
+          else
+            git worktree add --orphan -b deploy /tmp/deploy
+          fi
+
+          # Substitui todo o conteúdo pela release.
+          find /tmp/deploy -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp -R /tmp/release/. /tmp/deploy/
+
+          cd /tmp/deploy
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Nada mudou na release."
+            exit 0
+          fi
+          git commit -m "Deploy ${SOURCE_SHA:0:12}" -m "Gerado a partir de ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${SOURCE_SHA}"
+          git push origin deploy

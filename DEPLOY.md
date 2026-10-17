@@ -1,24 +1,25 @@
 # Deploy (Hostinger)
 
 Hospedagem compartilhada Premium da Hostinger, conta `u633753951`, PHP 8.4 e MySQL. O deploy é **Git
-auto-deployment da Hostinger direto da `main`**: o app do GitHub da Hostinger recebe o webhook de cada push
-(merge) na `main` e faz `git pull` + `composer install` na pasta do subdomínio. Não há SSH no fluxo.
+auto-deployment da Hostinger acompanhando a branch `deploy`**. Não há SSH no fluxo.
 
 ```
-merge na main ──► Hostinger: git pull + composer install em public_html/artifacts
-       │                         │
-       │                         ▼
-       │          cron (a cada minuto): schedule:run → ward:post-deploy
-       │          (commit novo no .git? optimize:clear, migrate --force,
-       │           passport:keys na 1ª vez, seed do 1º admin com banco vazio)
-       │
-       └──► GitHub Actions
-              ci:     testes + Pint (não bloqueia o deploy: proteja a main exigindo o CI nos PRs)
-              assets: npm run build; se public/build mudou, commita na main → novo deploy
+merge na main ──► GitHub Actions (deploy.yml)
+                    1. CI: testes + Pint
+                    2. se passou: branch deploy = código da main + public/build compilado
+                          │ push na deploy (webhook do app da Hostinger)
+                          ▼
+       Hostinger: git pull + composer install em public_html/artifacts
+                          │
+                          ▼
+       cron (a cada minuto): schedule:run → ward:post-deploy
+       (commit novo no .git? optimize:clear, migrate --force,
+        passport:keys na 1ª vez, seed do 1º admin com banco vazio)
 ```
 
-A Hostinger não roda npm, por isso `public/build` é versionado. Rode `npm run build` antes de abrir o PR
-para o deploy já sair com o CSS/JS certo; se esquecer, o workflow `assets` corrige com um commit logo depois.
+A `main` fica limpa (sem `public/build`). A Hostinger não roda npm, então os assets vão compilados só
+na branch `deploy`, que é gerada pelo workflow e **não deve ser editada à mão**. Se o CI falhar, nada é
+publicado.
 
 ## Recursos
 
@@ -27,7 +28,7 @@ para o deploy já sair com o CSS/JS certo; se esquecer, o workflow `assets` corr
 | App | `https://artifacts.wardtecnology.com` → pasta `public_html/artifacts` de `wardtecnology.com` |
 | Conteúdo dos artifacts | `https://artifacts-content.wardtecnology.com` → **a mesma pasta** |
 | Raiz | O repositório inteiro fica na pasta; o `.htaccess` da raiz reescreve tudo para `public/` |
-| Branch publicada | `main` |
+| Branch publicada | `deploy` (gerada pelo `.github/workflows/deploy.yml` a partir da `main`) |
 | Banco | MySQL `u633753951_ward_artifacts` |
 | E-mail | `no-reply@wardtecnology.com` (SMTP `smtp.hostinger.com:465`) |
 | Cron | `* * * * *` → `cd <pasta> && /opt/alt/php84/usr/bin/php artisan schedule:run` |
@@ -45,13 +46,13 @@ Feita pela API da Hostinger (`https://developers.hostinger.com`), exceto o item 
 2. Subdomínios `artifacts` e `artifacts-content` apontando para a pasta `artifacts`, com SSL.
 3. PHP 8.4 no subdomínio, `display_errors=Off`, limites de upload de 128 MB.
 4. Banco MySQL e caixa de e-mail `no-reply@`.
-5. Git auto-deployment: repositório `n4m-ward/ward_artifacts`, branch `main`, pasta raiz do subdomínio.
+5. Git auto-deployment: repositório `n4m-ward/ward_artifacts`, branch `deploy`, pasta raiz do subdomínio.
 6. Upload do `.env` (API de arquivos, TUS) depois do primeiro clone.
 7. Cron do scheduler.
 
 ## Dia a dia
 
-- Deploy = merge/push na `main`.
+- Deploy = merge/push na `main`. Acompanhe em GitHub → Actions → `deploy`.
 - Em até ~1 minuto após o pull da Hostinger, o cron aplica as migrations.
 - Para forçar o pós-deploy: crie um cron único com `php artisan ward:post-deploy --force`, ou rode
   pela API de cron jobs e leia a saída.
