@@ -30,7 +30,7 @@ return [
     */
 
     'reserved_usernames' => [
-        'admin', 'api', 'build', 'c', 'confirm-password', 'connections', 'dashboard',
+        'admin', 'api', 'artifacts', 'build', 'c', 'confirm-password', 'connections', 'dashboard',
         'forgot-password', 'invite', 'login', 'logout', 'mcp', 'oauth', 'register',
         'reset-password', 'settings', 'storage', 'up', 'users', 'verify-email', 'well-known',
     ],
@@ -66,8 +66,14 @@ return [
         // Durações permitidas para deixar um artifact público (em horas).
         'public_durations' => [1, 2, 6, 12, 24, 48, 168],
 
-        // Origem que serve o HTML bruto. Vazio = mesma origem do app.
+        // Origem separada que serve o HTML bruto (ex.: https://content.wardtecnology.com).
+        // Com ela o artifact roda com allow-same-origin e tem localStorage/IndexedDB
+        // sem alcançar a sessão do app. Vazio = mesma origem do app, num sandbox
+        // totalmente fechado (sem storage).
         'content_url' => env('WARD_CONTENT_URL'),
+
+        // Validade do token que libera o conteúdo para a moldura do viewer.
+        'content_ttl_minutes' => (int) env('WARD_CONTENT_TTL_MINUTES', 180),
     ],
 
 ];

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\RestrictContentHost;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -12,10 +13,11 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
         then: function () {
             Route::middleware('api')->group(base_path('routes/uploads.php'));
+            Route::group([], base_path('routes/content.php'));
         },
     )
     ->withMiddleware(function (Middleware $middleware) {
-        //
+        $middleware->prepend(RestrictContentHost::class);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //

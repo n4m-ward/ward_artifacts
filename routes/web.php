@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\ArtifactDownloadController;
+use App\Http\Controllers\ArtifactViewerController;
 use App\Models\User;
 use Illuminate\Support\Facades\Route;
 use Livewire\Volt\Volt;
@@ -25,3 +27,15 @@ Route::middleware(['auth'])->group(function () {
 });
 
 require __DIR__.'/auth.php';
+
+Route::get('artifacts/{artifact}/download', ArtifactDownloadController::class)
+    ->name('artifacts.download');
+
+// Fica por último: /{username}/{projeto}/{titulo}-{uuid}.html
+Route::get('{username}/{project}/{file}', ArtifactViewerController::class)
+    ->where([
+        'username' => '[a-z0-9-]+',
+        'project' => '[a-z0-9-]+',
+        'file' => '[A-Za-z0-9._%-]*[0-9a-f]{32}\\.html',
+    ])
+    ->name('artifacts.show');

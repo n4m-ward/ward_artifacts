@@ -73,13 +73,30 @@ Domínio de produção: `artifacts.wardtecnology.com` (Hostinger, MySQL). Local:
 - O HTML bruto vai com `X-Content-Type-Options: nosniff` e `X-Robots-Tag: noindex`.
 - O conteúdo não-público é liberado por um token assinado de curta duração no caminho
   (`/c/{token}/index.html`). Os assets relativos de um bundle herdam o mesmo token.
-- Os arquivos ficam em `storage/app/private/artifacts/{uuid}/v{n}/`, nunca em `public/`.
+- Os arquivos ficam em `storage/app/private/artifacts/{uuid}/{ulid}/`, nunca em `public/`.
+- O token do conteúdo (`v{versão}.{expira}.{hmac}`) vale 3 horas e é gerado a cada abertura.
+  O conteúdo vai com `Referrer-Policy: no-referrer` (o token não vaza para CDNs) e
+  `frame-ancestors` restrito ao app.
+- No host de conteúdo só existe `/c/...`: login, painel, uploads e MCP respondem 404 lá.
+- Limitação conhecida: todos os artifacts compartilham a origem de conteúdo, então o
+  `localStorage` é comum entre eles. Se isso incomodar, dá para evoluir para um subdomínio
+  por artifact (`{uuid}.content...`), o que exige DNS e SSL wildcard.
+- Produção: usar `SESSION_COOKIE=__Host-ward-session` e `SESSION_SECURE_COOKIE=true`, para o
+  subdomínio de conteúdo não conseguir sobrescrever o cookie de sessão do app.
+
+### Desenvolvimento local
+
+`APP_URL=http://localhost:8000` e `WARD_CONTENT_URL=http://content.localhost:8000`. Os navegadores
+resolvem `*.localhost` para 127.0.0.1, então o mesmo `php artisan serve` atende os dois hosts.
 
 ## Acesso por IAs
 
 - **Via MCP:** a ferramenta `get_artifact_source` devolve o HTML (ou uma URL assinada para baixar).
-- **Navegando pela URL (WebFetch etc.):** a moldura expõe `<link rel="alternate">` e um link visível
-  para o conteúdo. Assim um agente que não executa iframes encontra o HTML.
+- **Navegando pela URL (WebFetch etc.):** a moldura expõe `<link rel="alternate">`, uma
+  `meta description` com o endereço do HTML e o botão "HTML puro". Assim um agente que não
+  executa iframes encontra o conteúdo.
+- **Download:** `/artifacts/{uuid}/download` devolve o `.html` ou um `.zip` (index + assets), que
+  abrem direto no navegador. Segue a mesma permissão de visualização.
 - Tudo com `noindex`: os artifacts não entram em buscadores.
 
 ## Template base
@@ -150,7 +167,7 @@ oauth_* (Passport) + last_used_at nos access tokens, para a tela de Conexões
 | 0 | Setup: Laravel 12, starter kit Livewire, SQLite, git, seeder do admin, cadastro desligado | ✅ |
 | 1 | Usuários: convite por e-mail (link para definir senha), tela de admin, roles, policies | ✅ |
 | 2 | Artifacts: modelos, storage, versões, projects, validação do HTML e do zip, links de upload | ✅ |
-| 3 | Viewer seguro: moldura + iframe no subdomínio de conteúdo, token assinado, views, redirect 301 | ⏳ |
+| 3 | Viewer seguro: moldura + iframe no subdomínio de conteúdo, token assinado, views, redirect 301, download | ✅ |
 | 4 | Painel: Meus / Acessados / Todos, renomear, apagar, visibilidade + público temporário | ⏳ |
 | 5 | MCP HTTP + OAuth (Passport), `upload_url`, tela de Conexões MCP, template base | ⏳ |
 | 6 | Skills, plugin do Claude Code, `AGENTS.md`, guia de conexão para Codex/OpenCode | ⏳ |
