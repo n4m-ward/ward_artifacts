@@ -66,6 +66,13 @@ return [
         // Validade do link de upload devolvido pelo MCP.
         'upload_ttl_minutes' => 15,
 
+        // Maior HTML aceito direto no argumento de uma ferramenta MCP. Acima
+        // disso a IA recebe um link de upload.
+        'mcp_inline_max_bytes' => 2 * 1024 * 1024,
+
+        // Maior HTML devolvido inline por get_artifact_source.
+        'mcp_source_inline_max_bytes' => 256 * 1024,
+
         // Durações permitidas para deixar um artifact público (em horas).
         'public_durations' => [1, 2, 6, 12, 24, 48, 168],
 

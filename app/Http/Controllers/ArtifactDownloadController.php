@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\ArtifactKind;
 use App\Models\Artifact;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\Response;
@@ -15,9 +16,12 @@ use ZipArchive;
  */
 class ArtifactDownloadController extends Controller
 {
-    public function __invoke(Artifact $artifact): Response
+    public function __invoke(Request $request, Artifact $artifact): Response
     {
-        Gate::authorize('view', $artifact);
+        // O MCP devolve um link assinado (15 min) para a IA baixar com curl.
+        if (! $request->hasValidSignature()) {
+            Gate::authorize('view', $artifact);
+        }
 
         $version = $artifact->currentVersion;
         abort_if($version === null, 404);

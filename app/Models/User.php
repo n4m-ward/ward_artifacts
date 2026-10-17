@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Actions\Artifacts\DeleteArtifact;
+use App\Actions\Mcp\RevokeMcpConnection;
 use App\Enums\Role;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -13,11 +13,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Str;
+use Laravel\Passport\Contracts\OAuthenticatable;
+use Laravel\Passport\HasApiTokens;
 
-class User extends Authenticatable // implements MustVerifyEmail
+class User extends Authenticatable implements OAuthenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable;
+    use HasApiTokens, HasFactory, Notifiable;
 
     /**
      * The attributes that are mass assignable.
@@ -99,6 +101,9 @@ class User extends Authenticatable // implements MustVerifyEmail
         // As linhas somem por cascade no banco; os arquivos precisam sair à mão.
         static::deleting(function (User $user) {
             $user->artifacts()->each(fn (Artifact $artifact) => app(DeleteArtifact::class)->handle($artifact));
+
+            // Corta as conexões MCP (a tabela de tokens do Passport não tem FK).
+            app(RevokeMcpConnection::class)->allFor($user);
         });
     }
 

@@ -129,10 +129,21 @@ Um esqueleto mínimo, fornecido pela skill e pelo MCP (`get_template`):
 | `get_template(variant)` | Retorna o esqueleto base |
 | `publish_artifact(title, project, html?)` | Cria o artifact (sempre `owner`) e retorna a URL ou a `upload_url` |
 | `update_artifact(id, html?)` | Nova versão, inline ou por `upload_url` |
-| `get_artifact_source(id)` | HTML inline ou URL assinada para download |
+| `get_artifact_source(id)` | HTML inline (até 256 KB) ou link assinado de download (15 min) |
 | `list_artifacts`, `list_projects`, `whoami` | Consulta |
 | `rename_artifact(id, title)` | Só o título |
-| `invite_user(name, username, email, role)` | Só para admin (scope OAuth `users:invite`) |
+| `invite_user(name, username, email, role)` | Só para admin: a ferramenta nem aparece para players |
+
+Implementação (Fase 5):
+- Servidor em `app/Mcp/Servers/WardServer.php`, rota em `routes/ai.php` (`/mcp`, `auth:api`,
+  120 req/min). O `laravel/mcp` só suporta o escopo `mcp:use`, então a permissão de
+  `invite_user` vem da role do usuário, não de um escopo OAuth.
+- Tokens OAuth: acesso de 24h, refresh de 60 dias. O registro dinâmico (`/oauth/register`) é
+  público e fica limitado a 20 req/min.
+- Tokens pessoais (Bearer, 90 dias) para clientes sem OAuth, criados na tela de Conexões.
+- Validado de ponta a ponta: registro dinâmico → PKCE → tela "Conectar" → token → `initialize`
+  → `tools/list` → `publish_artifact`.
+- Deploy: rodar `php artisan passport:keys` (as chaves ficam em `storage/`, fora do git).
 
 ## Skills (formato aberto `SKILL.md`, com descrições para auto-invocação)
 
@@ -169,7 +180,7 @@ oauth_* (Passport) + last_used_at nos access tokens, para a tela de Conexões
 | 2 | Artifacts: modelos, storage, versões, projects, validação do HTML e do zip, links de upload | ✅ |
 | 3 | Viewer seguro: moldura + iframe no subdomínio de conteúdo, token assinado, views, redirect 301, download | ✅ |
 | 4 | Painel: Meus / Acessados / Todos, renomear, apagar, visibilidade + público temporário | ✅ |
-| 5 | MCP HTTP + OAuth (Passport), `upload_url`, tela de Conexões MCP, template base | ⏳ |
+| 5 | MCP HTTP + OAuth (Passport), `upload_url`, tela de Conexões MCP, template base | ✅ |
 | 6 | Skills, plugin do Claude Code, `AGENTS.md`, guia de conexão para Codex/OpenCode | ⏳ |
 | 7 | Conta e senha: trocar senha (tela própria, em português), "esqueci minha senha" por e-mail, admin envia link de redefinição para um usuário, app inteiro em pt-BR | ⏳ |
 | 8 | Hardening e deploy na Hostinger (MySQL, SMTP, subdomínio de conteúdo + SSL, limites de upload) | ⏳ |

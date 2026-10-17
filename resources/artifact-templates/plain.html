@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Título do artifact</title>
+
+  <style>
+    /* Tokens da Ward (os mesmos do template tailwind), sem dependências externas. */
+    :root {
+      color-scheme: light dark;
+      --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+      --surface: #ffffff;
+      --surface-2: #f4f4f5;
+      --ink: #18181b;
+      --muted: #71717a;
+      --line: #e4e4e7;
+      --brand: #6d28d9;
+      --brand-ink: #ffffff;
+      --radius: 12px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --surface: #09090b;
+        --surface-2: #18181b;
+        --ink: #f4f4f5;
+        --muted: #a1a1aa;
+        --line: #27272a;
+        --brand: #a78bfa;
+        --brand-ink: #09090b;
+      }
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    body { margin: 0; min-height: 100dvh; background: var(--surface); color: var(--ink); font: 16px/1.55 var(--font-sans); -webkit-font-smoothing: antialiased; }
+    main { max-width: 64rem; margin: 0 auto; padding: 40px 16px; }
+    h1 { margin: 0; font-size: 1.9rem; letter-spacing: -0.02em; }
+    .muted { color: var(--muted); }
+    .card { margin-top: 32px; padding: 24px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-2); }
+    button { font: inherit; padding: 8px 14px; border: 0; border-radius: 8px; background: var(--brand); color: var(--brand-ink); cursor: pointer; }
+    button:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+    img { max-width: 100%; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Título do artifact</h1>
+    <p class="muted">Uma frase dizendo o que esta página mostra.</p>
+
+    <section class="card">
+      <!-- Conteúdo -->
+    </section>
+  </main>
+
+  <script>
+    // Lógica do artifact.
+    // localStorage/sessionStorage podem estar indisponíveis: sempre use try/catch.
+    const store = {
+      get(key, fallback = null) { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; } },
+      set(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch {} },
+    };
+  </script>
+</body>
+</html>

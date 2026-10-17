@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Título do artifact</title>
+
+  <!-- Tailwind CSS v4 (build para navegador). Fixe a versão: nunca use @latest. -->
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.3"></script>
+
+  <style type="text/tailwindcss">
+    /* Tokens da Ward. Use bg-surface, text-ink, text-muted, border-line, bg-brand etc. */
+    @theme {
+      --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+
+      --color-surface: #ffffff;
+      --color-surface-2: #f4f4f5;
+      --color-ink: #18181b;
+      --color-muted: #71717a;
+      --color-line: #e4e4e7;
+      --color-brand: #6d28d9;
+      --color-brand-ink: #ffffff;
+      --color-ok: #16a34a;
+      --color-warn: #d97706;
+      --color-bad: #dc2626;
+    }
+
+    /* Tema escuro automático, seguindo o sistema. */
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --color-surface: #09090b;
+        --color-surface-2: #18181b;
+        --color-ink: #f4f4f5;
+        --color-muted: #a1a1aa;
+        --color-line: #27272a;
+        --color-brand: #a78bfa;
+        --color-brand-ink: #09090b;
+      }
+    }
+
+    @layer base {
+      html { color-scheme: light dark; }
+      body { @apply bg-surface text-ink font-sans antialiased; }
+    }
+  </style>
+</head>
+<body class="min-h-dvh">
+  <main class="mx-auto max-w-5xl px-4 py-10 sm:px-6">
+    <header class="mb-8">
+      <h1 class="text-3xl font-semibold tracking-tight">Título do artifact</h1>
+      <p class="mt-2 text-muted">Uma frase dizendo o que esta página mostra.</p>
+    </header>
+
+    <section class="rounded-xl border border-line bg-surface-2 p-6">
+      <!-- Conteúdo -->
+    </section>
+  </main>
+
+  <script>
+    // Lógica do artifact.
+    // localStorage/sessionStorage podem estar indisponíveis: sempre use try/catch.
+    const store = {
+      get(key, fallback = null) { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; } },
+      set(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch {} },
+    };
+  </script>
+</body>
+</html>
