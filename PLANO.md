@@ -21,10 +21,12 @@ Domínio de produção: `artifacts.wardtecnology.com` (Hostinger, MySQL). Local:
 
 - **Padrão: um único `.html`**, com CSS, JS e imagens inline (`data:` base64, JSON como `const`).
   Recursos externos (CDN, Google Fonts) só quando inline não for possível.
-- **Bundle (a decidir):** `.zip` com `index.html` + assets relativos (`assets/*.png`, `*.json`).
+- **Bundle (aprovado):** `.zip` com `index.html` + assets relativos (`assets/*.png`, `*.json`).
   Cobre artifacts como o de referência, que fazem `fetch("assets/x.json")`, sem precisar
-  reescrevê-los. Mesmo limite: 100 MB descompactado, com whitelist de extensões, sem `../`
-  e sem symlinks.
+  reescrevê-los. Mesmo limite: 100 MB descompactado (contado byte a byte na extração), até
+  2000 arquivos, whitelist de extensões, sem `../` e sem symlinks. Se o zip tiver uma única
+  pasta de topo (`site/index.html`), ela é removida dos caminhos.
+- Cada versão fica num diretório próprio (`{uuid}/{ulid}/`); são guardadas as 10 mais recentes.
 - Limite total: 100 MB.
 
 ## Visibilidade
@@ -99,7 +101,11 @@ Um esqueleto mínimo, fornecido pela skill e pelo MCP (`get_template`):
   - `publish_artifact(title, project, html?)` aceita o HTML inline (bom para claude.ai e arquivos
     pequenos) **ou** devolve uma `upload_url` assinada (15 min, uso único).
   - Agentes com terminal (Claude Code, Codex, OpenCode) enviam com
-    `curl --data-binary @arquivo.html "<upload_url>"`. As skills ensinam esse passo.
+    `curl --data-binary @arquivo.html "<upload_url>"` (ou `-F file=@site.zip`). As skills ensinam
+    esse passo.
+  - ✅ Já implementado na Fase 2: `PUT|POST /uploads/{token}` (token de 48 caracteres, só o hash
+    fica no banco, 15 min, uso único). Se o envio for recusado (422), o link continua valendo
+    para uma nova tentativa.
 
 | Ferramenta | O que faz |
 |---|---|
@@ -142,8 +148,8 @@ oauth_* (Passport) + last_used_at nos access tokens, para a tela de Conexões
 | # | Fase | Status |
 |---|---|---|
 | 0 | Setup: Laravel 12, starter kit Livewire, SQLite, git, seeder do admin, cadastro desligado | ✅ |
-| 1 | Usuários: convite por e-mail (link para definir senha), tela de admin, roles, policies | 🚧 |
-| 2 | Artifacts: modelos, storage, versões, projects, validação do HTML (e bundle, se aprovado) | ⏳ |
+| 1 | Usuários: convite por e-mail (link para definir senha), tela de admin, roles, policies | ✅ |
+| 2 | Artifacts: modelos, storage, versões, projects, validação do HTML e do zip, links de upload | ✅ |
 | 3 | Viewer seguro: moldura + iframe no subdomínio de conteúdo, token assinado, views, redirect 301 | ⏳ |
 | 4 | Painel: Meus / Acessados / Todos, renomear, apagar, visibilidade + público temporário | ⏳ |
 | 5 | MCP HTTP + OAuth (Passport), `upload_url`, tela de Conexões MCP, template base | ⏳ |

@@ -42,7 +42,26 @@ return [
     */
 
     'artifacts' => [
+        'disk' => env('WARD_ARTIFACT_DISK', 'artifacts'),
+
+        // Limite total por envio (HTML único ou zip já descompactado).
         'max_bytes' => (int) env('WARD_ARTIFACT_MAX_BYTES', 100 * 1024 * 1024),
+
+        // Limites de um bundle (.zip com index.html + assets).
+        'max_files' => 2000,
+        'bundle_extensions' => [
+            'html', 'htm', 'css', 'js', 'mjs', 'json', 'map', 'txt', 'md', 'csv', 'tsv', 'xml',
+            'svg', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'avif', 'ico', 'bmp',
+            'woff', 'woff2', 'ttf', 'otf',
+            'mp3', 'wav', 'ogg', 'oga', 'm4a', 'flac', 'mp4', 'webm', 'ogv', 'mov',
+            'glb', 'gltf', 'bin', 'wasm', 'pdf',
+        ],
+
+        // Versões antigas guardadas por artifact (a atual sempre fica).
+        'keep_versions' => 10,
+
+        // Validade do link de upload devolvido pelo MCP.
+        'upload_ttl_minutes' => 15,
 
         // Durações permitidas para deixar um artifact público (em horas).
         'public_durations' => [1, 2, 6, 12, 24, 48, 168],

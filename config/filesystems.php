@@ -37,6 +37,13 @@ return [
             'throw' => false,
         ],
 
+        // HTML e assets dos artifacts. Nunca é servido diretamente pelo servidor web.
+        'artifacts' => [
+            'driver' => 'local',
+            'root' => storage_path('app/private/artifacts'),
+            'throw' => true,
+        ],
+
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),
