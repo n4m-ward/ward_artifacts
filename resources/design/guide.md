@@ -1,7 +1,65 @@
 # Ward Design: como montar artboards
 
 Um design é um **canvas** com vários **artboards** lado a lado. Cada artboard é **um HTML autocontido**
-(abre sozinho no navegador), com CSS e JS inline e imagens em data URI ou SVG inline.
+(abre sozinho no navegador), com CSS e JS inline.
+
+O padrão é **alta fidelidade**: cada tela deve parecer um produto pronto, não um wireframe. A diferença
+entre uma tela genérica e uma boa quase nunca é talento: é decidir a direção antes, preencher a tela com
+conteúdo de verdade e **olhar o resultado** antes de seguir.
+
+## 1. Antes do primeiro artboard: direção
+
+Escreva para você (e mostre ao usuário em 3–4 linhas):
+
+- **Para quem e para quê**: produto, público, plataforma, o que a tela precisa fazer.
+- **Direção visual**: um adjetivo forte (editorial, técnico, acolhedor, brutalista, luxuoso…) e uma
+  referência concreta ("cardápio de cafeteria de bairro", "painel de corretora", "revista de design").
+  Se o usuário tem marca, site, código ou design system, parta dele; inventar do zero é o último recurso.
+- **Tipografia**: um par com intenção (display + texto). Evite as escolhas automáticas: Inter, Roboto,
+  Arial, Space Grotesk, fontes do sistema. Ex.: Instrument Serif + Hanken Grotesk, Newsreader + Geist,
+  Bricolage Grotesque + IBM Plex Sans, DM Serif Display + Manrope, JetBrains Mono para dados.
+- **Cor**: 1 fundo, 1–2 tintas de texto, 1 acento e 1 cor de estado, em `oklch()` para ficarem
+  harmônicas. Claro ou escuro é uma decisão da direção, não um padrão.
+
+Defina tudo isso uma vez em variáveis CSS no `:root` e **repita o mesmo bloco em todos os artboards**
+do design.
+
+## 2. Acabamento
+
+- **Hierarquia**: um elemento dominante por tela. Escala de tipo com contraste real (ex.: 42 / 26 / 15 /
+  13 px num celular; 72+ / 32 / 18 numa página). `text-wrap: balance` em títulos.
+- **Densidade de produto real**: uma tela de app tem barra de status, navegação, ações e o conteúdo que
+  existiria ali. Nada de 3 itens soltos num fundo vazio. Uma landing tem várias seções completas.
+- **Espaço**: escala de 4/8 px, margens laterais consistentes (20–24 px no celular), um raio de borda
+  (ou dois) usado em tudo.
+- **Conteúdo plausível**: nomes, textos, preços, datas e números verossímeis e coerentes entre as telas
+  (o produto de R$ 13,50 na Home custa R$ 13,50 no Produto e soma certo na Sacola). Nada de lorem ipsum
+  nem de `[PREÇO]`/`[NOME]`, a menos que o usuário peça um wireframe. Só não invente dados sobre coisas
+  reais (métricas de uma empresa real, depoimentos de pessoas reais).
+- **Imagem**: fotos deixam a tela viva.
+  - Use as do usuário quando houver.
+  - Fotos do Unsplash por URL (`https://images.unsplash.com/photo-…?w=800&q=70`) só quando você
+    conseguir **ver** que a foto carregou e combina; um link inventado vira um buraco.
+  - Sem foto confiável: um placeholder honesto (bloco na cor da paleta com um rótulo discreto), nunca um
+    gradiente fingindo ser foto nem ilustração SVG improvisada.
+- **Ícones**: SVG inline, traço consistente (mesma espessura e estilo em todos). Sem emoji.
+- **Evite os vícios de "tela de IA"**: gradiente roxo/azul de fundo, brilho radial no topo, cartão com
+  borda colorida só à esquerda, tudo centralizado, todo cartão com a mesma sombra, ícone dentro de
+  quadradinho colorido em toda lista, textos genéricos ("Bem-vindo ao futuro").
+
+## 3. Conferir cada artboard
+
+Depois de cada `upsert_artboard`, **olhe a tela** (no canvas aberto no seu navegador, ou no chat em
+clientes com MCP Apps) antes de passar para a próxima:
+
+- nada cortado ou escondido (em `fixed`, o conteúdo cabe em `w`×`h`; atenção ao que fica atrás de
+  barras fixas);
+- nada quebrando linha onde não devia (preços, botões, abas);
+- fotos e fontes carregaram;
+- contraste e alinhamento.
+
+Corrija com outro `upsert_artboard` do mesmo `name`. Se você não tem como ver a tela, revise o HTML
+contando alturas e larguras.
 
 ## Tipos de artboard
 
@@ -13,18 +71,15 @@ Um design é um **canvas** com vários **artboards** lado a lado. Cada artboard 
 Tamanhos comuns: celular 390×844 · tablet 834×1194 · desktop/página 1440×(altura real) ·
 post 1080×1080 · story 1080×1920 · banner 1200×628 · A4 794×1123.
 
-## Regras
+## Regras do formato
 
 1. `<!doctype html>`, `<meta charset="utf-8">`, `<title>` com o nome da tela e `lang` certo.
 2. `body { margin: 0 }`. Em `fixed`, o primeiro elemento tem `width`/`height` exatos do artboard.
-3. Fontes: Google Fonts (`<link>` do css2) ou fontes do sistema. Evite Inter, Roboto e Arial como escolha
-   padrão; escolha 1–3 famílias com intenção.
-4. Paleta pequena e consistente entre os artboards do mesmo design (defina variáveis CSS no `:root`).
-5. Sem lorem ipsum nem números inventados: use placeholders como `[PREÇO]`.
-6. Acessível: `<button>`, `<a href>`, `<label>` reais; contraste ≥ 4.5:1; alvos de toque ≥ 44 px em telas
-   de app; ícones em SVG inline (sem emoji).
-7. Nada sensível no HTML (o dono pode tornar o design público depois).
-8. **Links entre artboards** (protótipo): `<a href="board:NomeDoArtboard">` e marque os artboards com
+3. Fontes do Google Fonts (`<link>` do css2). Imagens por URL https, data URI ou SVG inline.
+4. Acessível: `<button>`, `<a href>`, `<label>` reais; contraste ≥ 4.5:1; alvos de toque ≥ 44 px em telas
+   de app; `alt` nas imagens.
+5. Nada sensível no HTML (o dono pode tornar o design público depois).
+6. **Links entre artboards** (protótipo): `<a href="board:NomeDoArtboard">` e marque os artboards com
    `interactive: true`.
 
 ## Organização no canvas
@@ -33,14 +88,18 @@ post 1080×1080 · story 1080×1920 · banner 1200×628 · A4 794×1123.
 - Sem `x`/`y`, um artboard novo entra à direita do último da primeira fileira.
 - Use notas `kind: "title"` acima de uma fileira (ex.: `y` = topo da fileira − 220) para nomear grupos,
   e `kind: "sticky"` para observações curtas.
-- Nomes de artboard curtos e estáveis (`Home`, `Checkout`, `Post`): é por eles que você edita depois.
+- Nomes de artboard curtos, estáveis e só ASCII (`Home`, `Cardapio`, `Checkout`); o rótulo com acento vai
+  em `title`. É pelo nome que você edita depois e que os links `board:` encontram a tela.
+- Variações lado a lado: quando o pedido é aberto, 2–3 direções realmente diferentes (não só cores
+  trocadas), numa fileira com um título.
 
 ## Fluxo
 
-1. `create_design` → guarde o `id`.
-2. Um `upsert_artboard` por tela (HTML completo em `html`).
+1. `create_design` → guarde o `id` e **abra o canvas antes de criar telas**: `open_design` em clientes com
+   MCP Apps (o canvas aparece no chat); nos outros, abra o `preview_url` no seu navegador e passe a `url`
+   ao usuário. O canvas atualiza sozinho a cada mudança, então a pessoa acompanha você trabalhando.
+2. Direção (seção 1), depois um `upsert_artboard` por tela, conferindo cada uma (seção 3).
 3. `update_layout` para organizar fileiras, títulos e notas.
 4. Para mudar uma tela: `get_artboard_source` → editar → `upsert_artboard` com o mesmo `name`.
 5. `save_design_version` quando chegar num ponto que valha guardar.
-6. Entregue ao usuário a `url` do design. O `preview_url` (uso único, sem login) é para você conferir no
-   seu navegador.
+6. Entregue ao usuário a `url` do design. O `preview_url` (uso único, sem login) é para você.
