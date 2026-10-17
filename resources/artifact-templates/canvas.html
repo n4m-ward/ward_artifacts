@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Título do artifact</title>
+
+  <style>
+    /* Palco em tela cheia para jogos, simulações e visualizações em canvas. */
+    :root {
+      color-scheme: dark;
+      --void: #0b0a12;
+      --panel: #17142a;
+      --line: #2f2850;
+      --ink: #ece6ff;
+      --muted: #9a90bf;
+      --accent: #38bdf8;
+      --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body { background: var(--void); color: var(--ink); font: 14px/1.5 var(--font-sans); overflow: hidden; }
+    .stage { position: fixed; inset: 0; touch-action: none; user-select: none; }
+    canvas { display: block; width: 100%; height: 100%; }
+    .hud { position: absolute; top: 12px; left: 12px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: color-mix(in srgb, var(--panel) 88%, transparent); }
+    .hint { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); color: var(--muted); font-size: 12px; white-space: nowrap; }
+    .loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); letter-spacing: 0.1em; }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="stage" id="stage">
+    <canvas id="view" aria-label="Descreva o que o canvas mostra"></canvas>
+    <div class="hud" id="hud">HUD</div>
+    <div class="hint">WASD / setas para mover · clique para interagir</div>
+    <div class="loading" id="loading">CARREGANDO…</div>
+  </div>
+
+  <script>
+  (() => {
+    const stage = document.getElementById('stage');
+    const canvas = document.getElementById('view');
+    const ctx = canvas.getContext('2d');
+
+    // Assets: prefira data: URIs (HTML único). Num bundle .zip, use caminhos
+    // relativos como "assets/sprite.png".
+    const loadImage = (src) => new Promise((ok, fail) => {
+      const img = new Image();
+      img.onload = () => ok(img);
+      img.onerror = () => fail(new Error(src));
+      img.src = src;
+    });
+
+    const state = { t: 0, x: 0, y: 0 };
+    const keys = new Set();
+
+    function resize() {
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.round(stage.clientWidth * dpr);
+      canvas.height = Math.round(stage.clientHeight * dpr);
+    }
+
+    function update(dt) {
+      state.t += dt;
+      const speed = 160;
+      if (keys.has('left')) state.x -= speed * dt;
+      if (keys.has('right')) state.x += speed * dt;
+      if (keys.has('up')) state.y -= speed * dt;
+      if (keys.has('down')) state.y += speed * dt;
+    }
+
+    function draw() {
+      const dpr = window.devicePixelRatio || 1;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.imageSmoothingEnabled = false;
+      ctx.fillStyle = '#0b0a12';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      const cx = stage.clientWidth / 2 + state.x;
+      const cy = stage.clientHeight / 2 + state.y;
+      ctx.fillStyle = '#38bdf8';
+      ctx.beginPath();
+      ctx.arc(cx, cy, 16 + Math.sin(state.t * 3) * 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    const KEYMAP = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down' };
+    addEventListener('keydown', (e) => { const k = KEYMAP[e.code]; if (k) { keys.add(k); e.preventDefault(); } });
+    addEventListener('keyup', (e) => { const k = KEYMAP[e.code]; if (k) keys.delete(k); });
+    addEventListener('blur', () => keys.clear());
+
+    async function boot() {
+      // await loadImage('data:image/png;base64,...');
+      document.getElementById('loading').hidden = true;
+      resize();
+      new ResizeObserver(resize).observe(stage);
+
+      let last = performance.now();
+      const frame = (now) => {
+        const dt = Math.min(0.05, (now - last) / 1000);
+        last = now;
+        update(dt);
+        draw();
+        requestAnimationFrame(frame);
+      };
+      requestAnimationFrame(frame);
+    }
+
+    boot().catch((err) => { document.getElementById('loading').textContent = 'Erro ao carregar: ' + err.message; });
+  })();
+  </script>
+</body>
+</html>

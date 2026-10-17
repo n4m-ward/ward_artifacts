@@ -1,0 +1,15 @@
+{
+  "name": "ward",
+  "description": "Plugins da Ward Technology para Claude Code.",
+  "owner": {
+    "name": "Ward Technology"
+  },
+  "plugins": [
+    {
+      "name": "ward-artifacts",
+      "source": "./integrations/claude-code/ward-artifacts",
+      "description": "Cria, publica e edita artifacts HTML no Ward Artifacts, com MCP remoto (OAuth).",
+      "category": "productivity"
+    }
+  ]
+}
