@@ -6,12 +6,11 @@ use App\Models\User;
 use Illuminate\Support\Facades\Route;
 use Livewire\Volt\Volt;
 
-Route::get('/', function () {
-    return view('welcome');
-})->name('home');
+// Não há página pública: quem não está logado vai para o login.
+Route::redirect('/', '/dashboard')->name('home');
 
 Volt::route('dashboard', 'artifacts.index')
-    ->middleware(['auth', 'verified'])
+    ->middleware('auth')
     ->name('dashboard');
 
 Route::middleware(['auth'])->group(function () {

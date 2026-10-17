@@ -48,7 +48,7 @@ class UserManagementTest extends TestCase
             ->set('role', 'player')
             ->call('invite')
             ->assertHasNoErrors()
-            ->assertSet('inviteUrl', fn ($url) => str_contains($url, '/invite/'));
+            ->assertSet('sentLink', fn ($url) => str_contains($url, '/invite/'));
 
         $invited = User::where('email', 'nam@ward.test')->sole();
         $this->assertSame('nam-ward', $invited->username);
@@ -94,7 +94,7 @@ class UserManagementTest extends TestCase
             ->set('username', 'nam-ward')
             ->set('email', 'nam@ward.test')
             ->call('invite')
-            ->get('inviteUrl');
+            ->get('sentLink');
 
         auth()->logout();
 
@@ -166,7 +166,7 @@ class UserManagementTest extends TestCase
 
         Volt::actingAs($admin)->test('users.index')
             ->call('resendInvite', $pending->id)
-            ->assertSet('inviteUrl', fn ($url) => str_contains($url, '/invite/'));
+            ->assertSet('sentLink', fn ($url) => str_contains($url, '/invite/'));
 
         Notification::assertSentTo($pending, UserInvited::class);
     }

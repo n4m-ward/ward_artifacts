@@ -1,6 +1,7 @@
 <?php
 
 use App\Actions\Users\InviteUser;
+use App\Actions\Users\SendPasswordReset;
 use App\Enums\Role;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
@@ -18,7 +19,10 @@ new class extends Component {
     public string $email = '';
     public string $role = 'player';
 
-    public ?string $inviteUrl = null;
+    /** Link mostrado depois de um convite ou de uma redefinição de senha. */
+    public ?string $sentLink = null;
+
+    public string $sentLinkTitle = '';
 
     public function mount(): void
     {
@@ -51,7 +55,7 @@ new class extends Component {
 
         $invited = $inviteUser->handle(Auth::user(), $validated);
 
-        $this->inviteUrl = $invited->inviteUrl;
+        $this->showLink('Convite enviado por e-mail', $invited->inviteUrl);
         $this->reset('name', 'username', 'email', 'role');
         $this->modal('invite-user')->close();
     }
@@ -62,7 +66,22 @@ new class extends Component {
 
         abort_unless($user->hasPendingInvite(), 422);
 
-        $this->inviteUrl = $inviteUser->send($user);
+        $this->showLink('Convite reenviado por e-mail', $inviteUser->send($user));
+    }
+
+    public function sendPasswordReset(User $user, SendPasswordReset $sendPasswordReset): void
+    {
+        $this->authorize('update', $user);
+
+        abort_if($user->hasPendingInvite(), 422);
+
+        $this->showLink("Link de redefinição enviado para {$user->email}", $sendPasswordReset->handle($user));
+    }
+
+    private function showLink(string $title, string $url): void
+    {
+        $this->sentLinkTitle = $title;
+        $this->sentLink = $url;
     }
 
     public function changeRole(User $user, string $role): void
@@ -94,15 +113,15 @@ new class extends Component {
         </flux:modal.trigger>
     </div>
 
-    @if ($inviteUrl)
+    @if ($sentLink)
         <flux:callout icon="envelope" class="mb-6">
-            <flux:callout.heading>Convite enviado por e-mail</flux:callout.heading>
+            <flux:callout.heading>{{ $sentLinkTitle }}</flux:callout.heading>
             <flux:callout.text>
-                Se o e-mail não chegar, envie este link para a pessoa (vale por 7 dias):
-                <code class="mt-2 block break-all rounded bg-zinc-100 p-2 text-xs dark:bg-zinc-900">{{ $inviteUrl }}</code>
+                Se o e-mail não chegar, envie este link para a pessoa:
+                <code class="mt-2 block break-all rounded bg-zinc-100 p-2 text-xs dark:bg-zinc-900">{{ $sentLink }}</code>
             </flux:callout.text>
             <x-slot name="controls">
-                <flux:button icon="x-mark" variant="ghost" size="sm" wire:click="$set('inviteUrl', null)" />
+                <flux:button icon="x-mark" variant="ghost" size="sm" wire:click="$set('sentLink', null)" />
             </x-slot>
         </flux:callout>
     @endif
@@ -142,6 +161,8 @@ new class extends Component {
                                 @endif
                                 @if ($user->hasPendingInvite())
                                     <flux:menu.item icon="arrow-path" wire:click="resendInvite({{ $user->id }})">Reenviar convite</flux:menu.item>
+                                @else
+                                    <flux:menu.item icon="key" wire:click="sendPasswordReset({{ $user->id }})">Enviar link de nova senha</flux:menu.item>
                                 @endif
                             @endcan
                             @can('delete', $user)
