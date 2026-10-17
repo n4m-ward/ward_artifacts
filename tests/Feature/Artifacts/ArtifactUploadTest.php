@@ -40,7 +40,8 @@ class ArtifactUploadTest extends TestCase
             ->assertJsonPath('artifact.title', 'Vila de Teste')
             ->assertJsonPath('artifact.visibility', 'owner')
             ->assertJsonPath('artifact.version', 1)
-            ->assertJsonPath('artifact.kind', 'html');
+            ->assertJsonPath('artifact.kind', 'html')
+            ->assertJsonPath('artifact.preview_url', fn ($url) => str_contains($url, '/p/'));
 
         $artifact = Artifact::sole();
         $this->assertTrue($artifact->user->is($user));

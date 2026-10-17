@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\Artifacts\CreateArtifactPreview;
 use App\Actions\Artifacts\PublishArtifact;
 use App\Actions\Artifacts\StoreArtifactVersion;
 use App\Artifacts\InvalidArtifact;
@@ -25,6 +26,7 @@ class ArtifactUploadController extends Controller
         string $token,
         PublishArtifact $publish,
         StoreArtifactVersion $storeVersion,
+        CreateArtifactPreview $createPreview,
     ): JsonResponse {
         $upload = ArtifactUpload::findByToken($token);
 
@@ -77,6 +79,8 @@ class ArtifactUploadController extends Controller
             'kind' => $artifact->currentVersion->kind->value,
             'size_bytes' => $artifact->size_bytes,
             'visibility' => $artifact->visibility->value,
+            // Uso único, sem login: para a IA conferir no navegador dela.
+            'preview_url' => $createPreview->handle($upload->user, $artifact),
         ]], $upload->artifact_id ? 200 : 201, [], self::JSON_FLAGS);
     }
 

@@ -37,7 +37,8 @@ Chame `update_artifact` com o `artifact` (URL ou id):
 - HTML até 2 MB: no campo `html`.
 - Maior ou bundle: sem `html`, envie para o `upload_url` com curl (igual à skill `ward-artifact-publish`).
 
-Responda com a mesma URL e o número da nova versão.
+Se você tiver navegador, abra o `preview_url` da resposta (uso único, sem login) para conferir a
+mudança. Responda ao usuário com a URL normal e o número da nova versão.
 
 ## Permissões
 

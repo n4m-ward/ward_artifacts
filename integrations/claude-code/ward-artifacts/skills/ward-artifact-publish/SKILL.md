@@ -44,7 +44,10 @@ de 2 MB, comprimindo imagens ou usando SVG.
 
 ## Depois de publicar
 
-- Entregue a **URL** ao usuário.
+- **Confira o resultado (se você tiver navegador):** a resposta traz `preview_url`, um link de uso
+  único que abre o artifact **sem login**. Abra-o no seu navegador (Playwright, Chrome etc.) para ver se
+  renderizou certo. Ele morre no primeiro acesso; se precisar de outro, chame `get_artifact_source`.
+- Entregue ao usuário a **URL normal** (`url`), nunca o `preview_url`.
 - Diga que o artifact está **privado (só ele vê)**. Para compartilhar, ele abre o link e clica no selo
   de visibilidade ("Só eu"), onde escolhe "Usuários logados" ou um link público temporário (de 1 hora a
   1 semana).

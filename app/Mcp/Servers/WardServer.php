@@ -33,7 +33,10 @@ Fluxo:
    Para editar, leia o código com get_artifact_source.
 4. Todo artifact nasce privado. Só o usuário pode compartilhar ou tornar público, na tela do artifact.
    Não diga que o link é público.
-5. Limite: 100 MB por artifact. localStorage pode falhar: use try/catch.
+5. publish_artifact, update_artifact, get_artifact_source e o upload devolvem preview_url: um link de
+   uso único, sem login, para você abrir o artifact no seu navegador e conferir o resultado. Ele morre
+   no primeiro acesso; ao usuário, entregue sempre a URL normal (url).
+6. Limite: 100 MB por artifact. localStorage pode falhar: use try/catch.
 TXT)]
 class WardServer extends Server
 {

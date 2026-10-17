@@ -38,7 +38,7 @@ return [
 
     'reserved_usernames' => [
         'admin', 'api', 'artifacts', 'build', 'c', 'confirm-password', 'connections', 'dashboard',
-        'forgot-password', 'invite', 'login', 'logout', 'mcp', 'oauth', 'register',
+        'forgot-password', 'invite', 'login', 'logout', 'mcp', 'oauth', 'p', 'register',
         'reset-password', 'settings', 'storage', 'up', 'users', 'verify-email', 'well-known',
     ],
 
@@ -69,6 +69,13 @@ return [
 
         // Validade do link de upload devolvido pelo MCP.
         'upload_ttl_minutes' => 15,
+
+        // Link de pré-visualização de uso único devolvido pelo MCP (/p/{token}).
+        'preview_ttl_minutes' => (int) env('WARD_PREVIEW_TTL_MINUTES', 60),
+
+        // Validade do conteúdo carregado pela pré-visualização (o iframe e os
+        // assets dele): curta, porque esse link não exige login.
+        'preview_content_ttl_minutes' => 15,
 
         // Maior HTML aceito direto no argumento de uma ferramenta MCP. Acima
         // disso a IA recebe um link de upload.
