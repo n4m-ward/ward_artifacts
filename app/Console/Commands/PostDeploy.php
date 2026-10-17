@@ -52,8 +52,12 @@ class PostDeploy extends Command
             }
 
             // Sem cache de config/rotas: depois de um pull o cache antigo ficaria
-            // valendo até este comando rodar.
-            $this->call('optimize:clear');
+            // valendo até este comando rodar. (Não usa optimize:clear: ele limpa o
+            // cache da aplicação, que fica no banco e ainda não existe no 1º deploy.)
+            foreach (['config:clear', 'route:clear', 'view:clear', 'event:clear'] as $clear) {
+                $this->call($clear);
+            }
+
             $this->call('migrate', ['--force' => true]);
 
             if (User::query()->doesntExist() && filled(config('ward.admin.email'))) {

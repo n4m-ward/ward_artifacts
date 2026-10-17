@@ -7,6 +7,7 @@ use App\Enums\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class PostDeployTest extends TestCase
@@ -60,6 +61,16 @@ class PostDeployTest extends TestCase
 
         static::$revision = 'def456';
         $this->artisan('ward:post-deploy')->expectsOutputToContain('Aplicando o deploy def456')->assertSuccessful();
+    }
+
+    public function test_works_before_the_cache_table_exists(): void
+    {
+        // Primeiro deploy: CACHE_STORE=database e a tabela cache ainda não existe.
+        config(['cache.default' => 'database']);
+        Schema::drop('cache');
+
+        $this->artisan('ward:post-deploy')->assertSuccessful();
+        $this->assertSame('abc123', File::get($this->appliedFile));
     }
 
     public function test_fails_when_the_commit_cannot_be_read(): void
