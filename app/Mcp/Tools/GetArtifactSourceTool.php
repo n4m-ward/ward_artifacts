@@ -31,7 +31,15 @@ class GetArtifactSourceTool extends WardTool
 
         $artifact = $this->findArtifact($request->get('artifact'));
 
-        if (! $artifact?->currentVersion || $this->user($request)->cannot('view', $artifact)) {
+        if (! $artifact || $this->user($request)->cannot('view', $artifact)) {
+            return Response::error('Artifact não encontrado.');
+        }
+
+        if ($artifact->isDesign()) {
+            return Response::error('Este artifact é um design: use get_design e get_artboard_source.');
+        }
+
+        if (! $artifact->currentVersion) {
             return Response::error('Artifact não encontrado.');
         }
 

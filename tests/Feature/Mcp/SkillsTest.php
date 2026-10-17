@@ -61,7 +61,7 @@ class SkillsTest extends TestCase
             ->map(fn (Tool $tool) => $tool->name())
             ->all();
 
-        $known = '/`((?:get|publish|update|list|rename|invite)_[a-z_]+|whoami)`/';
+        $known = '/`((?:get|publish|update|list|rename|invite|create|upsert|delete|save)_[a-z_]+|whoami)`/';
 
         foreach ($this->skills() as $dir) {
             preg_match_all($known, file_get_contents("{$dir}/SKILL.md"), $matches);

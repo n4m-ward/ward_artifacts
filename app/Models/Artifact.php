@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\ArtifactType;
 use App\Enums\Visibility;
 use Database\Factories\ArtifactFactory;
 use Illuminate\Database\Eloquent\Builder;
@@ -20,12 +21,15 @@ class Artifact extends Model
     protected $fillable = [
         'uuid', 'user_id', 'project_id', 'title', 'slug',
         'visibility', 'public_until', 'current_version_id', 'size_bytes',
+        'type', 'design_revision',
     ];
 
     protected function casts(): array
     {
         return [
             'visibility' => Visibility::class,
+            'type' => ArtifactType::class,
+            'design_revision' => 'integer',
             'public_until' => 'datetime',
             'size_bytes' => 'integer',
         ];
@@ -44,6 +48,21 @@ class Artifact extends Model
     public function getRouteKeyName(): string
     {
         return 'uuid';
+    }
+
+    public function isDesign(): bool
+    {
+        return $this->type === ArtifactType::Design;
+    }
+
+    /**
+     * Tem conteúdo para mostrar: uma versão (página) ou ao menos um artboard (design).
+     */
+    public function hasContent(): bool
+    {
+        return $this->isDesign()
+            ? $this->boards()->exists()
+            : $this->current_version_id !== null;
     }
 
     public function isPublic(): bool
@@ -90,6 +109,28 @@ class Artifact extends Model
     public function currentVersion(): BelongsTo
     {
         return $this->belongsTo(ArtifactVersion::class, 'current_version_id');
+    }
+
+    // Relações sem ordenação: agregados (max, sum, count) sobre elas precisam
+    // funcionar no MySQL com ONLY_FULL_GROUP_BY. Para listar, use as ordered*.
+    public function boards(): HasMany
+    {
+        return $this->hasMany(DesignBoard::class);
+    }
+
+    public function orderedBoards(): HasMany
+    {
+        return $this->boards()->orderBy('sort')->orderBy('id');
+    }
+
+    public function notes(): HasMany
+    {
+        return $this->hasMany(DesignNote::class);
+    }
+
+    public function snapshots(): HasMany
+    {
+        return $this->hasMany(DesignSnapshot::class);
     }
 
     public function views(): HasMany
