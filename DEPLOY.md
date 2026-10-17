@@ -21,41 +21,40 @@ A `main` fica limpa (sem `public/build`). A Hostinger não roda npm, então os a
 na branch `deploy`, que é gerada pelo workflow e **não deve ser editada à mão**. Se o CI falhar, nada é
 publicado.
 
-## Recursos
+## Recursos (como está configurado)
 
 | Recurso | Valor |
 |---|---|
-| App | `https://artifacts.wardtecnology.com` → pasta `public_html/artifacts` de `wardtecnology.com` |
-| Conteúdo dos artifacts | `https://artifacts-content.wardtecnology.com` → **a mesma pasta** |
+| App | `https://artifacts.wardtecnology.com`: subdomínio do `wardtecnology.com`, pasta `~/domains/wardtecnology.com/public_html/artifacts`, atrás da CDN da Hostinger |
+| Conteúdo dos artifacts | `https://artifacts-content.wardtecnology.com`: outro subdomínio apontando para **a mesma pasta** (não dá para usar domínio estacionado em subdomínio) |
 | Raiz | O repositório inteiro fica na pasta; o `.htaccess` da raiz reescreve tudo para `public/` |
-| Branch publicada | `deploy` (gerada pelo `.github/workflows/deploy.yml` a partir da `main`) |
-| Banco | MySQL `u633753951_ward_artifacts` |
+| Auto-deploy | App do GitHub da Hostinger no site `artifacts.wardtecnology.com`: repositório `n4m-ward/ward_artifacts`, branch `deploy`, pasta raiz |
+| PHP | 8.3, herdado do `wardtecnology.com` (o Composer está fixado em `platform.php = 8.3.35`). A extensão `sodium` foi ligada (exigida pelo `lcobucci/jwt` do Passport) |
+| PHP na linha de comando | Use `/opt/alt/php83/usr/bin/php` (o `php` padrão do SSH é 8.2) |
+| Banco | MySQL `u633753951_ward_artifacts` (usuário de mesmo nome) |
+| Cache / sessão / fila | Arquivo / banco / `sync` |
 | E-mail | `no-reply@wardtecnology.com` (SMTP `smtp.hostinger.com:465`) |
-| Cron | `* * * * *` → `cd <pasta> && /opt/alt/php84/usr/bin/php artisan schedule:run` |
-| `.env` | Só no servidor, na raiz da pasta (modelo: `.env.production.example`) |
-| Chaves OAuth | `storage/oauth-*.key`, geradas no servidor pelo `ward:post-deploy` |
+| Cron | `* * * * *` → `/opt/alt/php83/usr/bin/php /home/u633753951/domains/wardtecnology.com/public_html/artifacts/artisan schedule:run` |
+| `.env` | Só no servidor, na raiz da pasta, permissão 600. A cópia local fica em `.env.production` (fora do git) |
+| Chaves OAuth | `storage/oauth-*.key`, geradas no servidor pelo `ward:post-deploy`, permissão 600 |
 
 Arquivos não versionados (`.env`, `vendor/`, `storage/`) sobrevivem aos pulls.
 
-## Configuração inicial (uma vez)
+## Configuração inicial (feita)
 
-Feita pela API da Hostinger (`https://developers.hostinger.com`), exceto o item 1:
+1. hPanel: GitHub conectado e auto-deploy da branch `deploy` no site `artifacts.wardtecnology.com`.
+2. API da Hostinger: subdomínios, SSL (automático), `display_errors`/`expose_php` desligados e `sodium`
+   ligado (essas opções valem para todo o `wardtecnology.com`), banco, caixa `no-reply@` e cron.
+3. `.env` enviado por SSH (`scp`) e `chmod 600`.
 
-1. **hPanel → Sites → wardtecnology.com → Git → conectar o GitHub** e dar acesso ao repositório
-   `n4m-ward/ward_artifacts`. É a autorização OAuth do app da Hostinger no GitHub; só o dono da conta faz.
-2. Subdomínios `artifacts` e `artifacts-content` apontando para a pasta `artifacts`, com SSL.
-3. PHP 8.4 no subdomínio, `display_errors=Off`, limites de upload de 128 MB.
-4. Banco MySQL e caixa de e-mail `no-reply@`.
-5. Git auto-deployment: repositório `n4m-ward/ward_artifacts`, branch `deploy`, pasta raiz do subdomínio.
-6. Upload do `.env` (API de arquivos, TUS) depois do primeiro clone.
-7. Cron do scheduler.
+Atenção: as opções e extensões de PHP de um subdomínio são as do `wardtecnology.com` inteiro; mudar
+versão de PHP afeta também o site principal e o `novel-kindle-parser`.
 
 ## Dia a dia
 
 - Deploy = merge/push na `main`. Acompanhe em GitHub → Actions → `deploy`.
 - Em até ~1 minuto após o pull da Hostinger, o cron aplica as migrations.
-- Para forçar o pós-deploy: crie um cron único com `php artisan ward:post-deploy --force`, ou rode
-  pela API de cron jobs e leia a saída.
+- Para forçar o pós-deploy: `/opt/alt/php83/usr/bin/php artisan ward:post-deploy --force` na pasta.
 - Logs: `storage/logs/laravel-AAAA-MM-DD.log` (API de arquivos ou gerenciador do hPanel).
 
 ## Limites conhecidos

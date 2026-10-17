@@ -189,4 +189,4 @@ oauth_* (Passport) + last_used_at nos access tokens, para a tela de Conexões
 | 5 | MCP HTTP + OAuth (Passport), `upload_url`, tela de Conexões MCP, template base | ✅ |
 | 6 | Skills, plugin do Claude Code, instalador local, `AGENTS.md`, guia de conexão para Codex/OpenCode | ✅ |
 | 7 | Conta e senha: trocar senha (tela própria, em português), "esqueci minha senha" por e-mail, admin envia link de redefinição para um usuário, app inteiro em pt-BR | ✅ |
-| 8 | Hardening e deploy na Hostinger (MySQL, SMTP, subdomínio de conteúdo + SSL, limites de upload) — ver DEPLOY.md | 🚧 |
+| 8 | Hardening e deploy na Hostinger (MySQL, SMTP, subdomínio de conteúdo + SSL, limites de upload) — ver DEPLOY.md | ✅ |
