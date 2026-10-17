@@ -151,7 +151,7 @@ new class extends Component {
 
         <div x-data="{ copied: false }" class="flex gap-2">
             <flux:input readonly size="sm" :value="$this->mcpUrl" class="flex-1 font-mono" aria-label="URL do servidor MCP" />
-            <flux:button size="sm" icon="clipboard" x-on:click="navigator.clipboard.writeText(@js($this->mcpUrl)); copied = true; setTimeout(() => copied = false, 1500)">
+            <flux:button size="sm" icon="clipboard" data-copy="{{ $this->mcpUrl }}" x-on:click="navigator.clipboard.writeText($el.dataset.copy); copied = true; setTimeout(() => copied = false, 1500)">
                 <span x-text="copied ? 'Copiado' : 'Copiar'">Copiar</span>
             </flux:button>
         </div>

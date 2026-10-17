@@ -59,7 +59,8 @@ class DesignViewerTest extends TestCase
         $this->actingAs($this->owner)->get($this->design->path())
             ->assertOk()
             ->assertHeader('X-Robots-Tag', 'noindex, nofollow')
-            ->assertSee('design · 2 artboards')
+            ->assertSee('2 artboards')
+            ->assertSee('ward-design-config', false)
             ->assertSee('Home')
             ->assertSee('Checkout')
             ->assertSee('Fluxo de compra')
@@ -75,7 +76,9 @@ class DesignViewerTest extends TestCase
         $url = $gateway->boardUrl($board);
 
         $response = $this->get($url)->assertOk()->assertHeader('X-Content-Type-Options', 'nosniff');
-        $this->assertSame('<!doctype html><p>v1</p>', $response->streamedContent());
+        // O runtime da Ward (links board:) entra antes do </body>, sem ir para o arquivo salvo.
+        $this->assertStringStartsWith('<!doctype html><p>v1</p>', $response->getContent());
+        $this->assertStringContainsString("ward: 'navigate'", $response->getContent());
         $this->assertStringContainsString('sandbox allow-scripts', $response->headers->get('Content-Security-Policy'));
         $this->assertStringEndsWith('/1.html', $url);
 

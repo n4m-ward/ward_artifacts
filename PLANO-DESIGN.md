@@ -154,7 +154,7 @@ Clientes sem MCP Apps (Claude Code no terminal, Codex, OpenCode) recebem texto +
 | # | Fase | Entrega |
 |---|---|---|
 | D1 ✅ | Base | `type=design`, tabelas, ações (criar, upsert, layout, apagar, versão), ferramentas MCP, skill `ward-design`, página simples do canvas com zoom |
-| D2 | Canvas ao vivo | Página com pan/zoom, foco, Play, notas, ao vivo por consulta curta, compartilhar, zip |
+| D2 ✅ | Canvas ao vivo | Página com pan/zoom, foco, Play, notas, ao vivo por consulta curta, compartilhar, zip |
 | D3 | MCP App | `open_design` no Claude, prévia em streaming, seleção → IA, "Pedir mudança" |
 | D4 | Edição humana | Mover/redimensionar, notas, Tweaks, comentários que a IA lê, upload de imagens |
 | D5 | Avançado | Edição visual de texto e estilos, exportar PNG/PDF, histórico de versões na tela |

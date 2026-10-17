@@ -115,7 +115,8 @@ new class extends Component {
                     <flux:input readonly :value="$artifact->url()" class="flex-1" aria-label="Link do artifact" />
                     <flux:button
                         icon="clipboard"
-                        x-on:click="navigator.clipboard.writeText(@js($artifact->url())); copied = true; setTimeout(() => copied = false, 1500)"
+                        data-copy="{{ $artifact->url() }}"
+                        x-on:click="navigator.clipboard.writeText($el.dataset.copy); copied = true; setTimeout(() => copied = false, 1500)"
                     >
                         <span x-text="copied ? 'Copiado' : 'Copiar'">Copiar</span>
                     </flux:button>

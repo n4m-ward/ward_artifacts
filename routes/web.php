@@ -3,6 +3,7 @@
 use App\Http\Controllers\ArtifactDownloadController;
 use App\Http\Controllers\ArtifactPreviewController;
 use App\Http\Controllers\ArtifactViewerController;
+use App\Http\Controllers\DesignLiveController;
 use App\Models\User;
 use Illuminate\Support\Facades\Route;
 use Livewire\Volt\Volt;
@@ -35,6 +36,12 @@ Route::get('p/{token}', ArtifactPreviewController::class)
     ->where('token', '[A-Za-z0-9]{48}')
     ->middleware('throttle:60,1')
     ->name('artifacts.preview');
+
+// Ao vivo do canvas de design: o navegador pergunta a cada ~1,5 s se mudou.
+Route::get('d/{artifact}/live', DesignLiveController::class)
+    ->where('artifact', '[0-9a-f]{32}')
+    ->middleware('throttle:240,1')
+    ->name('designs.live');
 
 Route::get('artifacts/{artifact}/download', ArtifactDownloadController::class)
     ->name('artifacts.download');
