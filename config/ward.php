@@ -52,7 +52,7 @@ return [
     */
 
     'reserved_usernames' => [
-        'admin', 'api', 'artifacts', 'build', 'c', 'confirm-password', 'connections', 'dashboard',
+        'admin', 'api', 'artifacts', 'build', 'c', 'confirm-password', 'connections', 'd', 'dashboard',
         'forgot-password', 'invite', 'login', 'logout', 'mcp', 'oauth', 'p', 'register',
         'reset-password', 'settings', 'storage', 'up', 'users', 'verify-email', 'well-known',
     ],

@@ -1,6 +1,6 @@
 {
   "resources/css/app.css": {
-    "file": "assets/app-CYteN-xb.css",
+    "file": "assets/app-BEkjRKMc.css",
     "src": "resources/css/app.css",
     "isEntry": true
   },
@@ -8,6 +8,12 @@
     "file": "assets/app-l0sNRNKZ.js",
     "name": "app",
     "src": "resources/js/app.js",
+    "isEntry": true
+  },
+  "resources/js/design-canvas.js": {
+    "file": "assets/design-canvas-P5BnolC0.js",
+    "name": "design-canvas",
+    "src": "resources/js/design-canvas.js",
     "isEntry": true
   }
 }

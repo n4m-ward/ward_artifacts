@@ -23,7 +23,7 @@ class ArtifactContentController extends Controller
 
             abort_unless($board !== null && $board->storage_path !== '' && $disk->fileExists($board->storage_path), 404);
 
-            return $disk->response($board->storage_path, null, $this->headers($gateway, 'index.html'));
+            return response($this->withRuntime((string) $disk->get($board->storage_path)), 200, $this->headers($gateway, 'index.html'));
         }
 
         $version = $gateway->resolve($token);
@@ -36,6 +36,19 @@ class ArtifactContentController extends Controller
         abort_unless($disk->fileExists($file), 404);
 
         return $disk->response($file, null, $this->headers($gateway, $path));
+    }
+
+    /**
+     * Injeta o runtime do Ward Design antes do último </body> (ou no fim).
+     */
+    private function withRuntime(string $html): string
+    {
+        $script = '<script>'.file_get_contents(resource_path('design/runtime.js')).'</script>';
+        $position = strripos($html, '</body>');
+
+        return $position === false
+            ? $html.$script
+            : substr($html, 0, $position).$script.substr($html, $position);
     }
 
     /**
