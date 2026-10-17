@@ -6,15 +6,26 @@ Domínio de produção: `artifacts.wardtecnology.com` (Hostinger, MySQL). Local:
 ## Decisões fechadas
 
 - **Cadastro só por convite.** Não existe rota `/register`. O primeiro admin nasce pelo
-  `AdminUserSeeder` (variáveis `WARD_ADMIN_*` no `.env`). Depois disso, só um admin cadastra
-  usuários (pela web ou pelo MCP).
+  `AdminUserSeeder` (variáveis `WARD_ADMIN_*` no `.env`). Depois disso, só um admin convida
+  usuários (pela web ou pelo MCP). O convidado recebe um link para definir a senha.
 - **Roles:** `admin` e `player`.
-- **Artifact = sempre um único arquivo `.html`**, com CSS, JS e imagens inline (`data:` base64).
-  Recursos externos (CDN, imagens remotas) só quando inline não for possível. Limite: 100 MB.
-- **O conteúdo só entra via MCP/API.** A web não edita o código: só título, visibilidade e exclusão.
+- **O conteúdo só entra via MCP.** A web não edita o código: só título, visibilidade e exclusão.
   Republicar pelo MCP cria uma nova versão e mantém a mesma URL.
 - **Frontend do painel:** Livewire (starter kit oficial, Volt + Flux).
-- **Agentes suportados:** Claude Code, Codex, OpenCode e afins (MCP + skills no formato aberto `SKILL.md`).
+- **MCP remoto via HTTP (streamable), com OAuth.** Sem stdio.
+- **Agentes suportados:** Claude Code, claude.ai, Codex, OpenCode e afins.
+- **Nível de complexidade alvo:** de páginas simples até apps/jogos em canvas com sprites, JSON,
+  fontes externas, `localStorage`, animação (ex.: o artifact "Vila de Teste").
+
+## Formato do artifact
+
+- **Padrão: um único `.html`**, com CSS, JS e imagens inline (`data:` base64, JSON como `const`).
+  Recursos externos (CDN, Google Fonts) só quando inline não for possível.
+- **Bundle (a decidir):** `.zip` com `index.html` + assets relativos (`assets/*.png`, `*.json`).
+  Cobre artifacts como o de referência, que fazem `fetch("assets/x.json")`, sem precisar
+  reescrevê-los. Mesmo limite: 100 MB descompactado, com whitelist de extensões, sem `../`
+  e sem symlinks.
+- Limite total: 100 MB.
 
 ## Visibilidade
 
@@ -26,7 +37,7 @@ Domínio de produção: `artifacts.wardtecnology.com` (Hostinger, MySQL). Local:
 
 - Quando o público expira, o artifact volta para o nível anterior (`users` ou `owner`).
   A checagem é feita a cada requisição (`public_until > now()`), sem depender de cron.
-- A API e o MCP **não aceitam** campos de visibilidade.
+- O MCP **não aceita** campos de visibilidade.
 
 ## Painel e permissões
 
@@ -34,6 +45,9 @@ Domínio de produção: `artifacts.wardtecnology.com` (Hostinger, MySQL). Local:
 - **Acessados:** de outros usuários, que eu já abri pelo menos uma vez (`artifact_views`).
 - **Todos (admin):** com filtro por usuário. O admin vê, renomeia e apaga artifacts de qualquer um.
 - O player renomeia e apaga só os próprios.
+- **Usuários (admin):** convidar, reenviar convite, mudar role, remover.
+- **Conexões MCP:** cada usuário vê os clientes OAuth que autorizou (nome do cliente, data,
+  último uso) e pode revogar. O admin vê as conexões de todos.
 
 ## URL
 
@@ -46,21 +60,24 @@ Domínio de produção: `artifacts.wardtecnology.com` (Hostinger, MySQL). Local:
 
 ## Serviço do HTML (segurança)
 
-- A página `.html` é uma moldura (barra com título e controles) + `<iframe sandbox="allow-scripts ...">`
-  sem `allow-same-origin`.
-- O HTML bruto é servido com `Content-Security-Policy: sandbox allow-scripts allow-popups allow-forms
-  allow-modals allow-downloads`, `X-Content-Type-Options: nosniff` e `X-Robots-Tag: noindex`.
-  Assim ele roda numa origem opaca, mesmo se a URL bruta for aberta direto, e não acessa a sessão.
-- O bruto não-público é liberado por um token assinado de curta duração gerado pela moldura.
-- `WARD_CONTENT_URL` permite mover o bruto para um subdomínio depois, sem mudar código.
-- Os arquivos ficam em `storage/app/private/artifacts/{uuid}/v{n}.html`, nunca em `public/`.
+- A página `.html` no app é uma moldura (barra com título e controles) + `<iframe>` apontando
+  para o **subdomínio de conteúdo** (`WARD_CONTENT_URL`, ex.: `content.wardtecnology.com`).
+- **Por que o subdomínio é necessário:** um sandbox sem `allow-same-origin` deixa o HTML numa
+  origem opaca, e aí `localStorage`, `sessionStorage`, IndexedDB e cookies **lançam erro**.
+  Artifacts como o de referência quebrariam. Num subdomínio separado podemos liberar
+  `allow-same-origin`: o artifact ganha storage normal e mesmo assim não alcança a sessão do app,
+  porque é outra origem. Os cookies do app usam o prefixo `__Host-` (host-only) para o
+  subdomínio não conseguir sobrescrevê-los.
+- O HTML bruto vai com `X-Content-Type-Options: nosniff` e `X-Robots-Tag: noindex`.
+- O conteúdo não-público é liberado por um token assinado de curta duração no caminho
+  (`/c/{token}/index.html`). Os assets relativos de um bundle herdam o mesmo token.
+- Os arquivos ficam em `storage/app/private/artifacts/{uuid}/v{n}/`, nunca em `public/`.
 
 ## Acesso por IAs
 
-- **Com token (MCP/API):** `GET /api/artifacts/{uuid}/source` retorna o HTML puro para a IA ler
-  ou editar. O token Sanctum também é aceito na rota bruta.
+- **Via MCP:** a ferramenta `get_artifact_source` devolve o HTML (ou uma URL assinada para baixar).
 - **Navegando pela URL (WebFetch etc.):** a moldura expõe `<link rel="alternate">` e um link visível
-  para o HTML bruto. Assim um agente que não executa iframes encontra o conteúdo.
+  para o conteúdo. Assim um agente que não executa iframes encontra o HTML.
 - Tudo com `noindex`: os artifacts não entram em buscadores.
 
 ## Template base
@@ -69,8 +86,41 @@ Um esqueleto mínimo, fornecido pela skill e pelo MCP (`get_template`):
 - `<!doctype html>`, metas de charset e viewport, `<title>`.
 - Tailwind via `@tailwindcss/browser@4.3.3` (CDN fixado) + bloco `<style type="text/tailwindcss">`
   com `@theme` (tokens de cor e fonte da Ward, claro e escuro).
-- Variantes: `tailwind` (padrão) e `plain` (CSS puro com as mesmas variáveis).
+- Variantes: `tailwind` (padrão), `plain` (CSS puro com as mesmas variáveis) e `canvas`
+  (palco em tela cheia com loop `requestAnimationFrame`, para jogos e simulações).
 - Abre direto no navegador para pré-visualizar antes de publicar (opcional).
+
+## MCP (HTTP + OAuth, dentro do próprio Laravel)
+
+- Pacotes: `laravel/mcp` (servidor MCP em `/mcp`, transporte streamable HTTP) +
+  `laravel/passport` (OAuth 2.1 com registro dinâmico de cliente, que é o fluxo usado por
+  Claude, Codex e OpenCode). O usuário conecta, faz login no site e autoriza o cliente.
+- **Envio de arquivos sem stdio:** um MCP remoto não lê o disco da máquina. Por isso:
+  - `publish_artifact(title, project, html?)` aceita o HTML inline (bom para claude.ai e arquivos
+    pequenos) **ou** devolve uma `upload_url` assinada (15 min, uso único).
+  - Agentes com terminal (Claude Code, Codex, OpenCode) enviam com
+    `curl --data-binary @arquivo.html "<upload_url>"`. As skills ensinam esse passo.
+
+| Ferramenta | O que faz |
+|---|---|
+| `get_template(variant)` | Retorna o esqueleto base |
+| `publish_artifact(title, project, html?)` | Cria o artifact (sempre `owner`) e retorna a URL ou a `upload_url` |
+| `update_artifact(id, html?)` | Nova versão, inline ou por `upload_url` |
+| `get_artifact_source(id)` | HTML inline ou URL assinada para download |
+| `list_artifacts`, `list_projects`, `whoami` | Consulta |
+| `rename_artifact(id, title)` | Só o título |
+| `invite_user(name, username, email, role)` | Só para admin (scope OAuth `users:invite`) |
+
+## Skills (formato aberto `SKILL.md`, com descrições para auto-invocação)
+
+- `ward-artifact-create`: como montar o HTML a partir do template (inline, base64, responsivo,
+  dark mode, storage com try/catch).
+- `ward-artifact-publish`: quando publicar, como nomear o projeto pela feature, como enviar pelo
+  `upload_url`, e lembrar que o artifact nasce privado.
+- `ward-artifact-edit`: baixar o código, editar e republicar no mesmo id.
+
+Distribuição: plugin do Claude Code + pasta `.agents/skills` e `AGENTS.md` para Codex e OpenCode,
+com instruções de conexão do MCP remoto em cada cliente.
 
 ## Modelo de dados
 
@@ -80,46 +130,22 @@ projects           id, user_id, name, slug                      unique(user_id, 
 artifacts          id, uuid (char 32), user_id, project_id, title, slug,
                    visibility (owner|users), public_until (nullable),
                    current_version_id, size_bytes, timestamps
-artifact_versions  id, artifact_id, number, storage_path, size_bytes, sha256, created_at
+artifact_versions  id, artifact_id, number, kind (html|bundle), storage_path, entry_path,
+                   size_bytes, sha256, created_at
 artifact_views     user_id, artifact_id, first_viewed_at, last_viewed_at   unique(user_id, artifact_id)
-personal_access_tokens (Sanctum)  abilities: artifacts:read, artifacts:write, users:create
+artifact_uploads   id, token, user_id, artifact_id (nullable), expires_at, used_at
+oauth_* (Passport) + last_used_at nos access tokens, para a tela de Conexões
 ```
-
-## MCP (`ward-artifacts-mcp`, Node/TypeScript, stdio via `npx`)
-
-O MCP roda localmente porque precisa ler o arquivo do disco. Um MCP remoto obrigaria a IA a colar o
-HTML inteiro como argumento.
-
-| Ferramenta | O que faz |
-|---|---|
-| `get_template(variant)` | Retorna o esqueleto base |
-| `preview_local(path)` | Abre o arquivo no navegador |
-| `publish_artifact(path, title, project)` | Envia o arquivo e retorna a URL (sempre `owner`) |
-| `update_artifact(id, path)` | Cria uma nova versão |
-| `get_artifact_source(id, dest)` | Baixa o HTML para editar localmente |
-| `list_artifacts`, `list_projects`, `whoami` | Consulta |
-| `create_user(name, username, email, role)` | Só para admin, com a ability `users:create` |
-
-Um instalador (`npx ward-artifacts-mcp install --client claude|codex|opencode`) grava a config do
-MCP (`.mcp.json`, `~/.codex/config.toml`, `opencode.json`) e copia as skills.
-
-## Skills (formato `SKILL.md`, com descrições para auto-invocação)
-
-- `ward-artifact-create`: como montar o HTML único a partir do template (inline, base64, responsivo, dark mode).
-- `ward-artifact-publish`: quando publicar, como nomear o projeto pela feature e lembrar que o artifact nasce privado.
-- `ward-artifact-edit`: baixar o código, editar e republicar no mesmo id.
-
-Distribuição: plugin do Claude Code + pasta `.agents/skills` e `AGENTS.md` para Codex e OpenCode.
 
 ## Fases
 
 | # | Fase | Status |
 |---|---|---|
 | 0 | Setup: Laravel 12, starter kit Livewire, SQLite, git, seeder do admin, cadastro desligado | ✅ |
-| 1 | Usuários: tela de admin para convidar/cadastrar usuários, roles, policies | ⏳ |
-| 2 | Upload: API Sanctum, validação do HTML, versões, projects, tela de tokens | ⏳ |
-| 3 | Viewer seguro: moldura + iframe, rota bruta com CSP sandbox, token assinado, views, redirect 301 | ⏳ |
+| 1 | Usuários: convite por e-mail (link para definir senha), tela de admin, roles, policies | 🚧 |
+| 2 | Artifacts: modelos, storage, versões, projects, validação do HTML (e bundle, se aprovado) | ⏳ |
+| 3 | Viewer seguro: moldura + iframe no subdomínio de conteúdo, token assinado, views, redirect 301 | ⏳ |
 | 4 | Painel: Meus / Acessados / Todos, renomear, apagar, visibilidade + público temporário | ⏳ |
-| 5 | MCP local + template base | ⏳ |
-| 6 | Skills, plugin do Claude Code, `AGENTS.md`, instalador | ⏳ |
-| 7 | Hardening e deploy na Hostinger (MySQL, limites de upload do PHP, cron, HTTPS) | ⏳ |
+| 5 | MCP HTTP + OAuth (Passport), `upload_url`, tela de Conexões MCP, template base | ⏳ |
+| 6 | Skills, plugin do Claude Code, `AGENTS.md`, guia de conexão para Codex/OpenCode | ⏳ |
+| 7 | Hardening e deploy na Hostinger (MySQL, subdomínio de conteúdo + SSL, limites de upload) | ⏳ |

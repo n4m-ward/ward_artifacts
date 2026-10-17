@@ -21,6 +21,22 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Usernames reservados
+    |--------------------------------------------------------------------------
+    |
+    | O username é o primeiro segmento da URL dos artifacts, então não pode
+    | colidir com rotas do app.
+    |
+    */
+
+    'reserved_usernames' => [
+        'admin', 'api', 'build', 'c', 'confirm-password', 'connections', 'dashboard',
+        'forgot-password', 'invite', 'login', 'logout', 'mcp', 'oauth', 'register',
+        'reset-password', 'settings', 'storage', 'up', 'users', 'verify-email', 'well-known',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Artifacts
     |--------------------------------------------------------------------------
     */
