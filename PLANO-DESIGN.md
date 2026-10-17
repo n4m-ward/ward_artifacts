@@ -42,6 +42,7 @@ mostrar o mesmo canvas dentro do harness da Ward.
 | Edição visual de texto e estilos (WYSIWYG) | Sim | D5 |
 | Exportar (PNG, PDF, HTML) | HTML/zip na D2; PNG/PDF na D5 | D2/D5 |
 | Design systems (tokens, componentes) | Depois | — |
+| Post-its coloridos com corda até uma tela ou componente (estilo Miro) | Sim | D7 |
 | Upload de imagens para o design | Sim (assets do design) | D4 |
 
 Nada do código do Claude Design é reaproveitado: o formato dos artboards é nosso (HTML comum, sem
@@ -159,5 +160,29 @@ Clientes sem MCP Apps (Claude Code no terminal, Codex, OpenCode) recebem texto +
 | D4 | Edição humana | Mover/redimensionar, notas, Tweaks, comentários que a IA lê, upload de imagens |
 | D5 | Avançado | Edição visual de texto e estilos, exportar PNG/PDF, histórico de versões na tela |
 | D6 | Ward Code | Suporte a MCP Apps no harness da Ward (renderizar `ui://` + ponte de mensagens) |
+| D7 | Post-its | Post-its coloridos para outras pessoas, com corda opcional até um artboard ou componente (detalhes abaixo) |
 
 Cada fase termina com testes, deploy pela `main` e verificação em produção (como nas fases anteriores).
+
+## D7 — Post-its (no fim, depois de tudo pronto)
+
+Post-its no canvas, como num Miro. Ficam para depois de todas as outras fases.
+
+- **Para que serve**: um aviso para **outras pessoas** sobre algo específico do design ("esta tela
+  ainda depende da API", "cor aprovada pelo cliente"). **Não é comentário para a IA.** Comentários
+  (D4) são pedidos de mudança que a IA lê e resolve; o post-it é informativo e fica no canvas.
+- **A IA também enxerga**: `get_design` lista os post-its (texto, cor, posição e a que estão ligados).
+  A IA pode levá-los em conta como contexto, mas não precisa "resolver" nem responder.
+- **Cores variadas**: paleta de cores de post-it (amarelo, rosa, verde, azul, laranja, roxo…),
+  escolhida por quem cria.
+- **Corda (opcional)**: um post-it pode ser ligado por uma linha:
+  - a um **artboard** inteiro; ou
+  - a um **componente dentro de um artboard** (um elemento da tela), ancorado num seletor estável
+    ou num ponto relativo ao artboard, como os comentários da D4.
+
+  A corda acompanha o post-it e o artboard quando um ou outro é movido. Sem corda, o post-it fica
+  solto no canvas.
+- **Quem cria e edita**: pessoas com permissão de edição criam, movem, mudam a cor, editam o texto e
+  apagam pela tela. A IA também pode criar e editar por MCP (`update_layout`).
+- **Dados** (rascunho): as notas `sticky` atuais ganham `board_id` (nullable), `anchor` (seletor ou
+  ponto, nullable) e `author_id`; a corda é desenhada a partir desses campos.
