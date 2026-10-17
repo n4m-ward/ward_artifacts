@@ -9,7 +9,8 @@ use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Diagnóstico do MCP (canal "mcp"): qual cliente conectou e se ele anuncia
- * suporte a MCP Apps, que recurso ui:// pediu e que ferramenta chamou.
+ * suporte a MCP Apps, que recurso ui:// pediu, que ferramenta chamou e os
+ * demais métodos (tools/list, ping...).
  * Nunca registra argumentos nem conteúdo.
  */
 class LogMcpRequests
@@ -25,6 +26,7 @@ class LogMcpRequests
             'initialize' => Log::channel('mcp')->info('initialize', [
                 'user' => $user,
                 'client' => $request->json('params.clientInfo.name'),
+                'agent' => $request->userAgent(),
                 'version' => $request->json('params.clientInfo.version'),
                 'protocol' => $request->json('params.protocolVersion'),
                 'mcp_apps' => array_key_exists(self::UI_EXTENSION, (array) ($request->input('params.capabilities')['extensions'] ?? [])),
@@ -33,7 +35,7 @@ class LogMcpRequests
             ]),
             'resources/read' => Log::channel('mcp')->info('resources/read', ['user' => $user, 'uri' => $request->json('params.uri')]),
             'tools/call' => Log::channel('mcp')->info('tools/call', ['user' => $user, 'tool' => $request->json('params.name')]),
-            default => null,
+            default => Log::channel('mcp')->info($method ?? $request->method(), ['user' => $user, 'agent' => $request->userAgent()]),
         };
 
         return $next($request);
