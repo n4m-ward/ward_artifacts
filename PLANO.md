@@ -168,7 +168,8 @@ oauth_* (Passport) + last_used_at nos access tokens, para a tela de Conexões
 | 1 | Usuários: convite por e-mail (link para definir senha), tela de admin, roles, policies | ✅ |
 | 2 | Artifacts: modelos, storage, versões, projects, validação do HTML e do zip, links de upload | ✅ |
 | 3 | Viewer seguro: moldura + iframe no subdomínio de conteúdo, token assinado, views, redirect 301, download | ✅ |
-| 4 | Painel: Meus / Acessados / Todos, renomear, apagar, visibilidade + público temporário | ⏳ |
+| 4 | Painel: Meus / Acessados / Todos, renomear, apagar, visibilidade + público temporário | ✅ |
 | 5 | MCP HTTP + OAuth (Passport), `upload_url`, tela de Conexões MCP, template base | ⏳ |
 | 6 | Skills, plugin do Claude Code, `AGENTS.md`, guia de conexão para Codex/OpenCode | ⏳ |
-| 7 | Hardening e deploy na Hostinger (MySQL, subdomínio de conteúdo + SSL, limites de upload) | ⏳ |
+| 7 | Conta e senha: trocar senha (tela própria, em português), "esqueci minha senha" por e-mail, admin envia link de redefinição para um usuário, app inteiro em pt-BR | ⏳ |
+| 8 | Hardening e deploy na Hostinger (MySQL, SMTP, subdomínio de conteúdo + SSL, limites de upload) | ⏳ |

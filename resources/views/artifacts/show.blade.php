@@ -24,15 +24,7 @@
             </div>
 
             <div class="flex shrink-0 items-center gap-1.5">
-                @if ($artifact->isPublic())
-                    <flux:badge size="sm" color="green" icon="globe-alt">
-                        Público até <time class="ms-1" datetime="{{ $artifact->public_until->toIso8601String() }}" data-local-time>{{ $artifact->public_until->format('d/m H:i') }}</time>
-                    </flux:badge>
-                @elseif ($artifact->visibility === \App\Enums\Visibility::Users)
-                    <flux:badge size="sm" color="sky" icon="users">Usuários logados</flux:badge>
-                @else
-                    <flux:badge size="sm" icon="lock-closed">Só {{ auth()->id() === $owner->id ? 'eu' : '@'.$owner->username }}</flux:badge>
-                @endif
+                <livewire:artifacts.manage :artifact="$artifact" />
 
                 <flux:button size="sm" variant="ghost" icon="arrow-top-right-on-square" :href="$contentUrl" target="_blank" rel="noopener noreferrer" title="Abrir o HTML puro em nova aba">
                     <span class="max-sm:hidden">HTML puro</span>
@@ -49,8 +41,7 @@
                 src="{{ $contentUrl }}"
                 title="{{ $artifact->title }}"
                 sandbox="{{ $sandbox }}"
-                allow="fullscreen; autoplay; clipboard-read; clipboard-write; encrypted-media; gamepad; picture-in-picture; web-share"
-                allowfullscreen
+                allow="fullscreen; autoplay; clipboard-read; clipboard-write; encrypted-media; gamepad; picture-in-picture"
                 referrerpolicy="no-referrer"
                 class="absolute inset-0 size-full border-0 bg-white"
             ></iframe>
@@ -60,11 +51,6 @@
             </noscript>
         </main>
 
-        <script>
-            document.querySelectorAll('[data-local-time]').forEach((el) => {
-                const date = new Date(el.getAttribute('datetime'));
-                el.textContent = date.toLocaleString(undefined, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-            });
-        </script>
+        @fluxScripts
     </body>
 </html>

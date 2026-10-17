@@ -19,6 +19,9 @@ return [
         'password' => env('WARD_ADMIN_PASSWORD'),
     ],
 
+    // Fuso usado para mostrar datas no painel (o banco guarda em UTC).
+    'display_timezone' => env('WARD_DISPLAY_TIMEZONE', 'America/Sao_Paulo'),
+
     /*
     |--------------------------------------------------------------------------
     | Usernames reservados

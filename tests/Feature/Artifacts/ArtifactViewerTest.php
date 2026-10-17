@@ -33,7 +33,11 @@ class ArtifactViewerTest extends TestCase
         $artifact = app(PublishArtifact::class)->handle($this->owner, 'Vila de Teste', 'Mapas', $this->htmlFile());
 
         if ($visibility) {
-            app(SetArtifactVisibility::class)->handle($artifact, $visibility, $publicHours);
+            app(SetArtifactVisibility::class)->base($artifact, $visibility);
+        }
+
+        if ($publicHours) {
+            app(SetArtifactVisibility::class)->makePublic($artifact, $publicHours);
         }
 
         return $artifact->fresh(['user', 'project', 'currentVersion']);

@@ -125,7 +125,8 @@ class ArtifactActionsTest extends TestCase
         $artifact = $this->publish(User::factory()->create());
         $action = app(SetArtifactVisibility::class);
 
-        $action->handle($artifact, Visibility::Users, 48);
+        $action->base($artifact, Visibility::Users);
+        $action->makePublic($artifact, 48);
         $this->assertTrue($artifact->isPublic());
         $this->assertEqualsWithDelta(now()->addHours(48)->timestamp, $artifact->public_until->timestamp, 5);
 
@@ -134,12 +135,30 @@ class ArtifactActionsTest extends TestCase
         $this->assertSame(Visibility::Users, $artifact->fresh()->visibility);
 
         $this->expectException(InvalidArgumentException::class);
-        $action->handle($artifact, Visibility::Owner, 24 * 30);
+        $action->makePublic($artifact, 24 * 30);
+    }
+
+    public function test_changing_the_base_level_keeps_the_public_link(): void
+    {
+        $artifact = $this->publish(User::factory()->create());
+        $action = app(SetArtifactVisibility::class);
+
+        $action->makePublic($artifact, 6);
+        $action->base($artifact, Visibility::Users);
+        $this->assertTrue($artifact->fresh()->isPublic());
+
+        $action->endPublic($artifact);
+        $this->assertFalse($artifact->fresh()->isPublic());
+        $this->assertSame(Visibility::Users, $artifact->fresh()->visibility);
     }
 
     public function test_every_allowed_public_duration_is_accepted(): void
     {
         $this->assertSame([1, 2, 6, 12, 24, 48, 168], SetArtifactVisibility::publicDurations());
+        $this->assertSame(
+            ['1 hora', '2 horas', '6 horas', '12 horas', '24 horas', '2 dias', '1 semana'],
+            array_map([SetArtifactVisibility::class, 'durationLabel'], SetArtifactVisibility::publicDurations()),
+        );
     }
 
     public function test_delete_removes_files(): void
