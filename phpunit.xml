@@ -19,6 +19,7 @@
     </source>
     <php>
         <env name="APP_ENV" value="testing"/>
+        <env name="LOG_MCP_ENABLED" value="false"/>
         <env name="APP_URL" value="http://localhost"/>
         <env name="WARD_CONTENT_URL" value="http://content.localhost"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>

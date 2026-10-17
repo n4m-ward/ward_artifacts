@@ -66,12 +66,15 @@ return [
         ],
 
         // Diagnóstico do MCP (ver App\Http\Middleware\LogMcpRequests).
-        'mcp' => [
+        'mcp' => env('LOG_MCP_ENABLED', true) ? [
             'driver' => 'daily',
             'path' => storage_path('logs/mcp.log'),
             'level' => 'info',
             'days' => 14,
             'replace_placeholders' => true,
+        ] : [
+            'driver' => 'monolog',
+            'handler' => NullHandler::class,
         ],
 
         'daily' => [
