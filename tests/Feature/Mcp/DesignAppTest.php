@@ -46,11 +46,11 @@ class DesignAppTest extends TestCase
         ]);
     }
 
-    private function rpc(string $method, array $params = [])
+    private function rpc(string $method, array $params = [], array $headers = [])
     {
         return $this->postJson('/mcp', [
             'jsonrpc' => '2.0', 'id' => 1, 'method' => $method, 'params' => (object) $params,
-        ], ['Accept' => 'application/json, text/event-stream']);
+        ], ['Accept' => 'application/json, text/event-stream'] + $headers);
     }
 
     /**
@@ -199,8 +199,21 @@ class DesignAppTest extends TestCase
 
         $log->shouldHaveReceived('info')->with('initialize', Mockery::on(fn ($c) => $c['client'] === 'claude-ai' && $c['mcp_apps'] === true && $c['user'] === 'nam-ward'));
         $log->shouldHaveReceived('info')->with('resources/read', Mockery::on(fn ($c) => str_starts_with($c['uri'], 'ui://')));
-        $log->shouldHaveReceived('info')->with('tools/call', ['user' => 'nam-ward', 'tool' => 'get_design']);
+        $log->shouldHaveReceived('info')->with('tools/call', Mockery::on(fn ($c) => $c['user'] === 'nam-ward' && $c['tool'] === 'get_design'));
         $this->rpc('tools/list')->assertOk();
         $log->shouldHaveReceived('info')->with('tools/list', Mockery::on(fn ($c) => $c['user'] === 'nam-ward' && array_key_exists('agent', $c)));
+
+        // Protocolo novo: capacidades do cliente em cada pedido.
+        $this->rpc('server/discover', ['_meta' => [
+            'io.modelcontextprotocol/protocolVersion' => '2026-07-28',
+            'io.modelcontextprotocol/clientInfo' => ['name' => 'claude-ai', 'version' => '1'],
+            'io.modelcontextprotocol/clientCapabilities' => [
+                'extensions' => ['io.modelcontextprotocol/ui' => ['mimeTypes' => ['text/html;profile=mcp-app']]],
+            ],
+        ]], ['MCP-Protocol-Version' => '2026-07-28', 'Mcp-Method' => 'server/discover'])->assertOk();
+        $log->shouldHaveReceived('info')->with('server/discover', Mockery::on(fn ($c) => $c['client'] === 'claude-ai'
+            && $c['protocol'] === '2026-07-28'
+            && $c['mcp_apps'] === true
+            && $c['extensions'] === ['io.modelcontextprotocol/ui']));
     }
 }
