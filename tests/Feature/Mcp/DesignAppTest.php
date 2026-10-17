@@ -200,5 +200,7 @@ class DesignAppTest extends TestCase
         $log->shouldHaveReceived('info')->with('initialize', Mockery::on(fn ($c) => $c['client'] === 'claude-ai' && $c['mcp_apps'] === true && $c['user'] === 'nam-ward'));
         $log->shouldHaveReceived('info')->with('resources/read', Mockery::on(fn ($c) => str_starts_with($c['uri'], 'ui://')));
         $log->shouldHaveReceived('info')->with('tools/call', ['user' => 'nam-ward', 'tool' => 'get_design']);
+        $this->rpc('tools/list')->assertOk();
+        $log->shouldHaveReceived('info')->with('tools/list', Mockery::on(fn ($c) => $c['user'] === 'nam-ward' && array_key_exists('agent', $c)));
     }
 }
