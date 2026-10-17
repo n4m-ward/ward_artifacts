@@ -67,4 +67,23 @@ class McpHttpTest extends TestCase
         $this->rpc('tools/list', host: 'http://content.localhost')->assertNotFound();
         $this->getJson('http://content.localhost/.well-known/oauth-authorization-server')->assertNotFound();
     }
+
+    public function test_discovery_is_not_starved_by_the_registration_limit(): void
+    {
+        foreach (range(1, 30) as $attempt) {
+            $this->getJson('/.well-known/oauth-authorization-server')->assertOk();
+            $this->getJson('/.well-known/oauth-protected-resource/mcp')->assertOk();
+        }
+
+        $register = fn () => $this->postJson('/oauth/register', [
+            'client_name' => 'Teste', 'redirect_uris' => ['http://127.0.0.1:3000/callback'],
+        ]);
+
+        foreach (range(1, 20) as $attempt) {
+            $this->assertNotSame(429, $register()->status());
+        }
+
+        $register()->assertTooManyRequests();
+        $this->getJson('/.well-known/oauth-authorization-server')->assertOk();
+    }
 }
