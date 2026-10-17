@@ -73,14 +73,6 @@ class DesignCanvas {
         this.list = root.querySelector('[data-canvas-list]');
 
         this.renderAll();
-
-        // Modo estático (print do servidor): só desenha e enquadra tudo.
-        if (config.static) {
-            this.userMoved = false;
-            this.fit();
-            return;
-        }
-
         this.bindCanvas();
         this.bindFocus();
         this.bindKeyboard();
