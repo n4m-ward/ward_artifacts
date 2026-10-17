@@ -4,7 +4,13 @@
     {
       "name": "ward-artifacts",
       "runtimeExecutable": "php",
-      "runtimeArgs": ["artisan", "serve", "--host=127.0.0.1", "--port=8000"],
+      "runtimeArgs": [
+        "artisan",
+        "serve",
+        "--host=127.0.0.1",
+        "--port=8000",
+        "--no-reload"
+      ],
       "port": 8000,
       "url": "http://localhost:8000"
     }

@@ -1,6 +1,6 @@
 ---
 name: ward-design
-description: Design screens and visuals on a Ward Design canvas (artifacts.wardtecnology.com) through the ward-artifacts MCP server. Use when the user wants mockups, app screens, UI flows, landing page or website layouts, social posts, banners, posters, or several visual variations side by side — "design", "mockup", "tela", "protótipo", "post", "layout", "variações", "Ward Design" — rather than a single standalone page. Covers opening the live canvas before editing so the user watches the work, setting a design direction, high-fidelity craft, checking every artboard visually, clickable prototypes with board: links, editing an artboard, and saving versions.
+description: Design screens and visuals on a Ward Design canvas (artifacts.wardtecnology.com) through the ward-artifacts MCP server. Use when the user wants mockups, app screens, UI flows, landing page or website layouts, social posts, banners, posters, or several visual variations side by side — "design", "mockup", "tela", "protótipo", "post", "layout", "variações", "Ward Design" — rather than a single standalone page. Covers opening the live canvas before editing so the user watches the work, setting a design direction, high-fidelity craft, reviewing a screenshot of every artboard (get_artboard_image, get_design_image, or the embedded browser) before calling it done, clickable prototypes with board: links, editing an artboard, and saving versions.
 ---
 
 # Ward Design
@@ -36,22 +36,32 @@ O usuário quer **ver você desenhando**: o canvas fica aberto desde o início e
 3. Mostre a direção em 3–4 linhas: adjetivo e referência, par de fontes, paleta em `oklch()`, claro ou
    escuro. Essa direção vale para **todas** as telas: o mesmo bloco `:root` em cada artboard.
 
-## 3. Uma tela por vez, conferindo cada uma
+## 3. Uma tela por vez, avaliando o print de cada uma
+
+Nenhuma tela está pronta sem você olhar a imagem dela. O ciclo de cada tela é:
 
 1. `upsert_artboard` com `name` curto em ASCII (`Home`, `Cardapio`), `title` com acento se precisar,
    `kind`, `w`, `h` e o `html` completo.
    - `kind: "fixed"`: post, story, tela de app, pôster, ou seja, tamanho exato (390×844, 1080×1080…).
    - `kind: "page"`: site, landing, dashboard, ou seja, raiz fluida; `w` 1280–1440 e `h` a altura real.
-2. **Olhe o resultado** no canvas aberto antes da próxima tela. Os iframes do canvas às vezes demoram
-   alguns segundos para pintar na captura: espere e use zoom na área do artboard. Confira:
-   - nada cortado ou escondido atrás de barras fixas; o conteúdo cabe em `w`×`h`;
-   - preços, botões e abas sem quebra de linha estranha;
-   - fotos e fontes carregadas;
-   - hierarquia clara e contraste.
-   Corrija com outro `upsert_artboard` do mesmo `name`.
-3. `update_layout` para organizar: fileiras com 80 px entre artboards e 160 px entre fileiras, títulos
-   (`kind: "title"`) acima de cada fileira e notas adesivas para observações.
-4. No fim, passe ao usuário a **URL do design** (`url`), nunca o `preview_url`.
+2. **Pegue o print e avalie.** Escolha a fonte que fizer mais sentido no momento:
+   - `get_artboard_image(design, name)`: print de um artboard, renderizado no servidor com fontes, fotos
+     e CSS reais. É o padrão depois de cada `upsert_artboard`.
+   - `get_design_image(design)`: o canvas inteiro, para conferir o conjunto (fim de rodada, mudanças
+     em várias telas, organização do canvas).
+   - **Seu navegador embutido** (no Claude Code, o painel de navegador com o canvas aberto): use se a
+     ferramenta do servidor falhar ou não estiver configurada, ou quando precisar interagir (foco numa
+     tela, testar links `board:`). Os iframes do canvas às vezes demoram alguns segundos para pintar na
+     captura: espere e use zoom na área do artboard.
+3. Na imagem, procure: conteúdo cortado ou atrás de barras fixas, texto quebrando ou vazando, fotos que
+   não carregaram, fonte de fallback, alinhamento e espaçamento irregulares, contraste fraco, hierarquia
+   confusa, inconsistência com as outras telas, áreas vazias com cara de inacabado.
+4. Achou algo: corrija com `upsert_artboard` do mesmo `name` e pegue o print de novo. Repita até a tela
+   estar sem defeitos; só então siga para a próxima.
+5. Com todas as telas prontas: `update_layout` para organizar (fileiras com 80 px entre artboards, 160 px
+   entre fileiras, títulos `kind: "title"` e notas adesivas) e `get_design_image` para avaliar o conjunto.
+6. No fim, passe ao usuário a **URL do design** (`url`), nunca o `preview_url`. Diga que avaliou os
+   prints e o que corrigiu.
 
 ## Qualidade (resumo do guia)
 
@@ -75,7 +85,7 @@ O usuário quer **ver você desenhando**: o canvas fica aberto desde o início e
   altere esse artboard. `get_design` também diz qual artboard a pessoa selecionou (`viewing`).
 - Antes de editar, garanta que o canvas está aberto para o usuário (seção 1).
 - Mudar uma tela: `get_artboard_source(design, name)` → editar → `upsert_artboard` com o **mesmo
-  name** (só o `html`, ou só `x`/`y`/`w`/`h`) → conferir. Nunca crie um design novo para alterar um
+  name** (só o `html`, ou só `x`/`y`/`w`/`h`) → `get_artboard_image` e avaliar, como na seção 3. Nunca crie um design novo para alterar um
   existente.
 - Antes de uma mudança grande, ou ao terminar uma rodada: `save_design_version(design, label)`.
 - `delete_artboard` só quando o usuário pedir.
