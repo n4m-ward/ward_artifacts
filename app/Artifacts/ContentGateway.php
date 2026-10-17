@@ -3,6 +3,7 @@
 namespace App\Artifacts;
 
 use App\Models\ArtifactVersion;
+use App\Models\DesignBoard;
 
 /**
  * Origem que serve o HTML bruto dos artifacts e os tokens que liberam esse
@@ -74,18 +75,47 @@ class ContentGateway
      */
     public function resolve(string $token): ?ArtifactVersion
     {
-        if (! preg_match('/^v(\d+)\.(\d+)\.([A-Za-z0-9_-]{43})$/', $token, $m)) {
+        $id = $this->verify('v', $token);
+
+        return $id === null ? null : ArtifactVersion::with('artifact')->find($id);
+    }
+
+    /**
+     * URL de um artboard de design. A revisão vai no caminho: quando o HTML
+     * muda, a URL muda e nenhum cache antigo é usado.
+     */
+    public function boardUrl(DesignBoard $board, ?int $ttlMinutes = null): string
+    {
+        $expiresAt = now()->addMinutes($ttlMinutes ?? (int) config('ward.artifacts.content_ttl_minutes'))->timestamp;
+        $payload = "b{$board->id}.{$expiresAt}";
+
+        return $this->origin().'/c/'.$payload.'.'.$this->sign($payload).'/'.$board->revision.'.html';
+    }
+
+    public function resolveBoard(string $token): ?DesignBoard
+    {
+        $id = $this->verify('b', $token);
+
+        return $id === null ? null : DesignBoard::with('artifact')->find($id);
+    }
+
+    /**
+     * Confere assinatura e prazo de um token "{prefixo}{id}.{expira}.{hmac}".
+     */
+    private function verify(string $prefix, string $token): ?int
+    {
+        if (! preg_match('/^'.$prefix.'(\d+)\.(\d+)\.([A-Za-z0-9_-]{43})$/', $token, $m)) {
             return null;
         }
 
-        [, $versionId, $expiresAt, $signature] = $m;
+        [, $id, $expiresAt, $signature] = $m;
 
-        if (! hash_equals($this->sign("v{$versionId}.{$expiresAt}"), $signature)
+        if (! hash_equals($this->sign("{$prefix}{$id}.{$expiresAt}"), $signature)
             || (int) $expiresAt < now()->timestamp) {
             return null;
         }
 
-        return ArtifactVersion::with('artifact')->find((int) $versionId);
+        return (int) $id;
     }
 
     private function sign(string $payload): string

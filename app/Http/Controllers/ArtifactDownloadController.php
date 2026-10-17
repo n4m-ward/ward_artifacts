@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Designs\DesignCanvas;
 use App\Enums\ArtifactKind;
 use App\Models\Artifact;
 use Illuminate\Http\Request;
@@ -21,6 +22,17 @@ class ArtifactDownloadController extends Controller
         // O MCP devolve um link assinado (15 min) para a IA baixar com curl.
         if (! $request->hasValidSignature()) {
             Gate::authorize('view', $artifact);
+        }
+
+        if ($artifact->isDesign()) {
+            abort_unless($artifact->boards()->exists(), 404);
+
+            $zipPath = tempnam(sys_get_temp_dir(), 'ward-design-');
+            app(DesignCanvas::class)->writeZip($artifact, $zipPath);
+
+            return response()
+                ->download($zipPath, "{$artifact->slug}.zip", ['X-Robots-Tag' => 'noindex, nofollow'])
+                ->deleteFileAfterSend();
         }
 
         $version = $artifact->currentVersion;

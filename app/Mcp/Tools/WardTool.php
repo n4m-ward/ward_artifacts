@@ -50,6 +50,7 @@ abstract class WardTool extends Tool
             'owner' => $artifact->user->username,
             'project' => $artifact->project->name,
             'project_slug' => $artifact->project->slug,
+            'type' => $artifact->type->value,
             'version' => $artifact->currentVersion?->number,
             'kind' => $artifact->currentVersion?->kind->value,
             'size' => Number::fileSize($artifact->size_bytes, precision: 1),
@@ -57,6 +58,31 @@ abstract class WardTool extends Tool
             'public_until' => $artifact->public_until?->isFuture() ? $artifact->public_until->toIso8601String() : null,
             'updated_at' => $artifact->updated_at->toIso8601String(),
         ];
+    }
+
+    /**
+     * Um design que o usuário pode ver, ou um erro pronto para devolver.
+     */
+    protected function findDesign(Request $request, ?string $reference): Artifact|Response
+    {
+        $design = $this->findArtifact($reference);
+
+        if (! $design || $this->user($request)->cannot('view', $design)) {
+            return Response::error('Design não encontrado.');
+        }
+
+        if (! $design->isDesign()) {
+            return Response::error('Este artifact é uma página, não um design. Use get_artifact_source/update_artifact.');
+        }
+
+        return $design;
+    }
+
+    protected function cannotEdit(Request $request, Artifact $design): ?Response
+    {
+        return $this->user($request)->cannot('update', $design)
+            ? Response::error('Só o dono do design ou um admin pode alterá-lo.')
+            : null;
     }
 
     /**

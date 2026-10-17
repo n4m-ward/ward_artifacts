@@ -79,6 +79,7 @@ new class extends Component {
 
         return $query
             ->with('user', 'project', 'currentVersion')
+            ->withCount('boards')
             ->when($this->search, fn ($query, $search) => $query->where('title', 'like', "%{$search}%"))
             ->paginate(20);
     }
@@ -196,8 +197,12 @@ new class extends Component {
                             {{ '@'.$artifact->user->username }} ·
                         @endif
                         {{ $artifact->project->name }}
-                        · v{{ $artifact->currentVersion?->number ?? 0 }}
-                        · {{ $artifact->currentVersion?->kind === \App\Enums\ArtifactKind::Bundle ? 'zip' : 'html' }}
+                        @if ($artifact->isDesign())
+                            · design · {{ $artifact->boards_count }} artboard{{ $artifact->boards_count === 1 ? '' : 's' }}
+                        @else
+                            · v{{ $artifact->currentVersion?->number ?? 0 }}
+                            · {{ $artifact->currentVersion?->kind === \App\Enums\ArtifactKind::Bundle ? 'zip' : 'html' }}
+                        @endif
                         · {{ \Illuminate\Support\Number::fileSize($artifact->size_bytes, precision: 1) }}
                         <span class="md:hidden" title="{{ $when->timezone($tz)->format('d/m/Y H:i') }}">· {{ $whenLabel }}</span>
                     </p>

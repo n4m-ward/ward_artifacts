@@ -96,8 +96,10 @@ new class extends Component {
                 <flux:menu.item icon="pencil-square" x-on:click="$flux.modal('rename-artifact').show()">Renomear</flux:menu.item>
                 <flux:menu.separator />
             @endif
-            <flux:menu.item icon="arrow-top-right-on-square" :href="$contentUrl" target="_blank" rel="noopener noreferrer">Abrir HTML puro</flux:menu.item>
-            <flux:menu.item icon="arrow-down-tray" :href="route('artifacts.download', $artifact)">Baixar código</flux:menu.item>
+            @if ($contentUrl)
+                <flux:menu.item icon="arrow-top-right-on-square" :href="$contentUrl" target="_blank" rel="noopener noreferrer">Abrir HTML puro</flux:menu.item>
+            @endif
+            <flux:menu.item icon="arrow-down-tray" :href="route('artifacts.download', $artifact)">{{ $artifact->isDesign() ? 'Baixar design (.zip)' : 'Baixar código' }}</flux:menu.item>
         </flux:menu>
     </flux:dropdown>
 

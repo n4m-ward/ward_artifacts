@@ -34,6 +34,10 @@ class UpdateArtifactTool extends WardTool
             return Response::error('Artifact não encontrado.');
         }
 
+        if ($artifact->isDesign()) {
+            return Response::error('Este artifact é um design: altere os artboards com upsert_artboard.');
+        }
+
         if ($user->cannot('update', $artifact)) {
             return Response::error('Só o dono do artifact ou um admin pode enviar novas versões.');
         }

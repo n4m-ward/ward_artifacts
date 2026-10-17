@@ -15,17 +15,35 @@ class ArtifactContentController extends Controller
 {
     public function __invoke(ContentGateway $gateway, string $token, ?string $path = null): Response
     {
+        $disk = Storage::disk(config('ward.artifacts.disk'));
+
+        // Artboard de um design (token "b…"): sempre o HTML atual do artboard.
+        if (str_starts_with($token, 'b')) {
+            $board = $gateway->resolveBoard($token);
+
+            abort_unless($board !== null && $board->storage_path !== '' && $disk->fileExists($board->storage_path), 404);
+
+            return $disk->response($board->storage_path, null, $this->headers($gateway, 'index.html'));
+        }
+
         $version = $gateway->resolve($token);
 
         abort_if($version === null, 404);
 
         $path = $this->normalize($path ?? '') ?? $version->entry_path;
-        $disk = Storage::disk(config('ward.artifacts.disk'));
         $file = $version->filePath($path);
 
         abort_unless($disk->fileExists($file), 404);
 
-        return $disk->response($file, null, [
+        return $disk->response($file, null, $this->headers($gateway, $path));
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function headers(ContentGateway $gateway, string $path): array
+    {
+        return [
             'Content-Type' => $this->contentType($path),
             'Cache-Control' => 'private, max-age=300',
             'Content-Security-Policy' => "sandbox {$gateway->sandbox()}; frame-ancestors ".rtrim((string) config('app.url'), '/'),
@@ -37,7 +55,7 @@ class ArtifactContentController extends Controller
             // CORS para o fetch() de assets relativos. O token já é a credencial.
             'Access-Control-Allow-Origin' => '*',
             'Cross-Origin-Resource-Policy' => 'cross-origin',
-        ]);
+        ];
     }
 
     /**

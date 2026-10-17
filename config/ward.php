@@ -19,6 +19,21 @@ return [
         'password' => env('WARD_ADMIN_PASSWORD'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Ward Design (canvas de artboards)
+    |--------------------------------------------------------------------------
+    */
+
+    'designs' => [
+        'max_boards' => 200,
+        'max_board_bytes' => 5 * 1024 * 1024,
+        'max_bytes' => 100 * 1024 * 1024,
+        'keep_snapshots' => 10,
+        // Espaço entre artboards posicionados automaticamente.
+        'gap' => 80,
+    ],
+
     // Fuso usado para mostrar datas no painel (o banco guarda em UTC).
     'display_timezone' => env('WARD_DISPLAY_TIMEZONE', 'America/Sao_Paulo'),
 

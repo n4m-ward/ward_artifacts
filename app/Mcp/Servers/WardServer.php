@@ -2,14 +2,22 @@
 
 namespace App\Mcp\Servers;
 
+use App\Mcp\Tools\CreateDesignTool;
+use App\Mcp\Tools\DeleteArtboardTool;
+use App\Mcp\Tools\GetArtboardSourceTool;
 use App\Mcp\Tools\GetArtifactSourceTool;
+use App\Mcp\Tools\GetDesignGuideTool;
+use App\Mcp\Tools\GetDesignTool;
 use App\Mcp\Tools\GetTemplateTool;
 use App\Mcp\Tools\InviteUserTool;
 use App\Mcp\Tools\ListArtifactsTool;
 use App\Mcp\Tools\ListProjectsTool;
 use App\Mcp\Tools\PublishArtifactTool;
 use App\Mcp\Tools\RenameArtifactTool;
+use App\Mcp\Tools\SaveDesignVersionTool;
 use App\Mcp\Tools\UpdateArtifactTool;
+use App\Mcp\Tools\UpdateDesignLayoutTool;
+use App\Mcp\Tools\UpsertArtboardTool;
 use App\Mcp\Tools\WhoAmITool;
 use Laravel\Mcp\Server;
 use Laravel\Mcp\Server\Attributes\Instructions;
@@ -37,6 +45,11 @@ Fluxo:
    uso único, sem login, para você abrir o artifact no seu navegador e conferir o resultado. Ele morre
    no primeiro acesso; ao usuário, entregue sempre a URL normal (url).
 6. Limite: 100 MB por artifact. localStorage pode falhar: use try/catch.
+
+Ward Design (canvas com vários artboards, para mockups, telas de app, landing pages e posts):
+- create_design → get_design_guide → um upsert_artboard por tela → update_layout para organizar.
+- Para mudar uma tela: get_artboard_source → editar → upsert_artboard com o mesmo name.
+- save_design_version para guardar um ponto. get_design mostra o canvas e devolve preview_url.
 TXT)]
 class WardServer extends Server
 {
@@ -50,5 +63,13 @@ class WardServer extends Server
         RenameArtifactTool::class,
         WhoAmITool::class,
         InviteUserTool::class,
+        CreateDesignTool::class,
+        GetDesignGuideTool::class,
+        UpsertArtboardTool::class,
+        UpdateDesignLayoutTool::class,
+        GetDesignTool::class,
+        GetArtboardSourceTool::class,
+        DeleteArtboardTool::class,
+        SaveDesignVersionTool::class,
     ];
 }
