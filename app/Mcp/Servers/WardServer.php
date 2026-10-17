@@ -51,8 +51,11 @@ Fluxo:
 6. Limite: 100 MB por artifact. localStorage pode falhar: use try/catch.
 
 Ward Design (canvas com vários artboards, para mockups, telas de app, landing pages e posts):
-- create_design → open_design (mostra o canvas no chat, ao vivo) → get_design_guide → um
-  upsert_artboard por tela → update_layout para organizar.
+- create_design → abra o canvas antes da primeira tela, para a pessoa ver você trabalhando:
+  open_design se o cliente mostra MCP Apps (chat do Claude); senão abra o preview_url no seu
+  navegador (ex.: Claude Code) → get_design_guide → defina a direção (fontes, paleta) → um
+  upsert_artboard por tela, olhando cada uma no canvas antes da próxima → update_layout.
+- Alta fidelidade: conteúdo plausível (não [PREÇO]), fotos que você viu carregar, densidade de produto.
 - Para mudar uma tela: get_artboard_source → editar → upsert_artboard com o mesmo name.
 - save_design_version para guardar um ponto. get_design mostra o canvas, o artboard que a pessoa
   selecionou no app (viewing) e devolve preview_url.

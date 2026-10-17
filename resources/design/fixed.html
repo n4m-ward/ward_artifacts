@@ -5,23 +5,36 @@
   <title>Nome da tela</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Sans:wght@400;600&display=swap">
+  <!-- O par de fontes da direção do design (o mesmo em todos os artboards). -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=FONTE+DISPLAY&family=FONTE+TEXTO:wght@400;500;600;700&display=swap">
   <style>
-    :root { --bg: #0E0E0E; --ink: #F5F5F5; --muted: #A3A3A3; --line: #262626; --accent: #38BDF8; }
-    body { margin: 0; }
-    .board {
-      width: 1080px; height: 1080px; overflow: hidden; box-sizing: border-box;
-      background: var(--bg); color: var(--ink);
-      font-family: "IBM Plex Sans", system-ui, sans-serif;
-      padding: 88px; display: flex; flex-direction: column; justify-content: space-between;
+    /* Tokens da direção: os mesmos valores em todos os artboards do design.
+       Escolha-os para este produto; não há paleta padrão. */
+    :root {
+      --bg: oklch(L C H);      /* fundo */
+      --ink: oklch(L C H);     /* texto principal */
+      --muted: oklch(L C H);   /* texto secundário */
+      --line: oklch(L C H);    /* divisórias */
+      --accent: oklch(L C H);  /* ação e destaque */
+      --display: "Fonte display", serif;
+      --text: "Fonte texto", sans-serif;
     }
-    h1 { margin: 0; font-family: "Space Grotesk", sans-serif; font-size: 120px; line-height: 1; letter-spacing: -0.04em; }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    img { display: block; width: 100%; height: 100%; object-fit: cover; }
+    /* Raiz com o tamanho exato do artboard (aqui, um celular 390×844). */
+    .board {
+      width: 390px; height: 844px; overflow: hidden; position: relative;
+      background: var(--bg); color: var(--ink);
+      font-family: var(--text); font-size: 15px; line-height: 1.4;
+      -webkit-font-smoothing: antialiased;
+    }
+    h1 { margin: 0; font-family: var(--display); font-weight: 400; text-wrap: balance; }
   </style>
 </head>
 <body>
-  <div class="board">
-    <h1>Título</h1>
-    <p style="margin: 0; font-size: 32px; color: var(--muted)">Uma frase de apoio.</p>
-  </div>
+  <main class="board">
+    <!-- Barra de status, navegação, conteúdo real da tela, ações. -->
+  </main>
 </body>
 </html>
