@@ -79,7 +79,7 @@ class ArtifactViewerTest extends TestCase
         $artifact = $this->publish(Visibility::Users);
         $viewer = User::factory()->create();
 
-        $this->actingAs($viewer)->get($artifact->path())->assertOk()->assertSee('Usuários logados');
+        $this->actingAs($viewer)->get($artifact->path())->assertOk()->assertSee('Logados');
         $first = ArtifactView::sole();
 
         $this->travel(1)->hour();

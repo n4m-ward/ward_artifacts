@@ -143,33 +143,33 @@ new class extends Component {
     </div>
 
     {{-- Como conectar --}}
-    <div class="space-y-4 rounded-xl border border-zinc-200 p-5 dark:border-zinc-700">
+    <div class="space-y-4 rounded-xl border border-zinc-200 p-4 sm:p-5 dark:border-zinc-700">
         <div>
             <flux:heading>Conectar uma IA</flux:heading>
             <flux:text class="mt-1">Endereço do servidor MCP (HTTP). A IA abre esta página para você autorizar o acesso.</flux:text>
         </div>
 
         <div x-data="{ copied: false }" class="flex gap-2">
-            <flux:input readonly :value="$this->mcpUrl" class="flex-1 font-mono" aria-label="URL do servidor MCP" />
-            <flux:button icon="clipboard" x-on:click="navigator.clipboard.writeText(@js($this->mcpUrl)); copied = true; setTimeout(() => copied = false, 1500)">
+            <flux:input readonly size="sm" :value="$this->mcpUrl" class="flex-1 font-mono" aria-label="URL do servidor MCP" />
+            <flux:button size="sm" icon="clipboard" x-on:click="navigator.clipboard.writeText(@js($this->mcpUrl)); copied = true; setTimeout(() => copied = false, 1500)">
                 <span x-text="copied ? 'Copiado' : 'Copiar'">Copiar</span>
             </flux:button>
         </div>
 
-        <div class="grid gap-3 text-sm md:grid-cols-2">
+        <div class="grid gap-4 text-sm md:grid-cols-2 [&>div]:min-w-0">
             <div>
                 <p class="mb-1 font-medium">Claude Code</p>
-                <pre class="overflow-x-auto rounded-lg bg-zinc-100 p-3 text-xs dark:bg-zinc-900"><code>claude mcp add --transport http ward-artifacts {{ $this->mcpUrl }}</code></pre>
+                <pre class="overflow-x-auto rounded-lg border border-zinc-200 bg-zinc-50 p-3 font-mono text-xs dark:border-zinc-700 dark:bg-zinc-900"><code>claude mcp add --transport http ward-artifacts {{ $this->mcpUrl }}</code></pre>
                 <p class="mt-1 text-xs text-zinc-500">Depois rode <code>/mcp</code> no Claude Code e escolha autenticar.</p>
             </div>
             <div>
                 <p class="mb-1 font-medium">Codex</p>
-                <pre class="overflow-x-auto rounded-lg bg-zinc-100 p-3 text-xs dark:bg-zinc-900"><code>codex mcp add ward-artifacts --url {{ $this->mcpUrl }}
+                <pre class="overflow-x-auto rounded-lg border border-zinc-200 bg-zinc-50 p-3 font-mono text-xs dark:border-zinc-700 dark:bg-zinc-900"><code>codex mcp add ward-artifacts --url {{ $this->mcpUrl }}
 codex mcp login ward-artifacts</code></pre>
             </div>
             <div>
                 <p class="mb-1 font-medium">OpenCode (opencode.json)</p>
-                <pre class="overflow-x-auto rounded-lg bg-zinc-100 p-3 text-xs dark:bg-zinc-900"><code>{ "mcp": { "ward-artifacts": { "type": "remote", "url": "{{ $this->mcpUrl }}" } } }</code></pre>
+                <pre class="overflow-x-auto rounded-lg border border-zinc-200 bg-zinc-50 p-3 font-mono text-xs dark:border-zinc-700 dark:bg-zinc-900"><code>{ "mcp": { "ward-artifacts": { "type": "remote", "url": "{{ $this->mcpUrl }}" } } }</code></pre>
                 <p class="mt-1 text-xs text-zinc-500">Depois: <code>opencode mcp auth ward-artifacts</code></p>
             </div>
             <div>
@@ -183,19 +183,19 @@ codex mcp login ward-artifacts</code></pre>
     <div class="space-y-3">
         <flux:heading>Minhas conexões</flux:heading>
 
-        <div class="divide-y divide-zinc-200 rounded-xl border border-zinc-200 dark:divide-zinc-700 dark:border-zinc-700">
+        <div class="divide-y divide-zinc-200 overflow-hidden rounded-xl border border-zinc-200 dark:divide-zinc-700 dark:border-zinc-700">
             @forelse ($this->connections->where('personal', false) as $connection)
-                <div wire:key="conn-{{ $connection['client_id'] }}" class="flex flex-wrap items-center justify-between gap-3 p-4">
-                    <div>
-                        <p class="font-medium">{{ $connection['client'] }}</p>
+                <div wire:key="conn-{{ $connection['client_id'] }}" class="flex items-center justify-between gap-3 px-4 py-3">
+                    <div class="min-w-0">
+                        <p class="truncate text-sm font-medium">{{ $connection['client'] }}</p>
                         <p class="text-xs text-zinc-500">
                             Conectado {{ $when($connection['connected_at']) }} · último uso {{ $when($connection['last_used_at']) }}
                         </p>
                     </div>
-                    <flux:button size="sm" variant="danger" wire:click="revoke('{{ $connection['client_id'] }}', null)" wire:confirm="Revogar o acesso de {{ $connection['client'] }}? A IA vai precisar autorizar de novo.">Revogar</flux:button>
+                    <flux:button size="sm" variant="ghost" class="shrink-0 text-red-600! dark:text-red-400!" wire:click="revoke('{{ $connection['client_id'] }}', null)" wire:confirm="Revogar o acesso de {{ $connection['client'] }}? A IA vai precisar autorizar de novo.">Revogar</flux:button>
                 </div>
             @empty
-                <p class="p-4 text-sm text-zinc-500">Nenhuma IA conectada por OAuth ainda.</p>
+                <p class="px-4 py-6 text-center text-sm text-zinc-500">Nenhuma IA conectada por OAuth ainda.</p>
             @endforelse
         </div>
     </div>
@@ -220,22 +220,22 @@ codex mcp login ward-artifacts</code></pre>
         @endif
 
         <form wire:submit="createToken" class="flex max-w-md items-start gap-2">
-            <flux:input wire:model="tokenName" placeholder="Nome (ex.: notebook, CI)" class="flex-1" />
-            <flux:button type="submit">Criar token</flux:button>
+            <flux:input wire:model="tokenName" size="sm" placeholder="Nome (ex.: notebook, CI)" class="flex-1" />
+            <flux:button type="submit" size="sm">Criar token</flux:button>
         </form>
 
         @php($personal = $this->connections->where('personal', true)->flatMap(fn ($c) => $c['tokens']))
         @if ($personal->isNotEmpty())
-            <div class="divide-y divide-zinc-200 rounded-xl border border-zinc-200 dark:divide-zinc-700 dark:border-zinc-700">
+            <div class="divide-y divide-zinc-200 overflow-hidden rounded-xl border border-zinc-200 dark:divide-zinc-700 dark:border-zinc-700">
                 @foreach ($personal as $token)
-                    <div wire:key="token-{{ $token['id'] }}" class="flex flex-wrap items-center justify-between gap-3 p-4">
-                        <div>
-                            <p class="font-medium">{{ $token['name'] }}</p>
+                    <div wire:key="token-{{ $token['id'] }}" class="flex items-center justify-between gap-3 px-4 py-3">
+                        <div class="min-w-0">
+                            <p class="truncate text-sm font-medium">{{ $token['name'] }}</p>
                             <p class="text-xs text-zinc-500">
                                 Criado {{ $when($token['created_at']) }} · último uso {{ $when($token['last_used_at']) }} · expira em {{ $token['expires_at']->timezone($tz)->format('d/m/Y') }}
                             </p>
                         </div>
-                        <flux:button size="sm" variant="danger" wire:click="revokeToken('{{ $token['id'] }}')" wire:confirm="Revogar o token {{ $token['name'] }}?">Revogar</flux:button>
+                        <flux:button size="sm" variant="ghost" class="shrink-0 text-red-600! dark:text-red-400!" wire:click="revokeToken('{{ $token['id'] }}')" wire:confirm="Revogar o token {{ $token['name'] }}?">Revogar</flux:button>
                     </div>
                 @endforeach
             </div>
@@ -247,19 +247,19 @@ codex mcp login ward-artifacts</code></pre>
         <div class="space-y-3">
             <flux:heading>Conexões de outros usuários</flux:heading>
 
-            <div class="divide-y divide-zinc-200 rounded-xl border border-zinc-200 dark:divide-zinc-700 dark:border-zinc-700">
+            <div class="divide-y divide-zinc-200 overflow-hidden rounded-xl border border-zinc-200 dark:divide-zinc-700 dark:border-zinc-700">
                 @forelse ($this->allConnections as $connection)
-                    <div wire:key="all-{{ $connection['user_id'] }}-{{ $connection['client_id'] }}" class="flex flex-wrap items-center justify-between gap-3 p-4">
-                        <div>
-                            <p class="font-medium">{{ '@'.$connection['username'] }} · {{ $connection['personal'] ? 'Token pessoal' : $connection['client'] }}</p>
+                    <div wire:key="all-{{ $connection['user_id'] }}-{{ $connection['client_id'] }}" class="flex items-center justify-between gap-3 px-4 py-3">
+                        <div class="min-w-0">
+                            <p class="truncate text-sm font-medium">{{ '@'.$connection['username'] }} · {{ $connection['personal'] ? 'Token pessoal' : $connection['client'] }}</p>
                             <p class="text-xs text-zinc-500">
                                 Conectado {{ $when($connection['connected_at']) }} · último uso {{ $when($connection['last_used_at']) }}
                             </p>
                         </div>
-                        <flux:button size="sm" variant="danger" wire:click="revoke('{{ $connection['client_id'] }}', {{ $connection['user_id'] }})" wire:confirm="Revogar esta conexão de {{ '@'.$connection['username'] }}?">Revogar</flux:button>
+                        <flux:button size="sm" variant="ghost" class="shrink-0 text-red-600! dark:text-red-400!" wire:click="revoke('{{ $connection['client_id'] }}', {{ $connection['user_id'] }})" wire:confirm="Revogar esta conexão de {{ '@'.$connection['username'] }}?">Revogar</flux:button>
                     </div>
                 @empty
-                    <p class="p-4 text-sm text-zinc-500">Nenhuma outra conexão ativa.</p>
+                    <p class="px-4 py-6 text-center text-sm text-zinc-500">Nenhuma outra conexão ativa.</p>
                 @endforelse
             </div>
         </div>

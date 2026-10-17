@@ -166,7 +166,7 @@ new class extends Component {
             @endforeach
         </div>
 
-        <div class="w-full max-w-xs">
+        <div class="min-w-48 flex-1 sm:max-w-xs">
             <flux:input wire:model.live.debounce.300ms="search" size="sm" icon="magnifying-glass" placeholder="Buscar por título" />
         </div>
 
@@ -182,75 +182,59 @@ new class extends Component {
         @endif
     </div>
 
-    <div class="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-700">
-        <table class="w-full min-w-[680px] text-left text-sm">
-            <thead class="bg-zinc-50 text-xs uppercase tracking-wide text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400">
-                <tr>
-                    <th class="px-4 py-3 font-medium">Artifact</th>
-                    @if ($tab !== 'mine')
-                        <th class="px-4 py-3 font-medium">Dono</th>
-                    @endif
-                    <th class="px-4 py-3 font-medium">Visibilidade</th>
-                    <th class="px-4 py-3 font-medium">{{ $tab === 'viewed' ? 'Último acesso' : 'Atualizado' }}</th>
-                    <th class="w-12 px-4 py-3"><span class="sr-only">Ações</span></th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-zinc-200 dark:divide-zinc-700">
-                @forelse ($this->artifacts as $artifact)
-                    @php
-                        $when = $tab === 'viewed' ? \Illuminate\Support\Carbon::parse($artifact->pivot->last_viewed_at) : $artifact->updated_at;
-                    @endphp
-                    <tr wire:key="artifact-{{ $artifact->uuid }}" class="hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
-                        <td class="max-w-0 px-4 py-3">
-                            <a href="{{ $artifact->path() }}" class="block truncate font-medium hover:underline">{{ $artifact->title }}</a>
-                            <div class="truncate text-xs text-zinc-500">
-                                {{ $artifact->project->name }}
-                                · v{{ $artifact->currentVersion?->number ?? 0 }}
-                                · {{ $artifact->currentVersion?->kind === \App\Enums\ArtifactKind::Bundle ? 'zip' : 'html' }}
-                                · {{ \Illuminate\Support\Number::fileSize($artifact->size_bytes, precision: 1) }}
-                            </div>
-                        </td>
+    <div class="divide-y divide-zinc-200 overflow-hidden rounded-xl border border-zinc-200 dark:divide-zinc-700 dark:border-zinc-700">
+        @forelse ($this->artifacts as $artifact)
+            @php
+                $when = $tab === 'viewed' ? \Illuminate\Support\Carbon::parse($artifact->pivot->last_viewed_at) : $artifact->updated_at;
+                $whenLabel = ($tab === 'viewed' ? 'aberto ' : 'atualizado ').$when->locale('pt_BR')->diffForHumans();
+            @endphp
+            <div wire:key="artifact-{{ $artifact->uuid }}" class="flex items-center gap-3 px-4 py-3 transition hover:bg-zinc-50 dark:hover:bg-zinc-800/60">
+                <div class="min-w-0 flex-1">
+                    <a href="{{ $artifact->path() }}" class="block truncate text-sm font-medium hover:underline">{{ $artifact->title }}</a>
+                    <p class="truncate text-xs text-zinc-500 dark:text-zinc-400">
                         @if ($tab !== 'mine')
-                            <td class="px-4 py-3 text-zinc-500">{{ '@'.$artifact->user->username }}</td>
+                            {{ '@'.$artifact->user->username }} ·
                         @endif
-                        <td class="px-4 py-3"><x-artifact-visibility :artifact="$artifact" /></td>
-                        <td class="whitespace-nowrap px-4 py-3 text-zinc-500" title="{{ $when->timezone($tz)->format('d/m/Y H:i') }}">
-                            {{ $when->locale('pt_BR')->diffForHumans() }}
-                        </td>
-                        <td class="px-4 py-3 text-right">
-                            <flux:dropdown position="bottom" align="end">
-                                <flux:button size="sm" variant="ghost" icon="ellipsis-horizontal" aria-label="Ações de {{ $artifact->title }}" />
-                                <flux:menu>
-                                    <flux:menu.item icon="eye" :href="$artifact->path()">Abrir</flux:menu.item>
-                                    <flux:menu.item icon="arrow-down-tray" :href="route('artifacts.download', $artifact)">Baixar</flux:menu.item>
-                                    @can('update', $artifact)
-                                        <flux:menu.item icon="pencil-square" wire:click="startRename('{{ $artifact->uuid }}')">Renomear</flux:menu.item>
-                                    @endcan
-                                    @can('delete', $artifact)
-                                        <flux:menu.separator />
-                                        <flux:menu.item icon="trash" variant="danger" wire:click="confirmDelete('{{ $artifact->uuid }}')">Apagar</flux:menu.item>
-                                    @endcan
-                                </flux:menu>
-                            </flux:dropdown>
-                        </td>
-                    </tr>
-                @empty
-                    <tr>
-                        <td colspan="5" class="px-4 py-10 text-center text-zinc-500">
-                            @if ($search)
-                                Nenhum artifact com "{{ $search }}".
-                            @elseif ($tab === 'mine')
-                                Você ainda não publicou nenhum artifact. Eles chegam pelo MCP, a partir da sua IA.
-                            @elseif ($tab === 'viewed')
-                                Artifacts de outras pessoas que você abrir aparecem aqui.
-                            @else
-                                Nenhum artifact publicado ainda.
-                            @endif
-                        </td>
-                    </tr>
-                @endforelse
-            </tbody>
-        </table>
+                        {{ $artifact->project->name }}
+                        · v{{ $artifact->currentVersion?->number ?? 0 }}
+                        · {{ $artifact->currentVersion?->kind === \App\Enums\ArtifactKind::Bundle ? 'zip' : 'html' }}
+                        · {{ \Illuminate\Support\Number::fileSize($artifact->size_bytes, precision: 1) }}
+                        <span class="md:hidden" title="{{ $when->timezone($tz)->format('d/m/Y H:i') }}">· {{ $whenLabel }}</span>
+                    </p>
+                </div>
+
+                <span class="hidden w-36 shrink-0 text-right text-xs text-zinc-500 md:block dark:text-zinc-400" title="{{ $when->timezone($tz)->format('d/m/Y H:i') }}">{{ $whenLabel }}</span>
+
+                <x-artifact-visibility :artifact="$artifact" compact class="shrink-0" />
+
+                <flux:dropdown position="bottom" align="end">
+                    <flux:button size="sm" variant="ghost" icon="ellipsis-horizontal" aria-label="Ações de {{ $artifact->title }}" />
+                    <flux:menu>
+                        <flux:menu.item icon="eye" :href="$artifact->path()">Abrir</flux:menu.item>
+                        <flux:menu.item icon="arrow-down-tray" :href="route('artifacts.download', $artifact)">Baixar código</flux:menu.item>
+                        @can('update', $artifact)
+                            <flux:menu.item icon="pencil-square" wire:click="startRename('{{ $artifact->uuid }}')">Renomear</flux:menu.item>
+                        @endcan
+                        @can('delete', $artifact)
+                            <flux:menu.separator />
+                            <flux:menu.item icon="trash" variant="danger" wire:click="confirmDelete('{{ $artifact->uuid }}')">Apagar</flux:menu.item>
+                        @endcan
+                    </flux:menu>
+                </flux:dropdown>
+            </div>
+        @empty
+            <p class="px-4 py-10 text-center text-sm text-zinc-500">
+                @if ($search)
+                    Nenhum artifact com "{{ $search }}".
+                @elseif ($tab === 'mine')
+                    Você ainda não publicou nenhum artifact. Eles chegam pelo MCP, a partir da sua IA.
+                @elseif ($tab === 'viewed')
+                    Artifacts de outras pessoas que você abrir aparecem aqui.
+                @else
+                    Nenhum artifact publicado ainda.
+                @endif
+            </p>
+        @endforelse
     </div>
 
     <div class="mt-4">

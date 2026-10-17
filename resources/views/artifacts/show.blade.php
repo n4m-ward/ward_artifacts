@@ -10,30 +10,20 @@
         {{-- Para IAs e ferramentas que não executam iframes: o HTML bruto do artifact. --}}
         <link rel="alternate" type="text/html" title="HTML do artifact" href="{{ $contentUrl }}">
     </head>
-    <body class="flex h-dvh flex-col overflow-hidden bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100">
-        <header class="flex min-h-12 shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-zinc-200 px-3 py-1.5 sm:px-4 dark:border-zinc-700">
-            <a href="{{ auth()->check() ? route('dashboard') : route('home') }}" class="flex shrink-0 items-center" aria-label="{{ config('app.name') }}">
-                <x-app-logo-icon class="size-6 fill-current" />
+    <body class="flex h-dvh flex-col overflow-hidden bg-white text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100">
+        <header class="flex h-12 shrink-0 items-center gap-3 border-b border-zinc-200 bg-white px-3 dark:border-zinc-700 dark:bg-zinc-900">
+            <a href="{{ auth()->check() ? route('dashboard') : route('home') }}" class="flex size-7 shrink-0 items-center justify-center rounded-md bg-[#0E0E0E] text-[#ECECEC] dark:ring-1 dark:ring-white/10" aria-label="{{ config('app.name') }}">
+                <x-app-logo-icon class="size-4" />
             </a>
 
-            <div class="min-w-0 flex-1">
-                <h1 class="truncate text-sm font-semibold">{{ $artifact->title }}</h1>
+            <div class="min-w-0 flex-1 leading-tight">
+                <h1 class="truncate text-sm font-medium">{{ $artifact->title }}</h1>
                 <p class="truncate text-xs text-zinc-500 dark:text-zinc-400">
                     {{ '@'.$owner->username }} · {{ $artifact->project->name }} · v{{ $artifact->currentVersion->number }}
                 </p>
             </div>
 
-            <div class="flex shrink-0 items-center gap-1.5">
-                <livewire:artifacts.manage :artifact="$artifact" />
-
-                <flux:button size="sm" variant="ghost" icon="arrow-top-right-on-square" :href="$contentUrl" target="_blank" rel="noopener noreferrer" title="Abrir o HTML puro em nova aba">
-                    <span class="max-sm:hidden">HTML puro</span>
-                </flux:button>
-
-                <flux:button size="sm" variant="ghost" icon="arrow-down-tray" :href="route('artifacts.download', $artifact)" title="Baixar o código">
-                    <span class="max-sm:hidden">Baixar</span>
-                </flux:button>
-            </div>
+            <livewire:artifacts.manage :artifact="$artifact" :content-url="$contentUrl" />
         </header>
 
         <main class="relative min-h-0 flex-1">

@@ -15,6 +15,8 @@ use Livewire\Volt\Component;
 new class extends Component {
     public Artifact $artifact;
 
+    public string $contentUrl = '';
+
     public string $visibility = '';
     public string $publicHours = '24';
     public string $title = '';
@@ -71,20 +73,35 @@ new class extends Component {
     }
 }; ?>
 
-<div class="flex items-center gap-1.5">
-    <x-artifact-visibility :artifact="$artifact" />
+<div class="flex shrink-0 items-center gap-1">
+    @if ($this->canManage)
+        <x-artifact-visibility
+            :artifact="$artifact"
+            compact
+            as="button"
+            icon:trailing="chevron-down"
+            x-on:click="$flux.modal('share-artifact').show()"
+            aria-label="Compartilhar: escolher quem pode ver"
+        />
+    @else
+        <x-artifact-visibility :artifact="$artifact" compact />
+    @endif
+
+    <flux:dropdown position="bottom" align="end">
+        <flux:button size="sm" variant="ghost" icon="ellipsis-horizontal" aria-label="Mais ações" />
+
+        <flux:menu>
+            @if ($this->canManage)
+                <flux:menu.item icon="share" x-on:click="$flux.modal('share-artifact').show()">Compartilhar</flux:menu.item>
+                <flux:menu.item icon="pencil-square" x-on:click="$flux.modal('rename-artifact').show()">Renomear</flux:menu.item>
+                <flux:menu.separator />
+            @endif
+            <flux:menu.item icon="arrow-top-right-on-square" :href="$contentUrl" target="_blank" rel="noopener noreferrer">Abrir HTML puro</flux:menu.item>
+            <flux:menu.item icon="arrow-down-tray" :href="route('artifacts.download', $artifact)">Baixar código</flux:menu.item>
+        </flux:menu>
+    </flux:dropdown>
 
     @if ($this->canManage)
-        <flux:modal.trigger name="share-artifact">
-            <flux:button size="sm" variant="primary" icon="share">
-                <span class="max-sm:hidden">Compartilhar</span>
-            </flux:button>
-        </flux:modal.trigger>
-
-        <flux:modal.trigger name="rename-artifact">
-            <flux:button size="sm" variant="ghost" icon="pencil-square" aria-label="Renomear" title="Renomear" />
-        </flux:modal.trigger>
-
         <flux:modal name="share-artifact" class="w-full max-w-lg">
             <div class="space-y-6">
                 <div>

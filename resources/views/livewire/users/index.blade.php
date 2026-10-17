@@ -90,7 +90,7 @@ new class extends Component {
         </div>
 
         <flux:modal.trigger name="invite-user">
-            <flux:button variant="primary" icon="user-plus">Convidar usuário</flux:button>
+            <flux:button variant="primary" size="sm" icon="user-plus">Convidar usuário</flux:button>
         </flux:modal.trigger>
     </div>
 
@@ -107,85 +107,73 @@ new class extends Component {
         </flux:callout>
     @endif
 
-    <div class="mb-4 max-w-sm">
-        <flux:input wire:model.live.debounce.300ms="search" icon="magnifying-glass" placeholder="Buscar por nome, username ou e-mail" />
+    <div class="mb-4 sm:max-w-xs">
+        <flux:input wire:model.live.debounce.300ms="search" size="sm" icon="magnifying-glass" placeholder="Buscar por nome, username ou e-mail" />
     </div>
 
-    <div class="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-700">
-        <table class="w-full min-w-[640px] text-left text-sm">
-            <thead class="bg-zinc-50 text-xs uppercase tracking-wide text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400">
-                <tr>
-                    <th class="px-4 py-3 font-medium">Usuário</th>
-                    <th class="px-4 py-3 font-medium">Role</th>
-                    <th class="px-4 py-3 font-medium">Status</th>
-                    <th class="px-4 py-3 font-medium">Convidado por</th>
-                    <th class="px-4 py-3"></th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-zinc-200 dark:divide-zinc-700">
-                @forelse ($this->users as $user)
-                    <tr wire:key="user-{{ $user->id }}">
-                        <td class="px-4 py-3">
-                            <div class="font-medium">{{ $user->name }}</div>
-                            <div class="text-xs text-zinc-500">{{ '@'.$user->username }} · {{ $user->email }}</div>
-                        </td>
-                        <td class="px-4 py-3">
+    <div class="divide-y divide-zinc-200 overflow-hidden rounded-xl border border-zinc-200 dark:divide-zinc-700 dark:border-zinc-700">
+        @forelse ($this->users as $user)
+            <div wire:key="user-{{ $user->id }}" class="flex items-center gap-3 px-4 py-3">
+                <div class="min-w-0 flex-1">
+                    <p class="truncate text-sm font-medium">{{ $user->name }}</p>
+                    <p class="truncate text-xs text-zinc-500 dark:text-zinc-400">
+                        {{ '@'.$user->username }} · {{ $user->email }}
+                        @if ($user->inviter)
+                            <span class="max-md:hidden">· convidado por {{ $user->inviter->name }}</span>
+                        @endif
+                    </p>
+                </div>
+
+                @if ($user->hasPendingInvite())
+                    <flux:badge size="sm" color="amber" class="shrink-0">Convite pendente</flux:badge>
+                @endif
+
+                <flux:badge size="sm" :color="$user->isAdmin() ? 'sky' : 'zinc'" class="shrink-0">{{ $user->role->label() }}</flux:badge>
+
+                @canany(['update', 'delete'], $user)
+                    <flux:dropdown position="bottom" align="end">
+                        <flux:button size="sm" variant="ghost" icon="ellipsis-horizontal" aria-label="Ações de {{ $user->name }}" />
+                        <flux:menu>
                             @can('update', $user)
-                                <flux:select size="sm" class="max-w-32" wire:change="changeRole({{ $user->id }}, $event.target.value)">
-                                    @foreach (\App\Enums\Role::cases() as $case)
-                                        <flux:select.option :value="$case->value" :selected="$user->role === $case">{{ $case->label() }}</flux:select.option>
-                                    @endforeach
-                                </flux:select>
-                            @else
-                                <flux:badge size="sm">{{ $user->role->label() }}</flux:badge>
-                            @endcan
-                        </td>
-                        <td class="px-4 py-3">
-                            @if ($user->hasPendingInvite())
-                                <flux:badge size="sm" color="amber">Convite pendente</flux:badge>
-                            @else
-                                <flux:badge size="sm" color="green">Ativo</flux:badge>
-                            @endif
-                        </td>
-                        <td class="px-4 py-3 text-zinc-500">{{ $user->inviter?->name ?? '—' }}</td>
-                        <td class="px-4 py-3">
-                            <div class="flex justify-end gap-2">
-                                @if ($user->hasPendingInvite())
-                                    @can('update', $user)
-                                        <flux:button size="sm" variant="ghost" icon="arrow-path" wire:click="resendInvite({{ $user->id }})">Reenviar</flux:button>
-                                    @endcan
+                                @if ($user->isAdmin())
+                                    <flux:menu.item icon="user" wire:click="changeRole({{ $user->id }}, 'player')">Tornar player</flux:menu.item>
+                                @else
+                                    <flux:menu.item icon="shield-check" wire:click="changeRole({{ $user->id }}, 'admin')">Tornar admin</flux:menu.item>
                                 @endif
+                                @if ($user->hasPendingInvite())
+                                    <flux:menu.item icon="arrow-path" wire:click="resendInvite({{ $user->id }})">Reenviar convite</flux:menu.item>
+                                @endif
+                            @endcan
+                            @can('delete', $user)
+                                <flux:menu.separator />
+                                <flux:menu.item icon="trash" variant="danger" x-on:click="$flux.modal('delete-user-{{ $user->id }}').show()">Remover</flux:menu.item>
+                            @endcan
+                        </flux:menu>
+                    </flux:dropdown>
+                @else
+                    <span class="w-8 shrink-0"></span>
+                @endcanany
 
-                                @can('delete', $user)
-                                    <flux:modal.trigger :name="'delete-user-'.$user->id">
-                                        <flux:button size="sm" variant="ghost" icon="trash" aria-label="Remover {{ $user->name }}" />
-                                    </flux:modal.trigger>
-
-                                    <flux:modal :name="'delete-user-'.$user->id" class="max-w-md">
-                                        <div class="space-y-6">
-                                            <div>
-                                                <flux:heading size="lg">Remover {{ $user->name }}?</flux:heading>
-                                                <flux:subheading>A conta deixa de existir e a pessoa perde o acesso. Isso não pode ser desfeito.</flux:subheading>
-                                            </div>
-                                            <div class="flex justify-end gap-2">
-                                                <flux:modal.close>
-                                                    <flux:button variant="ghost">Cancelar</flux:button>
-                                                </flux:modal.close>
-                                                <flux:button variant="danger" wire:click="deleteUser({{ $user->id }})">Remover</flux:button>
-                                            </div>
-                                        </div>
-                                    </flux:modal>
-                                @endcan
+                @can('delete', $user)
+                    <flux:modal :name="'delete-user-'.$user->id" class="w-full max-w-md">
+                        <div class="space-y-6">
+                            <div>
+                                <flux:heading size="lg">Remover {{ $user->name }}?</flux:heading>
+                                <flux:subheading>A conta, os artifacts e as conexões MCP dessa pessoa são apagados. Isso não pode ser desfeito.</flux:subheading>
                             </div>
-                        </td>
-                    </tr>
-                @empty
-                    <tr>
-                        <td colspan="5" class="px-4 py-8 text-center text-zinc-500">Nenhum usuário encontrado.</td>
-                    </tr>
-                @endforelse
-            </tbody>
-        </table>
+                            <div class="flex justify-end gap-2">
+                                <flux:modal.close>
+                                    <flux:button variant="ghost">Cancelar</flux:button>
+                                </flux:modal.close>
+                                <flux:button variant="danger" wire:click="deleteUser({{ $user->id }})">Remover</flux:button>
+                            </div>
+                        </div>
+                    </flux:modal>
+                @endcan
+            </div>
+        @empty
+            <p class="px-4 py-10 text-center text-sm text-zinc-500">Nenhum usuário encontrado.</p>
+        @endforelse
     </div>
 
     <div class="mt-4">
