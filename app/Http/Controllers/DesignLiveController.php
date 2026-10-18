@@ -45,6 +45,6 @@ class DesignLiveController extends Controller
 
         $ttl = $request->user() ? null : (int) config('ward.artifacts.preview_content_ttl_minutes');
 
-        return new JsonResponse($state->toArray($design, $ttl), 200, $headers);
+        return new JsonResponse($state->toArray($design, $ttl, comments: $request->user() !== null), 200, $headers);
     }
 }

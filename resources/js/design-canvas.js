@@ -183,7 +183,13 @@ class DesignCanvas {
         const meta = el('span', { class: 'ward-board-meta' });
         const caption = el('div', { class: 'ward-board-caption' }, [label, meta]);
         const flash = el('span', { class: 'ward-board-flash', text: 'atualizado agora', hidden: true });
+        const error = el('button', { type: 'button', class: 'ward-board-error', text: 'Erro no script', hidden: true });
+        caption.append(error);
         const node = el('div', { class: 'ward-board', 'data-board': data.id }, [caption, frame, flash]);
+        error.addEventListener('click', (event) => {
+            event.stopPropagation();
+            this.editor?.showBoardError(data.id, event);
+        });
 
         label.addEventListener('click', (event) => {
             event.stopPropagation();
@@ -191,7 +197,7 @@ class DesignCanvas {
         });
 
         this.boardsLayer.append(node);
-        const entry = { data, node, frame, label, meta, flash, loaded: false };
+        const entry = { data, node, frame, label, meta, flash, error, errors: [], loaded: false };
         this.boards.set(data.id, entry);
         this.updateBoard(entry, data, true);
 
@@ -229,13 +235,16 @@ class DesignCanvas {
 
     /** Carrega a versão nova por baixo e só troca quando ela terminou (sem piscar em branco). */
     swapFrame(entry, url) {
+        this.clearErrors(entry);
         const next = entry.frame.cloneNode(false);
         next.removeAttribute('src');
         next.classList.add('is-loading');
+        entry.nextFrame = next;
         next.addEventListener('load', () => {
             next.classList.remove('is-loading');
             entry.frame.remove();
             entry.frame = next;
+            entry.nextFrame = null;
         }, { once: true });
         next.src = url;
         entry.frame.after(next);
@@ -560,11 +569,71 @@ class DesignCanvas {
     }
 
     bindMessages() {
+        this.picks = new Map();
         window.addEventListener('message', (event) => {
             if (event.origin !== this.config.contentOrigin) return;
-            if (event.data?.ward !== 'navigate' || typeof event.data.board !== 'string') return;
-            const target = this.ordered().find((board) => board.name === event.data.board);
-            if (target) this.openFocus(target.id);
+            const message = event.data;
+            if (message?.ward === 'navigate' && typeof message.board === 'string') {
+                const target = this.ordered().find((board) => board.name === message.board);
+                if (target) this.openFocus(target.id);
+                return;
+            }
+            if (message?.ward === 'picked') {
+                this.picks.get(message.request)?.(message.element ?? null);
+                this.picks.delete(message.request);
+                return;
+            }
+            if (message?.ward === 'error' && typeof message.message === 'string') {
+                // O iframe novo (troca sem piscar) já reporta enquanto carrega por baixo.
+                const entry = [...this.boards.values()].find((item) => item.frame.contentWindow === event.source
+                    || item.nextFrame?.contentWindow === event.source);
+                if (!entry) return;
+                entry.errors = [...entry.errors, message.message.slice(0, 300)].slice(-10);
+                entry.error.hidden = false;
+                entry.error.title = entry.errors[entry.errors.length - 1];
+                entry.node.classList.add('has-error');
+                this.editor?.afterErrors();
+            }
+        });
+    }
+
+    clearErrors(entry) {
+        entry.errors = [];
+        entry.error.hidden = true;
+        entry.node.classList.remove('has-error');
+        this.editor?.afterErrors();
+    }
+
+    /** Erros de script dos artboards carregados: [{board: nome, message}]. */
+    errors() {
+        return [...this.boards.values()].flatMap((entry) => entry.errors.map((message) => ({ board: entry.data.name, message })));
+    }
+
+    /**
+     * Pergunta ao artboard que elemento está no ponto (x, y em px do artboard).
+     * Resolve com a descrição do elemento, ou null (artboard não carregado, sem resposta).
+     */
+    pick(boardId, x, y) {
+        const entry = this.boards.get(boardId);
+        if (!entry || !entry.loaded || !entry.frame.contentWindow) return Promise.resolve(null);
+        const request = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        return new Promise((resolve) => {
+            this.picks.set(request, resolve);
+            setTimeout(() => {
+                if (this.picks.delete(request)) resolve(null);
+            }, 800);
+            entry.frame.contentWindow.postMessage({ ward: 'pick', request, x, y }, this.config.contentOrigin);
+        });
+    }
+
+    /** Artboards que aparecem na tela agora. */
+    visibleBoards() {
+        const rect = this.viewport.getBoundingClientRect();
+        const { x, y, scale } = this.view;
+        return this.state.boards.filter((data) => {
+            const left = data.x * scale + x;
+            const top = data.y * scale + y;
+            return left < rect.width && left + data.w * scale > 0 && top < rect.height && top + data.h * scale > 0;
         });
     }
 

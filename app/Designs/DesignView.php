@@ -26,8 +26,9 @@ class DesignView
             $liveUntil = $liveUntil->min($design->public_until);
         }
 
-        $state = $this->state->toArray($design, $ttl);
+        $state = $this->state->toArray($design, $ttl, comments: ! $preview && auth()->check());
         $editable = ! $preview && auth()->user()?->can('update', $design);
+        $collab = ! $preview && auth()->check();
 
         return response()->view('artifacts.design', [
             'artifact' => $design,
@@ -46,8 +47,15 @@ class DesignView
                     'sourceUrl' => route('designs.board-source', [$design->uuid, 0]),
                     'csrf' => csrf_token(),
                 ] : null,
+                // Comentários e o relato do que a pessoa vê (qualquer pessoa logada que vê o design).
+                'collab' => $collab ? [
+                    'user' => ['id' => auth()->id(), 'name' => auth()->user()->name],
+                    'commentsUrl' => route('designs.comments.store', $design->uuid),
+                    'viewUrl' => route('designs.view', $design->uuid),
+                    'csrf' => csrf_token(),
+                ] : null,
             ],
-            'editable' => $editable,
+            'editable' => $collab,
         ]);
     }
 }

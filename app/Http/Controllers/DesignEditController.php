@@ -63,13 +63,13 @@ class DesignEditController extends Controller
         } catch (InvalidDesign $e) {
             return response()->json([
                 'message' => $e->getMessage(),
-                'state' => $this->state->toArray($design->fresh()),
+                'state' => $this->state->toArray($design->fresh(), comments: true),
             ], 422);
         }
 
         return response()->json([
             'results' => $results,
-            'state' => $this->state->toArray($design->fresh()),
+            'state' => $this->state->toArray($design->fresh(), comments: true),
         ]);
     }
 

@@ -18,6 +18,7 @@ use App\Mcp\Tools\ListProjectsTool;
 use App\Mcp\Tools\OpenDesignTool;
 use App\Mcp\Tools\PublishArtifactTool;
 use App\Mcp\Tools\RenameArtifactTool;
+use App\Mcp\Tools\ResolveCommentTool;
 use App\Mcp\Tools\SaveDesignVersionTool;
 use App\Mcp\Tools\UpdateArtifactTool;
 use App\Mcp\Tools\UpdateDesignLayoutTool;
@@ -58,8 +59,10 @@ Ward Design (canvas com vários artboards, para mockups, telas de app, landing p
   tela está pronta sem você olhar) → update_layout → print do canvas inteiro.
 - Alta fidelidade: conteúdo plausível (não [PREÇO]), fotos que você viu carregar, densidade de produto.
 - Para mudar uma tela: get_artboard_source → editar → upsert_artboard com o mesmo name.
-- save_design_version para guardar um ponto. get_design mostra o canvas, o artboard que a pessoa
-  selecionou no app (viewing) e devolve preview_url.
+- save_design_version para guardar um ponto. get_design mostra o canvas, o que a pessoa está vendo
+  (artboard e elemento selecionados, erros de script), os comentários abertos e devolve preview_url.
+- Comentários do canvas são pedidos da pessoa: aplique a mudança no artboard/elemento indicado e
+  responda com resolve_comment (uma frase do que mudou).
 TXT)]
 class WardServer extends Server
 {
@@ -79,6 +82,7 @@ class WardServer extends Server
         UpdateDesignLayoutTool::class,
         GetDesignTool::class,
         GetArtboardSourceTool::class,
+        ResolveCommentTool::class,
         DeleteArtboardTool::class,
         SaveDesignVersionTool::class,
         OpenDesignTool::class,

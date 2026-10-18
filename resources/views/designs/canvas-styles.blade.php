@@ -88,6 +88,50 @@
     .ward-ed-swatch[aria-pressed="true"] { box-shadow: 0 0 0 2px #0ea5e9; background-clip: padding-box; }
     .ward-ed-rename { font: inherit; font-weight: 600; padding: 0 4px; border: 1px solid #38bdf8; border-radius: 4px; background: #fff; color: #18181b; min-width: 120px; }
     .is-list .ward-ed-toolbar, .is-list .ward-ed-bar { display: none !important; }
+    /* Comentários, erros e realce (editor). */
+    .ward-board-error { flex: none; margin-left: 4px; padding: 1px 8px; border: 0; border-radius: 999px; background: #dc2626; color: #fff; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+    .ward-board.has-error iframe { box-shadow: 0 0 0 calc(2px * var(--inv)) #dc2626; }
+    .ward-ed-hover { position: absolute; pointer-events: none; outline: calc(2px * var(--inv)) solid #f59e0b; background: rgb(245 158 11 / .08); }
+    .ward-ed-pins { position: absolute; left: 0; top: 0; }
+    .ward-ed-pin { position: absolute; display: grid; place-items: center; width: 28px; height: 28px; margin: -28px 0 0 0; transform: scale(var(--inv)); transform-origin: 0 100%;
+        border: 2px solid #fff; border-radius: 14px 14px 14px 2px; background: #7c3aed; color: #fff; font: 700 12px/1 system-ui, sans-serif; cursor: pointer; box-shadow: 0 2px 8px rgb(0 0 0 / .35); }
+    .ward-ed-pin.is-resolved { background: #71717a; }
+    .ward-ed-pin.is-active { background: #0ea5e9; }
+    .ward-ed-pin.is-draft { background: #0ea5e9; pointer-events: none; }
+    .ward-viewport[data-tool="comment"] { cursor: crosshair; }
+    .ward-ed-count { min-width: 18px; height: 18px; margin-left: 2px; padding: 0 5px; border-radius: 9px; background: #7c3aed; color: #fff; font-size: 11px; line-height: 18px; }
+    .ward-ed-btn:has(.ward-ed-count:not([hidden])) { display: inline-flex; align-items: center; gap: 2px; }
+    .ward-ed-thread { position: absolute; z-index: 30; width: 320px; max-width: calc(100% - 16px); display: flex; flex-direction: column; gap: 8px; padding: 12px;
+        border-radius: 12px; background: #fff; color: #18181b; border: 1px solid #e4e4e7; box-shadow: 0 12px 36px rgb(0 0 0 / .22); font-size: 13px; }
+    .dark .ward-ed-thread, .dark .ward-ed-panel { background: #18181b; color: #f4f4f5; border-color: #3f3f46; }
+    .ward-ed-thread-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .ward-ed-thread-head .ward-ed-muted { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ward-ed-thread-head .ward-ed-btn { min-width: 28px; height: 28px; padding: 0; }
+    .ward-ed-messages { display: flex; flex-direction: column; gap: 10px; max-height: 280px; overflow-y: auto; }
+    .ward-ed-message p { margin: 2px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.45; }
+    .ward-ed-message-head { display: flex; align-items: baseline; gap: 6px; }
+    .ward-ed-muted { color: #71717a; font-size: 12px; } .dark .ward-ed-muted { color: #a1a1aa; }
+    .ward-ed-badge { padding: 0 6px; border-radius: 999px; background: #ede9fe; color: #5b21b6; font-size: 11px; font-weight: 700; }
+    .ward-ed-badge.is-ok { background: #dcfce7; color: #166534; }
+    .ward-ed-input { width: 100%; box-sizing: border-box; resize: vertical; min-height: 44px; padding: 8px; border: 1px solid #d4d4d8; border-radius: 8px; font: inherit; color: inherit; background: transparent; }
+    .ward-ed-input:focus { outline: 2px solid #0ea5e9; outline-offset: 0; border-color: transparent; }
+    .ward-ed-thread-actions { display: flex; align-items: center; gap: 4px; }
+    .ward-ed-spacer { flex: 1; }
+    .ward-ed-btn.is-primary { padding: 0 12px; background: #0ea5e9; color: #fff; font-weight: 600; }
+    .ward-ed-btn.is-primary:hover { background: #0284c7; }
+    .ward-ed-error-list { margin: 0; max-height: 200px; overflow: auto; padding: 8px; border-radius: 8px; background: #fef2f2; color: #991b1b; font: 12px/1.45 ui-monospace, monospace; white-space: pre-wrap; }
+    .ward-ed-panel { position: absolute; z-index: 25; top: 56px; right: 12px; bottom: 76px; width: 320px; max-width: calc(100% - 24px); display: flex; flex-direction: column; gap: 8px;
+        padding: 12px; border-radius: 12px; background: #fff; color: #18181b; border: 1px solid #e4e4e7; box-shadow: 0 12px 36px rgb(0 0 0 / .2); font-size: 13px; }
+    .ward-ed-panel-head { display: flex; align-items: center; justify-content: space-between; }
+    .ward-ed-panel-head .ward-ed-btn { min-width: 28px; height: 28px; padding: 0; }
+    .ward-ed-check { display: flex; align-items: center; gap: 6px; color: #52525b; } .dark .ward-ed-check { color: #a1a1aa; }
+    .ward-ed-panel-list { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; }
+    .ward-ed-panel-item { display: flex; flex-direction: column; gap: 2px; padding: 8px; border: 1px solid rgb(127 127 127 / .25); border-radius: 8px; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+    .ward-ed-panel-item:hover { border-color: #0ea5e9; }
+    .ward-ed-panel-item.is-resolved { opacity: .6; }
+    .ward-ed-panel-body { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+    .ward-ed-empty { margin: 8px 0; }
+    .is-list .ward-ed-thread, .is-list .ward-ed-panel, .is-list .ward-ed-pins { display: none !important; }
     /* Modo lista (tela estreita): o canvas liga a classe conforme a largura. */
     .is-list .ward-viewport, .is-list .ward-zoom { display: none !important; }
     .is-list .ward-list { display: flex; flex-direction: column; align-items: center; gap: 24px; position: absolute; inset: 0; overflow-y: auto; padding: 52px 16px 16px; }
