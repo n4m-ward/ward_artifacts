@@ -5,7 +5,7 @@ Um design é um **canvas** com vários **artboards** lado a lado. Cada artboard 
 
 O padrão é **alta fidelidade**: cada tela deve parecer um produto pronto, não um wireframe. A diferença
 entre uma tela genérica e uma boa quase nunca é talento: é decidir a direção antes, preencher a tela com
-conteúdo de verdade e **olhar o resultado** antes de seguir.
+conteúdo de verdade e **olhar o print** de cada tela antes de considerá-la pronta.
 
 ## 1. Antes do primeiro artboard: direção
 
@@ -47,19 +47,31 @@ do design.
   borda colorida só à esquerda, tudo centralizado, todo cartão com a mesma sombra, ícone dentro de
   quadradinho colorido em toda lista, textos genéricos ("Bem-vindo ao futuro").
 
-## 3. Conferir cada artboard
+## 3. Avaliar o print: nenhuma tela está pronta sem você olhar
 
-Depois de cada `upsert_artboard`, **olhe a tela** (no canvas aberto no seu navegador, ou no chat em
-clientes com MCP Apps) antes de passar para a próxima:
+Toda tela passa por avaliação visual antes de ser considerada pronta. Depois de cada `upsert_artboard`,
+**tire um print** da tela no navegador do seu ambiente (no Claude Code, o painel de navegador) com o
+canvas aberto pelo `preview_url`, e olhe a imagem:
 
-- nada cortado ou escondido (em `fixed`, o conteúdo cabe em `w`×`h`; atenção ao que fica atrás de
-  barras fixas);
-- nada quebrando linha onde não devia (preços, botões, abas);
-- fotos e fontes carregaram;
-- contraste e alinhamento.
+- Para uma tela: abra o artboard em foco (clique duplo nele, ou o link "abrir sozinho") ou dê zoom na
+  área dele. Os iframes do canvas às vezes demoram alguns segundos para pintar na captura: espere e
+  capture de novo.
+- Para o conjunto: "ajustar tudo" (tecla 1) e um print do canvas inteiro.
 
-Corrija com outro `upsert_artboard` do mesmo `name`. Se você não tem como ver a tela, revise o HTML
-contando alturas e larguras.
+Na imagem, procure:
+
+- conteúdo cortado ou escondido (em `fixed`, tudo cabe em `w`×`h`; atenção ao que fica atrás de barras
+  fixas);
+- texto quebrando onde não devia (preços, botões, abas), sobreposto ou vazando do contêiner;
+- fotos que não carregaram, fonte de fallback no lugar da escolhida, ícones desalinhados;
+- espaçamento e alinhamento irregulares, contraste fraco, hierarquia confusa;
+- inconsistência com os outros artboards (cores, fontes, raios, componentes);
+- áreas vazias que fazem a tela parecer inacabada.
+
+Achou algo: corrija com `upsert_artboard` do mesmo `name` e olhe de novo. Repita até a tela estar sem
+defeitos; só então passe para a próxima ou diga ao usuário que terminou. No fim, um print do canvas
+inteiro para conferir o conjunto. Sem navegador nenhum, revise o HTML contando alturas e larguras e
+avise o usuário de que não conseguiu ver a tela.
 
 ## Tipos de artboard
 
@@ -98,8 +110,9 @@ post 1080×1080 · story 1080×1920 · banner 1200×628 · A4 794×1123.
 1. `create_design` → guarde o `id` e **abra o canvas antes de criar telas**: `open_design` em clientes com
    MCP Apps (o canvas aparece no chat); nos outros, abra o `preview_url` no seu navegador e passe a `url`
    ao usuário. O canvas atualiza sozinho a cada mudança, então a pessoa acompanha você trabalhando.
-2. Direção (seção 1), depois um `upsert_artboard` por tela, conferindo cada uma (seção 3).
-3. `update_layout` para organizar fileiras, títulos e notas.
+2. Direção (seção 1), depois para cada tela: `upsert_artboard` → print no navegador → corrigir até
+   ficar sem defeitos (seção 3).
+3. `update_layout` para organizar fileiras, títulos e notas, e um print do canvas inteiro.
 4. Para mudar uma tela: `get_artboard_source` → editar → `upsert_artboard` com o mesmo `name`.
 5. `save_design_version` quando chegar num ponto que valha guardar.
 6. Entregue ao usuário a `url` do design. O `preview_url` (uso único, sem login) é para você.
