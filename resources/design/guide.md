@@ -94,6 +94,30 @@ post 1080×1080 · story 1080×1920 · banner 1200×628 · A4 794×1123.
 6. **Links entre artboards** (protótipo): `<a href="board:NomeDoArtboard">` e marque os artboards com
    `interactive: true`.
 
+## Tweaks (controles para a pessoa ajustar sem pedir)
+
+Declare poucos controles que valham a pena (uma cor de destaque, um raio, modo escuro, densidade),
+nunca textos. A pessoa ajusta no painel Tweaks do canvas e o valor fica salvo no próprio artboard:
+
+```html
+<script type="application/json" id="ward-tweaks">
+{"accent": {"type": "color", "label": "Destaque", "value": "#c2410c"},
+ "radius": {"type": "range", "label": "Raio", "min": 0, "max": 32, "unit": "px", "value": 16},
+ "dark": {"type": "boolean", "label": "Fundo escuro", "class": "is-dark", "value": false},
+ "density": {"type": "enum", "label": "Densidade", "options": ["compacta", "normal"], "value": "normal"}}
+</script>
+```
+
+- `color`, `range` e `text` viram variáveis CSS (`--accent`, `--radius` com a unidade): use-as no CSS.
+- `boolean` com `class` liga essa classe no `<html>` (`.is-dark .card {…}`).
+- `enum` vira `data-density="compacta"` no `<html>`.
+- Repita o mesmo valor padrão no `:root` do CSS, para o arquivo abrir certo fora do canvas.
+
+## Edição pela pessoa
+
+A pessoa pode mover, redimensionar e editar elementos à mão no canvas (texto, cores, espaçamento…).
+Antes de mudar uma tela, leia o HTML atual com `get_artboard_source`: ele pode ter mudado.
+
 ## Organização no canvas
 
 - Coordenadas em px no canvas. Deixe **80 px** entre artboards de uma fileira e **160 px** entre fileiras.

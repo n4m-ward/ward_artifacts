@@ -132,6 +132,36 @@
     .ward-ed-panel-body { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
     .ward-ed-empty { margin: 8px 0; }
     .is-list .ward-ed-thread, .is-list .ward-ed-panel, .is-list .ward-ed-pins { display: none !important; }
+    /* Edição visual de elementos. */
+    .ward-ed-element { position: absolute; pointer-events: none; outline: calc(2px * var(--inv)) solid #ec4899; }
+    .ward-ed-element::before { content: attr(data-tag); position: absolute; left: 0; bottom: 100%; transform: scale(var(--inv)); transform-origin: 0 100%;
+        padding: 1px 6px; border-radius: 4px 4px 0 0; background: #ec4899; color: #fff; font: 600 11px/1.4 ui-monospace, monospace; white-space: nowrap; }
+    .ward-board.is-editing-text iframe { pointer-events: auto; }
+    .ward-ed-props { position: absolute; z-index: 25; top: 56px; right: 12px; bottom: 76px; width: 300px; max-width: calc(100% - 24px); overflow-y: auto;
+        display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: 12px; background: #fff; color: #18181b; border: 1px solid #e4e4e7;
+        box-shadow: 0 12px 36px rgb(0 0 0 / .2); font-size: 12px; }
+    .dark .ward-ed-props { background: #18181b; color: #f4f4f5; border-color: #3f3f46; }
+    .ward-ed-props-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; }
+    .ward-ed-props-head .ward-ed-btn { min-width: 28px; height: 28px; padding: 0; }
+    .ward-ed-props-actions { display: flex; flex-wrap: wrap; gap: 2px; }
+    .ward-ed-props-actions .ward-ed-btn { min-width: 32px; height: 32px; }
+    .ward-ed-snippet { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ward-ed-hint { margin: 0; padding: 6px 8px; border-radius: 6px; background: rgb(14 165 233 / .1); color: #0369a1; }
+    .dark .ward-ed-hint { color: #7dd3fc; }
+    .ward-ed-section { display: flex; flex-direction: column; gap: 8px; padding-top: 10px; border-top: 1px solid rgb(127 127 127 / .2); }
+    .ward-ed-section h3 { margin: 0; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #71717a; }
+    .ward-ed-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .ward-ed-field { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+    .ward-ed-field > span:first-child { color: #71717a; }
+    .ward-ed-field input[type="text"], .ward-ed-field select { width: 100%; box-sizing: border-box; height: 30px; padding: 0 8px; border: 1px solid #d4d4d8; border-radius: 6px;
+        background: transparent; color: inherit; font: inherit; }
+    .dark .ward-ed-field input[type="text"], .dark .ward-ed-field select { border-color: #3f3f46; }
+    .dark .ward-ed-field select option { background: #18181b; }
+    .ward-ed-field input:focus, .ward-ed-field select:focus { outline: 2px solid #0ea5e9; outline-offset: 0; border-color: transparent; }
+    .ward-ed-color { display: flex; gap: 6px; align-items: center; }
+    .ward-ed-color input[type="color"] { width: 34px; height: 30px; padding: 2px; border: 1px solid #d4d4d8; border-radius: 6px; background: none; flex: none; }
+    .ward-ed-code { font: 12px/1.45 ui-monospace, monospace; }
+    .is-list .ward-ed-props, .is-list .ward-ed-element { display: none !important; }
     /* Modo lista (tela estreita): o canvas liga a classe conforme a largura. */
     .is-list .ward-viewport, .is-list .ward-zoom { display: none !important; }
     .is-list .ward-list { display: flex; flex-direction: column; align-items: center; gap: 24px; position: absolute; inset: 0; overflow-y: auto; padding: 52px 16px 16px; }

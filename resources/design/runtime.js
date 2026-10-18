@@ -52,9 +52,28 @@
     return parts.join('/');
   };
 
+  const byPath = (path) => {
+    let node = document.body;
+    if (path === '' || path === undefined || path === null) return node;
+    for (const index of String(path).split('/')) {
+      node = node && node.children[Number(index)];
+    }
+    return node || null;
+  };
+
+  const STYLE_KEYS = [
+    'font-family', 'font-size', 'font-weight', 'font-style', 'line-height', 'letter-spacing', 'color', 'text-align', 'text-transform',
+    'background-color', 'background-image', 'padding', 'margin', 'border', 'border-radius', 'box-shadow', 'opacity',
+    'display', 'flex-direction', 'flex-wrap', 'gap', 'justify-content', 'align-items', 'width', 'height', 'position',
+  ];
+
   const describe = (element) => {
     const rect = element.getBoundingClientRect();
     const text = (element.innerText || element.textContent || '').replace(/\s+/g, ' ').trim();
+    const computed = getComputedStyle(element);
+    const styles = {};
+    for (const key of STYLE_KEYS) styles[key] = computed.getPropertyValue(key);
+    const parent = element.parentElement && element.parentElement !== document.documentElement ? getComputedStyle(element.parentElement) : null;
     return {
       path: pathOf(element),
       tag: element.tagName.toLowerCase(),
@@ -63,15 +82,112 @@
       text: text.slice(0, 120),
       html: element.outerHTML.slice(0, 800),
       rect: { x: Math.round(rect.left), y: Math.round(rect.top), w: Math.round(rect.width), h: Math.round(rect.height) },
+      styles,
+      inline: element.getAttribute('style') || '',
+      // Só texto (sem filhos elementos): dá para editar no lugar.
+      textOnly: element.children.length === 0 && text.length > 0,
+      attrs: { src: element.getAttribute('src'), alt: element.getAttribute('alt'), href: element.getAttribute('href') },
+      parentDisplay: parent ? parent.display : null,
+      childCount: element.children.length,
     };
   };
+
+  // Tweaks: <script type="application/json" id="ward-tweaks"> com os controles do artboard.
+  // color/range/text viram variáveis CSS (--nome); boolean com "class" liga uma classe no <html>;
+  // enum vira data-nome no <html>.
+  const applyTweak = (key, def, value) => {
+    const root = document.documentElement;
+    if (def.type === 'boolean') {
+      if (def.class) root.classList.toggle(def.class, Boolean(value));
+      else root.toggleAttribute(`data-${key}`, Boolean(value));
+    } else if (def.type === 'enum') {
+      root.setAttribute(`data-${key}`, String(value));
+    } else {
+      root.style.setProperty(`--${key}`, `${value}${def.unit || ''}`);
+    }
+  };
+  const readTweaks = () => {
+    try {
+      const node = document.getElementById('ward-tweaks');
+      return node ? JSON.parse(node.textContent) : null;
+    } catch {
+      reportError('ward-tweaks: JSON inválido');
+      return null;
+    }
+  };
+  const tweaksAtLoad = () => {
+    const tweaks = readTweaks();
+    if (!tweaks) return;
+    for (const [key, def] of Object.entries(tweaks)) {
+      if (def && typeof def === 'object' && 'value' in def) applyTweak(key, def, def.value);
+    }
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', tweaksAtLoad);
+  else tweaksAtLoad();
+
+  let editing = null;
 
   window.addEventListener('message', (event) => {
     if (event.source !== window.parent) return;
     const data = event.data;
-    if (!data || data.ward !== 'pick') return;
-    let element = document.elementFromPoint(data.x, data.y);
-    if (element === document.documentElement) element = null;
-    post({ ward: 'picked', request: data.request, element: element ? describe(element) : null });
+    if (!data || typeof data.ward !== 'string') return;
+
+    if (data.ward === 'pick') {
+      let element = document.elementFromPoint(data.x, data.y);
+      if (element === document.documentElement) element = null;
+      post({ ward: 'picked', request: data.request, element: element ? describe(element) : null });
+    } else if (data.ward === 'describe') {
+      const element = byPath(data.path);
+      post({ ward: 'picked', request: data.request, element: element && element !== document.body ? describe(element) : null });
+    } else if (data.ward === 'apply') {
+      // Prévia ao vivo de uma edição (o HTML salvo chega logo depois).
+      const element = byPath(data.path);
+      if (!element) return;
+      for (const [prop, value] of Object.entries(data.style || {})) {
+        if (value === null || value === '') element.style.removeProperty(prop);
+        else element.style.setProperty(prop, value);
+      }
+      for (const [name, value] of Object.entries(data.attrs || {})) {
+        if (value === null) element.removeAttribute(name);
+        else element.setAttribute(name, value);
+      }
+      if (typeof data.text === 'string') element.textContent = data.text;
+    } else if (data.ward === 'tweak') {
+      const tweaks = readTweaks();
+      if (tweaks && tweaks[data.key]) applyTweak(data.key, tweaks[data.key], data.value);
+    } else if (data.ward === 'tweaks') {
+      post({ ward: 'tweaks-read', request: data.request, tweaks: readTweaks() });
+    } else if (data.ward === 'edit-text') {
+      const element = byPath(data.path);
+      if (!element || editing) return;
+      editing = element;
+      const before = element.textContent;
+      element.setAttribute('contenteditable', 'plaintext-only');
+      if (element.contentEditable !== 'plaintext-only') element.setAttribute('contenteditable', 'true');
+      element.focus();
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+      let cancelled = false;
+      const keydown = (e) => {
+        if (e.key === 'Escape') {
+          cancelled = true;
+          element.textContent = before;
+          element.blur();
+        } else if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          element.blur();
+        }
+      };
+      element.addEventListener('keydown', keydown);
+      element.addEventListener('blur', () => {
+        element.removeEventListener('keydown', keydown);
+        element.removeAttribute('contenteditable');
+        editing = null;
+        post({ ward: 'text-edited', path: data.path, text: cancelled ? null : element.textContent, before });
+      }, { once: true });
+    }
   });
 })();
