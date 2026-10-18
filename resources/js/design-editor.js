@@ -32,6 +32,10 @@ const ICONS = {
     alignBottom: 'M3 20h18M7 4h4v12H7zM14 9h4v7h-4z',
     distributeH: 'M4 3v18M20 3v18M9 8h6v8H9z',
     distributeV: 'M3 4h18M3 20h18M8 9h8v6H8z',
+    comment: 'M4 5h16v11H9l-5 4z',
+    comments: 'M7 9h10M7 13h6M4 5h16v11H9l-5 4z',
+    check: 'M5 12l5 5 9-10',
+    close: 'M6 6l12 12M18 6L6 18',
 };
 
 function icon(name) {
@@ -57,9 +61,9 @@ function el(tag, attrs = {}, children = []) {
     return node;
 }
 
-function button(label, iconName, onClick, extra = {}) {
+function button(label, iconName, onClick, { text, ...extra } = {}) {
     const node = el('button', { type: 'button', class: 'ward-ed-btn', 'aria-label': label, title: label, ...extra },
-        iconName ? [icon(iconName)] : [extra.text ?? label]);
+        iconName ? [icon(iconName)] : [text ?? label]);
     node.addEventListener('click', (event) => {
         event.stopPropagation();
         onClick(event);
@@ -70,9 +74,16 @@ function button(label, iconName, onClick, extra = {}) {
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
 
 class DesignEditor {
+    /**
+     * config: a configuração da página. config.edit (dono ou admin) liga a edição;
+     * config.collab (qualquer pessoa logada) liga comentários e o relato para a IA.
+     */
     constructor(canvas, config) {
         this.canvas = canvas;
-        this.config = config;
+        this.page = config;
+        this.config = config.edit ?? {};
+        this.collab = config.collab;
+        this.canEdit = Boolean(config.edit);
         this.tool = 'select';
         this.selection = new Set(); // 'b:<id>' ou 'n:<key>'
         this.undoStack = [];
@@ -87,6 +98,7 @@ class DesignEditor {
         this.buildUi();
         this.bindKeys();
         this.bindDoubleClick();
+        this.initComments();
         this.afterRender();
     }
 
@@ -154,14 +166,21 @@ class DesignEditor {
 
         this.tools = {};
         const toolbar = el('div', { class: 'ward-ed-toolbar', role: 'toolbar', 'aria-label': 'Ferramentas do canvas' });
-        for (const [tool, label, key] of [['select', 'Selecionar', 'V'], ['hand', 'Mão', 'H'], ['note', 'Nota adesiva', 'N'], ['title', 'Título', 'T']]) {
-            this.tools[tool] = button(`${label} (${key})`, tool, () => this.setTool(tool), { 'aria-pressed': 'false' });
+        const tools = this.canEdit
+            ? [['select', 'Selecionar', 'V', 'select'], ['hand', 'Mão', 'H', 'hand'], ['note', 'Nota adesiva', 'N', 'note'], ['title', 'Título', 'T', 'title'], ['comment', 'Comentar', 'C', 'comment']]
+            : [['select', 'Navegar', 'V', 'hand'], ['comment', 'Comentar', 'C', 'comment']];
+        for (const [tool, label, key, iconName] of tools) {
+            this.tools[tool] = button(`${label} (${key})`, iconName, () => this.setTool(tool), { 'aria-pressed': 'false' });
             toolbar.append(this.tools[tool]);
         }
         toolbar.append(el('span', { class: 'ward-ed-sep', 'aria-hidden': 'true' }));
         this.undoButton = button(`Desfazer (${isMac ? '⌘' : 'Ctrl+'}Z)`, 'undo', () => this.undo());
         this.redoButton = button(`Refazer (${isMac ? '⇧⌘' : 'Ctrl+Shift+'}Z)`, 'redo', () => this.redo());
-        toolbar.append(this.undoButton, this.redoButton);
+        if (this.canEdit) toolbar.append(this.undoButton, this.redoButton, el('span', { class: 'ward-ed-sep', 'aria-hidden': 'true' }));
+        this.commentsButton = button('Comentários', 'comments', () => this.togglePanel(), { 'aria-pressed': 'false', 'aria-expanded': 'false' });
+        this.commentsCount = el('span', { class: 'ward-ed-count', hidden: true });
+        this.commentsButton.append(this.commentsCount);
+        toolbar.append(this.commentsButton);
         this.status = el('span', { class: 'ward-ed-status', role: 'status', 'aria-live': 'polite' });
         toolbar.append(this.status);
         root.append(toolbar);
@@ -185,6 +204,7 @@ class DesignEditor {
         this.tool = tool;
         for (const [name, node] of Object.entries(this.tools)) node.setAttribute('aria-pressed', String(name === tool));
         this.canvas.viewport.dataset.tool = tool;
+        if (tool !== 'comment') this.clearHover();
     }
 
     updateHistoryButtons() {
@@ -202,6 +222,7 @@ class DesignEditor {
     // ---------- desenho da seleção ----------
 
     afterRender() {
+        this.renderPins();
         if (this.gesture) return;
         const before = this.selection.size;
         for (const key of [...this.selection]) if (!this.exists(key)) this.selection.delete(key);
@@ -211,11 +232,14 @@ class DesignEditor {
 
     afterView() {
         this.positionBar();
+        this.positionThread();
+        this.reportView();
     }
 
     afterSelect(id) {
+        this.reportView();
         if (this.syncing) return;
-        // O canvas selecionou sozinho (ex.: foco com anterior/próximo).
+        // O canvas selecionou sozinho (ex.: foco com anterior/próximo, clique sem edição).
         this.selection = new Set(id === null ? [] : [`b:${id}`]);
         this.drawSelection();
     }
@@ -248,7 +272,7 @@ class DesignEditor {
 
     renderBar() {
         const keys = [...this.selection];
-        if (!keys.length || this.gesture || this.editingNote || this.canvas.isMobile()) {
+        if (!this.canEdit || !keys.length || this.gesture || this.editingNote || this.canvas.isMobile()) {
             this.bar.hidden = true;
             return;
         }
@@ -338,6 +362,8 @@ class DesignEditor {
 
     pointerDown(event) {
         if (this.canvas.isMobile() || this.canvas.focusIndex !== null) return false;
+        if (event.button === 0 && !this.space && this.commentPointerDown(event)) return true;
+        if (!this.canEdit) return false;
         if (this.editingNote) {
             if (event.target.closest('[data-note]') === this.editingNote) return true;
             this.editingNote.blur();
@@ -896,6 +922,26 @@ class DesignEditor {
             const key = event.key.toLowerCase();
             let handled = true;
 
+            if (!this.canEdit) {
+                if (key === 'c' && !mod) this.setTool('comment');
+                else if (key === 'v' && !mod) this.setTool('select');
+                else if (key === 'escape' && (this.thread || this.tool !== 'select')) {
+                    this.closeThread();
+                    this.setTool('select');
+                } else handled = false;
+                if (handled) {
+                    event.preventDefault();
+                    event.stopImmediatePropagation();
+                }
+                return;
+            }
+            if (key === 'escape' && this.thread) {
+                this.closeThread();
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                return;
+            }
+
             if (mod && key === 'z' && !event.shiftKey) this.undo();
             else if ((mod && key === 'z' && event.shiftKey) || (mod && key === 'y')) this.redo();
             else if (mod && key === 'd') this.duplicate();
@@ -906,6 +952,7 @@ class DesignEditor {
             else if (key === 'h') this.setTool('hand');
             else if (key === 'n') this.setTool('note');
             else if (key === 't') this.setTool('title');
+            else if (key === 'c') this.setTool('comment');
             else if (key.startsWith('arrow') && this.selection.size) {
                 const step = event.shiftKey ? 10 : 1;
                 this.nudge(key === 'arrowleft' ? -step : key === 'arrowright' ? step : 0, key === 'arrowup' ? -step : key === 'arrowdown' ? step : 0);
@@ -946,6 +993,408 @@ class DesignEditor {
     }
 }
 
+// ---------- comentários, erros e o que a pessoa está vendo ----------
+
+const relativeTime = (iso) => {
+    const seconds = (Date.now() - new Date(iso).getTime()) / 1000;
+    if (!Number.isFinite(seconds) || seconds < 60) return 'agora';
+    if (seconds < 3600) return `há ${Math.floor(seconds / 60)} min`;
+    if (seconds < 86400) return `há ${Math.floor(seconds / 3600)} h`;
+    return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+};
+
+Object.assign(DesignEditor.prototype, {
+    initComments() {
+        const root = this.canvas.root;
+        this.pinsLayer = el('div', { class: 'ward-ed-pins' });
+        this.hoverBox = el('div', { class: 'ward-ed-hover', hidden: true });
+        this.canvas.world.append(this.hoverBox, this.pinsLayer);
+        this.threadBox = el('div', { class: 'ward-ed-thread', hidden: true, role: 'dialog', 'aria-label': 'Comentário' });
+        this.panel = el('aside', { class: 'ward-ed-panel', hidden: true, 'aria-label': 'Comentários' });
+        root.append(this.threadBox, this.panel);
+        this.showResolved = false;
+        this.thread = null;
+        this.lastPicked = null;
+
+        // Na ferramenta Comentar, o elemento sob o ponteiro fica realçado.
+        this.canvas.viewport.addEventListener('pointermove', (event) => {
+            if (this.tool !== 'comment' || this.canvas.isMobile() || event.buttons) return;
+            clearTimeout(this.hoverTimer);
+            this.hoverTimer = setTimeout(() => this.hoverAt(event.clientX, event.clientY), 40);
+        });
+        this.canvas.viewport.addEventListener('pointerleave', () => this.clearHover());
+
+        this.renderPins();
+        this.reportView();
+    },
+
+    boardAt(world) {
+        return [...this.canvas.state.boards].reverse().find((b) => world.x >= b.x && world.x <= b.x + b.w && world.y >= b.y && world.y <= b.y + b.h) ?? null;
+    },
+
+    async hoverAt(clientX, clientY) {
+        const world = this.canvas.toWorld(clientX, clientY);
+        const board = this.boardAt(world);
+        if (!board) return this.clearHover();
+        const element = await this.canvas.pick(board.id, world.x - board.x, world.y - board.y);
+        if (this.tool !== 'comment' || !element) return this.clearHover();
+        Object.assign(this.hoverBox.style, rectStyle({
+            x: board.x + element.rect.x, y: board.y + element.rect.y, w: element.rect.w, h: element.rect.h,
+        }));
+        this.hoverBox.dataset.tag = element.tag;
+        this.hoverBox.hidden = false;
+    },
+
+    clearHover() {
+        if (this.hoverBox) this.hoverBox.hidden = true;
+    },
+
+    commentPointerDown(event) {
+        const pin = event.target.closest('[data-pin]');
+        if (pin) {
+            this.openThread(Number(pin.dataset.pin));
+            return true;
+        }
+        if (this.tool !== 'comment') return false;
+        this.openComposer(this.canvas.toWorld(event.clientX, event.clientY));
+        return true;
+    },
+
+    async openComposer(world) {
+        const board = this.boardAt(world);
+        const point = { bx: board ? Math.round(world.x - board.x) : null, by: board ? Math.round(world.y - board.y) : null };
+        const element = board ? await this.canvas.pick(board.id, point.bx, point.by) : null;
+        this.clearHover();
+        if (board) {
+            this.lastPicked = { board: board.name, element };
+            this.reportView();
+        }
+
+        this.thread = { draft: true, world: { x: Math.round(world.x), y: Math.round(world.y) } };
+        const where = board
+            ? `${board.title || board.name}${element ? ` · <${element.tag}>${element.text ? ` “${element.text.slice(0, 40)}”` : ''}` : ''}`
+            : 'canvas';
+        const textarea = el('textarea', { class: 'ward-ed-input', rows: '3', placeholder: 'Escreva um comentário (a IA também lê)', 'aria-label': 'Comentário', maxlength: '4000' });
+        const submit = button('Comentar', null, () => send(), { text: 'Comentar', class: 'ward-ed-btn is-primary' });
+        const send = async () => {
+            const body = textarea.value.trim();
+            if (!body) return textarea.focus();
+            submit.disabled = true;
+            const json = await this.request('POST', this.collab.commentsUrl, {
+                body,
+                board: board?.id ?? null,
+                anchor: board ? { ...(element ?? {}), ...point } : null,
+                x: board ? null : this.thread.world.x,
+                y: board ? null : this.thread.world.y,
+            });
+            submit.disabled = false;
+            if (!json) return;
+            this.setTool('select');
+            this.openThread(json.thread);
+        };
+        textarea.addEventListener('keydown', (event) => {
+            event.stopPropagation();
+            if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) send();
+            if (event.key === 'Escape') this.closeThread();
+        });
+
+        delete this.threadBox.dataset.thread;
+        this.threadBox.replaceChildren(
+            el('div', { class: 'ward-ed-thread-head' }, [
+                el('strong', { text: 'Novo comentário' }), el('span', { class: 'ward-ed-muted', text: where }),
+                button('Fechar', 'close', () => this.closeThread()),
+            ]),
+            textarea,
+            el('div', { class: 'ward-ed-thread-actions' }, [button('Cancelar', null, () => this.closeThread(), { text: 'Cancelar', class: 'ward-ed-btn is-text' }), submit]),
+        );
+        this.threadBox.hidden = false;
+        this.renderPins();
+        this.positionThread();
+        textarea.focus();
+    },
+
+    threads() {
+        return this.canvas.state.comments ?? [];
+    },
+
+    pinPosition(thread) {
+        if (thread.board) {
+            const board = this.canvas.state.boards.find((b) => b.id === thread.board);
+            if (!board) return null;
+            return {
+                x: board.x + Math.min(Math.max(thread.anchor?.bx ?? board.w - 28, 0), board.w),
+                y: board.y + Math.min(Math.max(thread.anchor?.by ?? 28, 0), board.h),
+            };
+        }
+        return thread.x === null || thread.x === undefined ? null : { x: thread.x, y: thread.y };
+    },
+
+    renderPins() {
+        if (!this.pinsLayer) return;
+        const threads = this.threads();
+        const pins = [];
+        for (const thread of threads) {
+            if (thread.resolved && !this.showResolved && this.thread?.id !== thread.id) continue;
+            const at = this.pinPosition(thread);
+            if (!at) continue;
+            const pin = el('button', {
+                type: 'button', class: `ward-ed-pin${thread.resolved ? ' is-resolved' : ''}${this.thread?.id === thread.id ? ' is-active' : ''}`,
+                'data-pin': thread.id, text: String(thread.number), 'aria-label': `Comentário ${thread.number}`,
+                style: { left: `${at.x}px`, top: `${at.y}px` },
+            });
+            pins.push(pin);
+        }
+        if (this.thread?.draft) {
+            pins.push(el('span', { class: 'ward-ed-pin is-draft', text: '+', style: { left: `${this.thread.world.x}px`, top: `${this.thread.world.y}px` } }));
+        }
+        this.pinsLayer.replaceChildren(...pins);
+
+        const open = threads.filter((thread) => !thread.resolved).length;
+        this.commentsCount.textContent = String(open);
+        this.commentsCount.hidden = open === 0;
+        this.commentsButton.setAttribute('aria-label', `Comentários (${open} abertos)`);
+        if (!this.panel.hidden) this.renderPanel();
+        if (this.thread && !this.thread.draft) this.renderThread();
+    },
+
+    openThread(id) {
+        this.thread = { id };
+        this.renderThread(true);
+        this.renderPins();
+    },
+
+    closeThread() {
+        this.thread = null;
+        this.threadBox.hidden = true;
+        this.renderPins();
+    },
+
+    renderThread(force = false) {
+        const thread = this.threads().find((item) => item.id === this.thread?.id);
+        if (!thread) {
+            this.thread = null;
+            this.threadBox.hidden = true;
+            return;
+        }
+        if (!force && this.threadBox.dataset.thread === String(thread.id)
+            && this.threadBox.contains(document.activeElement) && document.activeElement.tagName === 'TEXTAREA' && document.activeElement.value) {
+            return; // não atrapalha quem está digitando uma resposta
+        }
+
+        const me = this.collab.user?.id;
+        const author = thread.messages[0]?.user_id;
+        const canManage = this.canEdit || author === me;
+        const where = thread.board_name
+            ? `${thread.board_name}${thread.anchor?.tag ? ` · <${thread.anchor.tag}>` : ''}`
+            : 'canvas';
+
+        const messages = thread.messages.map((message) => el('div', { class: 'ward-ed-message' }, [
+            el('div', { class: 'ward-ed-message-head' }, [
+                el('strong', { text: message.author }),
+                message.source === 'ai' ? el('span', { class: 'ward-ed-badge', text: 'IA' }) : null,
+                el('span', { class: 'ward-ed-muted', text: relativeTime(message.at) }),
+            ]),
+            el('p', { text: message.body }),
+        ]));
+
+        const textarea = el('textarea', { class: 'ward-ed-input', rows: '2', placeholder: 'Responder', 'aria-label': 'Responder', maxlength: '4000' });
+        const reply = async () => {
+            const body = textarea.value.trim();
+            if (!body) return;
+            textarea.value = '';
+            await this.request('POST', this.collab.commentsUrl, { body, parent: thread.id });
+        };
+        textarea.addEventListener('keydown', (event) => {
+            event.stopPropagation();
+            if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) reply();
+            if (event.key === 'Escape') this.closeThread();
+        });
+
+        const actions = [];
+        if (canManage) {
+            actions.push(button(thread.resolved ? 'Reabrir' : 'Resolver', thread.resolved ? null : 'check',
+                () => this.request('PATCH', `${this.collab.commentsUrl}/${thread.id}`, { resolved: !thread.resolved }),
+                { text: thread.resolved ? 'Reabrir' : 'Resolver', class: 'ward-ed-btn is-text' }));
+            actions.push(button('Apagar comentário', 'trash', async () => {
+                if (!window.confirm(`Apagar o comentário #${thread.number} e as respostas?`)) return;
+                const json = await this.request('DELETE', `${this.collab.commentsUrl}/${thread.id}`);
+                if (json) this.closeThread();
+            }, { class: 'ward-ed-btn is-danger' }));
+        }
+
+        this.threadBox.replaceChildren(
+            el('div', { class: 'ward-ed-thread-head' }, [
+                el('strong', { text: `#${thread.number}` }), el('span', { class: 'ward-ed-muted', text: where }),
+                thread.resolved ? el('span', { class: 'ward-ed-badge is-ok', text: 'Resolvido' }) : null,
+                button('Fechar', 'close', () => this.closeThread()),
+            ]),
+            el('div', { class: 'ward-ed-messages' }, messages),
+            textarea,
+            el('div', { class: 'ward-ed-thread-actions' }, [
+                ...actions, el('span', { class: 'ward-ed-spacer' }),
+                button('Responder', null, () => reply(), { text: 'Responder', class: 'ward-ed-btn is-primary' }),
+            ]),
+        );
+        this.threadBox.dataset.thread = String(thread.id);
+        this.threadBox.hidden = false;
+        this.positionThread();
+    },
+
+    positionThread() {
+        if (!this.thread || this.threadBox.hidden) return;
+        const thread = this.thread.draft ? null : this.threads().find((item) => item.id === this.thread.id);
+        const at = this.thread.draft ? this.thread.world : thread && this.pinPosition(thread);
+        if (!at) return;
+        const { x, y, scale } = this.canvas.view;
+        const rootRect = this.canvas.root.getBoundingClientRect();
+        const viewRect = this.canvas.viewport.getBoundingClientRect();
+        const px = viewRect.left - rootRect.left + x + at.x * scale;
+        const py = viewRect.top - rootRect.top + y + at.y * scale;
+        const width = this.threadBox.offsetWidth || 320;
+        const height = this.threadBox.offsetHeight || 200;
+        let left = px + 24;
+        if (left + width > rootRect.width - 8) left = px - width - 24;
+        const top = Math.min(Math.max(py - 24, 8), rootRect.height - height - 8);
+        Object.assign(this.threadBox.style, { left: `${Math.max(8, left)}px`, top: `${top}px` });
+    },
+
+    togglePanel(force) {
+        const open = force ?? this.panel.hidden;
+        this.panel.hidden = !open;
+        this.commentsButton.setAttribute('aria-pressed', String(open));
+        this.commentsButton.setAttribute('aria-expanded', String(open));
+        if (open) this.renderPanel();
+    },
+
+    renderPanel() {
+        const threads = this.threads();
+        const resolved = threads.filter((thread) => thread.resolved).length;
+        const list = threads.filter((thread) => this.showResolved || !thread.resolved);
+        const toggle = el('label', { class: 'ward-ed-check' }, [
+            el('input', { type: 'checkbox', checked: this.showResolved }),
+            ` Mostrar resolvidos (${resolved})`,
+        ]);
+        toggle.querySelector('input').addEventListener('change', (event) => {
+            this.showResolved = event.target.checked;
+            this.renderPins();
+        });
+
+        const items = list.map((thread) => {
+            const first = thread.messages[0];
+            const item = el('button', { type: 'button', class: `ward-ed-panel-item${thread.resolved ? ' is-resolved' : ''}` }, [
+                el('span', { class: 'ward-ed-panel-meta' }, [
+                    el('strong', { text: `#${thread.number}` }),
+                    ` ${thread.board_name || 'canvas'} · ${first?.author ?? ''} · ${relativeTime(first?.at)}`,
+                ]),
+                el('span', { class: 'ward-ed-panel-body', text: first?.body ?? '' }),
+                thread.messages.length > 1 ? el('span', { class: 'ward-ed-muted', text: `${thread.messages.length - 1} resposta(s)` }) : null,
+            ]);
+            item.addEventListener('click', () => this.goToThread(thread));
+            return item;
+        });
+
+        this.panel.replaceChildren(
+            el('div', { class: 'ward-ed-panel-head' }, [el('strong', { text: 'Comentários' }), button('Fechar', 'close', () => this.togglePanel(false))]),
+            toggle,
+            items.length ? el('div', { class: 'ward-ed-panel-list' }, items)
+                : el('p', { class: 'ward-ed-muted ward-ed-empty', text: 'Nenhum comentário aberto. Use a ferramenta Comentar (C) num artboard.' }),
+        );
+    },
+
+    goToThread(thread) {
+        const at = this.pinPosition(thread);
+        if (at) {
+            const rect = this.canvas.viewport.getBoundingClientRect();
+            const scale = Math.max(this.canvas.view.scale, 0.5);
+            this.canvas.userMoved = true;
+            this.canvas.view = { scale, x: rect.width / 2 - at.x * scale, y: rect.height / 2 - at.y * scale };
+            this.canvas.applyView();
+        }
+        this.openThread(thread.id);
+    },
+
+    async request(method, url, body) {
+        try {
+            const response = await fetch(url, {
+                method,
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json', Accept: 'application/json',
+                    'X-CSRF-TOKEN': this.collab.csrf, 'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: body ? JSON.stringify(body) : undefined,
+            });
+            const json = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                this.setStatus(json.message || (response.status === 419 ? 'Sua sessão expirou. Recarregue a página.' : 'Não foi possível salvar.'), true);
+                return null;
+            }
+            if (json.state) this.canvas.setState(json.state, true);
+            return json;
+        } catch {
+            this.setStatus('Sem conexão.', true);
+            return null;
+        }
+    },
+
+    /** Conta à IA o que a pessoa está vendo (get_design lê isso). */
+    reportView() {
+        if (!this.collab?.viewUrl) return;
+        clearTimeout(this.viewTimer);
+        this.viewTimer = setTimeout(() => {
+            const selected = this.canvas.state.boards.find((b) => b.id === this.canvas.selected) ?? null;
+            const payload = {
+                board: selected?.name ?? null,
+                element: selected && this.lastPicked?.board === selected.name ? this.lastPicked.element : null,
+                visible: this.canvas.visibleBoards().map((b) => b.name),
+                errors: this.canvas.errors(),
+            };
+            const json = JSON.stringify(payload);
+            if (json === this.lastView) return;
+            this.lastView = json;
+            fetch(this.collab.viewUrl, {
+                method: 'POST', credentials: 'same-origin', keepalive: true,
+                headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': this.collab.csrf },
+                body: json,
+            }).catch(() => {});
+        }, 800);
+    },
+
+    afterErrors() {
+        this.reportView();
+    },
+
+    showBoardError(boardId) {
+        const entry = this.canvas.boards.get(boardId);
+        if (!entry) return;
+        const data = entry.data;
+        this.thread = { draft: true, error: true, world: { x: data.x + data.w, y: data.y } };
+        const ask = button('Pedir à IA para corrigir', null, async () => {
+            ask.disabled = true;
+            const json = await this.request('POST', this.collab.commentsUrl, {
+                body: `Erro de script neste artboard: ${entry.errors.join(' | ').slice(0, 1500)}. Corrija, por favor.`,
+                board: data.id,
+                anchor: { bx: data.w - 28, by: 28 },
+            });
+            if (json) {
+                this.openThread(json.thread);
+                this.setStatus('Pedido enviado: a IA vê no get_design.');
+            }
+        }, { text: 'Pedir à IA para corrigir', class: 'ward-ed-btn is-primary' });
+
+        this.threadBox.replaceChildren(
+            el('div', { class: 'ward-ed-thread-head' }, [
+                el('strong', { text: 'Erro no script' }), el('span', { class: 'ward-ed-muted', text: data.title || data.name }),
+                button('Fechar', 'close', () => this.closeThread()),
+            ]),
+            el('pre', { class: 'ward-ed-error-list', text: entry.errors.join('\n') }),
+            el('div', { class: 'ward-ed-thread-actions' }, [el('span', { class: 'ward-ed-spacer' }), ask]),
+        );
+        this.threadBox.hidden = false;
+        this.positionThread();
+    },
+});
+
 function defaultSize(note) {
     return note.kind === 'title' ? 'l' : 'm';
 }
@@ -960,8 +1409,8 @@ function intersects(a, b) {
 
 const start = () => {
     const config = JSON.parse(document.getElementById('ward-design-config')?.textContent || '{}');
-    if (!config.edit || !window.wardDesign) return;
-    window.wardDesignEditor = new DesignEditor(window.wardDesign, config.edit);
+    if (!config.collab || !window.wardDesign) return;
+    window.wardDesignEditor = new DesignEditor(window.wardDesign, config);
 };
 
 start();

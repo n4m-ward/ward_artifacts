@@ -76,9 +76,12 @@ class DesignViewerTest extends TestCase
         $url = $gateway->boardUrl($board);
 
         $response = $this->get($url)->assertOk()->assertHeader('X-Content-Type-Options', 'nosniff');
-        // O runtime da Ward (links board:) entra antes do </body>, sem ir para o arquivo salvo.
-        $this->assertStringStartsWith('<!doctype html><p>v1</p>', $response->getContent());
+        // O runtime da Ward (links board:, erros, inspeção) entra logo depois do doctype
+        // (ou no começo do <head>), sem ir para o arquivo salvo.
+        $this->assertStringStartsWith('<!doctype html><script>', $response->getContent());
+        $this->assertStringEndsWith('</script><p>v1</p>', $response->getContent());
         $this->assertStringContainsString("ward: 'navigate'", $response->getContent());
+        $this->assertStringContainsString("ward: 'error'", $response->getContent());
         $this->assertStringContainsString('sandbox allow-scripts', $response->headers->get('Content-Security-Policy'));
         $this->assertStringEndsWith('/1.html', $url);
 

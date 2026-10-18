@@ -128,6 +128,11 @@ class Artifact extends Model
         return $this->hasMany(DesignNote::class);
     }
 
+    public function comments(): HasMany
+    {
+        return $this->hasMany(DesignComment::class);
+    }
+
     public function snapshots(): HasMany
     {
         return $this->hasMany(DesignSnapshot::class);

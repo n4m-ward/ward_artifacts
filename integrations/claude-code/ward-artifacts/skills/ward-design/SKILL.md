@@ -80,7 +80,14 @@ Nenhuma tela está pronta sem você olhar a imagem dela. O ciclo de cada tela é
 ## Alterações
 
 - Pedidos que chegam do canvas vêm como `[Ward Design · "Título" (id) · artboard "Nome"] pedido`:
-  altere esse artboard. `get_design` também diz qual artboard a pessoa selecionou (`viewing`).
+  altere esse artboard.
+- `get_design` mostra o que a pessoa está vendo (`viewing`): artboard e **elemento** selecionados
+  (tag, texto e caminho a partir do `<body>`, ex.: `0/1`), artboards visíveis e **erros de script**.
+  "Isto", "este título", "a tela da esquerda": resolva por aí antes de perguntar.
+- **Comentários** do canvas (`comments` no `get_design`, numerados #1, #2...) são pedidos ancorados
+  num elemento ou artboard. Para cada um: aplique a mudança, confira o print e responda com
+  `resolve_comment(design, comment, message)` em uma frase. Pergunta ou dúvida: responda com
+  `resolve: false`. Erro de script listado: corrija o artboard e confira de novo.
 - Antes de editar, garanta que o canvas está aberto para o usuário (seção 1).
 - Mudar uma tela: `get_artboard_source(design, name)` → editar → `upsert_artboard` com o **mesmo
   name** (só o `html`, ou só `x`/`y`/`w`/`h`) → print no navegador e avaliação, como na seção 3. Nunca crie um design novo para alterar um

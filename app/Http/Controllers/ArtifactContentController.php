@@ -39,16 +39,25 @@ class ArtifactContentController extends Controller
     }
 
     /**
-     * Injeta o runtime do Ward Design antes do último </body> (ou no fim).
+     * Injeta o runtime do Ward Design logo no começo do <head>, para pegar
+     * também os erros dos scripts do próprio artboard.
      */
     private function withRuntime(string $html): string
     {
         $script = '<script>'.file_get_contents(resource_path('design/runtime.js')).'</script>';
-        $position = strripos($html, '</body>');
 
-        return $position === false
-            ? $html.$script
-            : substr($html, 0, $position).$script.substr($html, $position);
+        if (preg_match('/<head(\s[^>]*)?>/i', $html, $match, PREG_OFFSET_CAPTURE)) {
+            $position = $match[0][1] + strlen($match[0][0]);
+
+            return substr($html, 0, $position).$script.substr($html, $position);
+        }
+
+        // Sem <head>: depois do doctype (o script entra no head implícito).
+        if (preg_match('/^\s*<!doctype[^>]*>/i', $html, $match)) {
+            return $match[0].$script.substr($html, strlen($match[0]));
+        }
+
+        return $script.$html;
     }
 
     /**

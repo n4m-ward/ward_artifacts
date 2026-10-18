@@ -3,6 +3,7 @@
 use App\Http\Controllers\ArtifactDownloadController;
 use App\Http\Controllers\ArtifactPreviewController;
 use App\Http\Controllers\ArtifactViewerController;
+use App\Http\Controllers\DesignCommentController;
 use App\Http\Controllers\DesignEditController;
 use App\Http\Controllers\DesignLiveController;
 use App\Models\User;
@@ -45,9 +46,15 @@ Route::get('d/{artifact}/live', DesignLiveController::class)
     ->name('designs.live');
 
 // Edição à mão no canvas web (dono do design ou admin).
-Route::middleware(['auth', 'throttle:600,1'])->where(['artifact' => '[0-9a-f]{32}', 'board' => '[0-9]+'])->group(function () {
+Route::middleware(['auth', 'throttle:600,1'])->where(['artifact' => '[0-9a-f]{32}', 'board' => '[0-9]+', 'comment' => '[0-9]+'])->group(function () {
     Route::post('d/{artifact}/edit', [DesignEditController::class, 'ops'])->name('designs.edit');
     Route::get('d/{artifact}/boards/{board}/source', [DesignEditController::class, 'source'])->name('designs.board-source');
+
+    // Comentários e o que a pessoa está vendo (lidos pela IA no get_design).
+    Route::post('d/{artifact}/comments', [DesignCommentController::class, 'store'])->name('designs.comments.store');
+    Route::patch('d/{artifact}/comments/{comment}', [DesignCommentController::class, 'update'])->name('designs.comments.update');
+    Route::delete('d/{artifact}/comments/{comment}', [DesignCommentController::class, 'destroy'])->name('designs.comments.destroy');
+    Route::post('d/{artifact}/view', [DesignCommentController::class, 'view'])->name('designs.view');
 });
 
 Route::get('artifacts/{artifact}/download', ArtifactDownloadController::class)

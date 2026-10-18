@@ -5,11 +5,13 @@ namespace App\Designs;
 use App\Artifacts\ContentGateway;
 use App\Models\Artifact;
 use App\Models\DesignBoard;
+use App\Models\DesignComment;
 use App\Models\DesignNote;
 use App\Models\User;
 use DateTimeInterface;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Str;
 
 /**
  * Estado do canvas que o navegador desenha: artboards (com URL assinada do
@@ -22,7 +24,7 @@ class DesignState
     /**
      * @return array<string, mixed>
      */
-    public function toArray(Artifact $design, ?int $contentTtlMinutes = null): array
+    public function toArray(Artifact $design, ?int $contentTtlMinutes = null, bool $comments = false): array
     {
         return [
             'revision' => $design->design_revision,
@@ -40,7 +42,21 @@ class DesignState
                 'url' => $this->gateway->boardUrl($board, $contentTtlMinutes),
             ])->values()->all(),
             'notes' => $design->notes()->orderBy('id')->get()->map(fn (DesignNote $note) => $note->toCanvas())->values()->all(),
+            // Comentários só para quem está logado (nunca no link público).
+            'comments' => $comments ? $this->comments($design) : null,
         ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function comments(Artifact $design, bool $openOnly = false): array
+    {
+        return $design->comments()->whereNull('parent_id')
+            ->when($openOnly, fn ($query) => $query->whereNull('resolved_at'))
+            ->with(['user', 'board', 'resolver', 'replies.user'])
+            ->orderByDesc('number')->limit(200)->get()
+            ->map(fn (DesignComment $comment) => $comment->toThread())->values()->all();
     }
 
     /**
@@ -63,7 +79,7 @@ class DesignState
             'design' => $design->uuid,
             'title' => $design->title,
             'url' => $design->url(),
-            'state' => $this->toArray($design),
+            'state' => $this->toArray($design, comments: true),
             'liveUrl' => $this->liveUrl($design, now()->addMinutes((int) config('ward.artifacts.preview_session_minutes'))),
             'contentOrigin' => $this->gateway->origin(),
             'sandbox' => $this->gateway->sandbox(),
@@ -78,26 +94,73 @@ class DesignState
      */
     public function reportViewing(Artifact $design, User $user, ?string $board): void
     {
-        $key = $this->viewingKey($design, $user);
+        $this->reportContext($design, $user, ['board' => $board]);
+    }
 
-        if ($board === null) {
+    /**
+     * O que a pessoa está vendo no canvas (página do design ou MCP App): artboard
+     * e elemento selecionados, artboards visíveis e erros de script. Vem do
+     * navegador, então tudo é limitado e conferido contra o design.
+     *
+     * @param  array<string, mixed>  $context
+     */
+    public function reportContext(Artifact $design, User $user, array $context): void
+    {
+        $key = $this->viewingKey($design, $user);
+        $names = $design->boards()->pluck('name')->all();
+        $known = fn ($name) => is_string($name) && in_array($name, $names, true);
+
+        $board = $known($context['board'] ?? null) ? $context['board'] : null;
+        $element = is_array($context['element'] ?? null) && $board ? array_filter([
+            'path' => preg_match('#^\d{1,4}(/\d{1,4}){0,30}$#', (string) ($context['element']['path'] ?? '')) ? $context['element']['path'] : null,
+            'tag' => preg_match('/^[a-z][a-z0-9-]{0,30}$/', (string) ($context['element']['tag'] ?? '')) ? $context['element']['tag'] : null,
+            'text' => Str::limit((string) ($context['element']['text'] ?? ''), 120, ''),
+            'html' => Str::limit((string) ($context['element']['html'] ?? ''), 800, ''),
+        ], fn ($value) => $value !== null && $value !== '') : null;
+        $visible = array_values(array_slice(array_filter((array) ($context['visible'] ?? []), $known), 0, 20));
+        $errors = collect((array) ($context['errors'] ?? []))
+            ->filter(fn ($error) => is_array($error) && $known($error['board'] ?? null))
+            ->map(fn ($error) => ['board' => $error['board'], 'message' => Str::limit((string) ($error['message'] ?? ''), 300, '')])
+            ->take(10)->values()->all();
+
+        if ($board === null && $visible === [] && $errors === []) {
             Cache::forget($key);
 
             return;
         }
 
-        Cache::put($key, ['board' => $board, 'at' => now()->toIso8601String()], now()->addMinutes((int) config('ward.designs.viewing_ttl_minutes')));
+        Cache::put($key, array_filter([
+            'board' => $board,
+            'element' => $element ?: null,
+            'visible' => $visible,
+            'errors' => $errors,
+            'at' => now()->toIso8601String(),
+        ], fn ($value) => $value !== null && $value !== []), now()->addMinutes((int) config('ward.designs.viewing_ttl_minutes')));
     }
 
     /**
-     * @return array{board: string, at: string}|null
+     * @return array{board?: string, element?: array<string, string>, visible?: list<string>, errors?: list<array{board: string, message: string}>, at: string}|null
      */
     public function viewing(Artifact $design, User $user): ?array
     {
         $viewing = Cache::get($this->viewingKey($design, $user));
 
-        // O artboard pode ter sido apagado ou renomeado depois.
-        return $viewing && $design->boards()->where('name', $viewing['board'])->exists() ? $viewing : null;
+        if (! $viewing) {
+            return null;
+        }
+
+        // Artboards podem ter sido apagados ou renomeados depois.
+        $names = $design->boards()->pluck('name')->all();
+
+        if (isset($viewing['board']) && ! in_array($viewing['board'], $names, true)) {
+            unset($viewing['board'], $viewing['element']);
+        }
+
+        $viewing['visible'] = array_values(array_intersect($viewing['visible'] ?? [], $names));
+        $viewing['errors'] = array_values(array_filter($viewing['errors'] ?? [], fn ($error) => in_array($error['board'], $names, true)));
+        $viewing = array_filter($viewing, fn ($value) => $value !== []);
+
+        return isset($viewing['board']) || isset($viewing['visible']) || isset($viewing['errors']) ? $viewing : null;
     }
 
     private function viewingKey(Artifact $design, User $user): string
