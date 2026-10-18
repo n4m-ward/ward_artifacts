@@ -37,6 +37,7 @@ const ICONS = {
     check: 'M5 12l5 5 9-10',
     download: 'M12 4v11M7 10l5 5 5-5M5 20h14',
     image: 'M4 5h16v14H4zM4 16l5-5 4 4 3-3 4 4M15 9.5h.01',
+    components: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM16.5 13v7M13 16.5h7',
     theme: 'M12 3a9 9 0 100 18c1 0 1.5-.8 1.2-1.6-.4-1 .3-2.4 1.6-2.4H17a4 4 0 004-4c0-5-4-10-9-10zM7.5 11h.01M10 7h.01M15 7.5h.01',
     close: 'M6 6l12 12M18 6L6 18',
 };
@@ -196,7 +197,8 @@ class DesignEditor {
         if (this.canEdit) {
             this.imagesButton = button('Imagens do design', 'image', () => this.toggleImages(), { 'aria-pressed': 'false' });
             this.themeButton = button('Tema do design (tokens)', 'theme', () => this.toggleTheme());
-            toolbar.append(this.imagesButton, this.themeButton);
+            this.componentsButton = button('Componentes de design systems', 'components', () => this.toggleComponents(), { 'aria-pressed': 'false' });
+            toolbar.append(this.imagesButton, this.themeButton, this.componentsButton);
         }
         this.exportButton = button('Exportar', 'download', () => this.toggleExport(), { 'aria-haspopup': 'menu', 'aria-expanded': 'false' });
         toolbar.append(this.exportButton);
@@ -365,6 +367,14 @@ class DesignEditor {
 
         if (boards.length && !notes.length) {
             children.push(button(`Duplicar (${isMac ? '⌘' : 'Ctrl+'}D)`, 'duplicate', () => this.duplicate()));
+        }
+        if (boards.length === 1 && !notes.length) {
+            const data = this.boardEntry(boards[0]).data;
+            if (this.collab?.isSystem) {
+                children.push(button('Descrição e tags do componente', null, () => this.describeComponent(data), { text: 'Detalhes', class: 'ward-ed-btn is-text' }));
+            } else {
+                children.push(button('Publicar no design system', null, () => this.publishComponent(data), { text: 'Publicar no DS', class: 'ward-ed-btn is-text' }));
+            }
         }
         if (this.canvas.pages().length > 1) {
             const move = el('select', { class: 'ward-ed-select', 'aria-label': 'Mover para a página' }, [
@@ -2091,6 +2101,152 @@ Object.assign(DesignEditor.prototype, {
             ]),
         );
         this.props.hidden = false;
+    },
+});
+
+// ---------- design systems: componentes ----------
+
+Object.assign(DesignEditor.prototype, {
+    toggleComponents(force) {
+        this.componentsPanel ??= (() => {
+            const node = el('aside', { class: 'ward-ed-panel ward-ed-components', hidden: true, 'aria-label': 'Componentes de design systems' });
+            this.canvas.root.append(node);
+            return node;
+        })();
+        const open = force ?? this.componentsPanel.hidden;
+        this.componentsPanel.hidden = !open;
+        this.componentsButton.setAttribute('aria-pressed', String(open));
+        if (open) {
+            this.panel.hidden = true;
+            if (this.images) this.images.hidden = true;
+            this.loadSystems();
+        }
+    },
+
+    async loadSystems(query = '') {
+        const url = `${this.collab.systemsUrl}?q=${encodeURIComponent(query)}&prefer=${encodeURIComponent(this.collab.projectSystem ?? '')}`;
+        try {
+            this.systems = (await (await fetch(url, { credentials: 'same-origin', headers: { Accept: 'application/json' } })).json()).design_systems ?? [];
+        } catch {
+            this.systems = [];
+        }
+        if (!this.activeSystem || !this.systems.some((system) => system.ref === this.activeSystem.ref)) {
+            this.activeSystem = this.systems.find((system) => system.ref === this.collab.projectSystem) ?? this.systems[0] ?? null;
+            this.systemState = null;
+        }
+        await this.loadSystemState();
+        this.renderComponents();
+    },
+
+    async loadSystemState() {
+        if (!this.activeSystem) return;
+        try {
+            this.systemState = await (await fetch(this.activeSystem.live_url, { credentials: 'same-origin', headers: { Accept: 'application/json' } })).json();
+        } catch {
+            this.systemState = null;
+        }
+    },
+
+    renderComponents() {
+        const panel = this.componentsPanel;
+        if (!panel || panel.hidden) return;
+        const query = this.componentQuery ?? '';
+        const select = el('select', { class: 'ward-ed-select', 'aria-label': 'Design system' }, this.systems.map((system) => el('option', {
+            value: system.ref, text: `${system.title} · ${system.ref}`, selected: system.ref === this.activeSystem?.ref,
+        })));
+        select.addEventListener('change', async () => {
+            this.activeSystem = this.systems.find((system) => system.ref === select.value);
+            this.systemState = null;
+            await this.loadSystemState();
+            this.renderComponents();
+        });
+        const search = el('input', { type: 'search', class: 'ward-filter', placeholder: 'Filtrar componentes', value: query, 'aria-label': 'Filtrar componentes' });
+        search.addEventListener('keydown', (event) => event.stopPropagation());
+        search.addEventListener('input', () => {
+            this.componentQuery = search.value.trim().toLowerCase();
+            clearTimeout(this.componentTimer);
+            this.componentTimer = setTimeout(() => {
+                this.renderComponents();
+                const again = panel.querySelector('input[type=search]');
+                again?.focus();
+                again?.setSelectionRange(again.value.length, again.value.length);
+            }, 200);
+        });
+
+        const boards = (this.systemState?.boards ?? []).filter((board) => !query
+            || `${board.name} ${board.title ?? ''} ${board.description ?? ''} ${board.tags ?? ''}`.toLowerCase().includes(query));
+        const cards = boards.map((board) => {
+            const scale = Math.min(1, 268 / board.w, 160 / board.h);
+            const preview = el('div', { class: 'ward-ed-cmp-preview', style: { height: `${Math.round(board.h * scale)}px` } }, [
+                el('iframe', {
+                    src: board.url, title: board.title || board.name, loading: 'lazy', tabindex: '-1', referrerpolicy: 'no-referrer', allowtransparency: 'true',
+                    sandbox: this.canvas.config.sandbox, style: { width: `${board.w}px`, height: `${board.h}px`, transform: `scale(${scale})` },
+                }),
+            ]);
+            return el('div', { class: 'ward-ed-cmp' }, [
+                preview,
+                el('strong', { text: board.title || board.name }),
+                board.description ? el('p', { class: 'ward-ed-muted', text: board.description }) : null,
+                el('div', { class: 'ward-ed-thread-actions' }, [
+                    button(`Inserir ${board.name} vinculado`, null, () => this.importComponent(board, 'link'), { text: 'Vincular', class: 'ward-ed-btn is-primary is-small' }),
+                    button(`Inserir uma cópia de ${board.name}`, null, () => this.importComponent(board, 'copy'), { text: 'Copiar', class: 'ward-ed-btn is-text is-small' }),
+                    el('span', { class: 'ward-ed-spacer' }),
+                    el('span', { class: 'ward-ed-muted', text: `${board.w}×${board.h}` }),
+                ]),
+            ]);
+        });
+
+        panel.replaceChildren(
+            el('div', { class: 'ward-ed-panel-head' }, [el('strong', { text: 'Componentes' }), button('Fechar', 'close', () => this.toggleComponents(false))]),
+            this.systems.length ? select : el('p', { class: 'ward-ed-muted', text: 'Nenhum design system ainda.' }),
+            this.activeSystem ? el('a', { class: 'ward-ed-link', href: this.activeSystem.url, target: '_blank', rel: 'noopener', text: 'Abrir o design system ↗' }) : null,
+            search,
+            el('p', { class: 'ward-ed-hint', text: 'Vincular: o artboard muda junto com o componente original. Copiar: uma versão para adaptar aqui.' }),
+            cards.length ? el('div', { class: 'ward-ed-cmp-list' }, cards) : el('p', { class: 'ward-ed-muted ward-ed-empty', text: this.systemState ? 'Nenhum componente com esse filtro.' : 'Carregando…' }),
+        );
+    },
+
+    async importComponent(board, mode) {
+        const rect = this.canvas.viewport.getBoundingClientRect();
+        const center = this.canvas.toWorld(rect.left + rect.width / 2, rect.top + rect.height / 2);
+        const op = {
+            op: 'component.import', system: this.activeSystem.ref, component: board.name, mode,
+            x: Math.round(center.x - board.w / 2), y: Math.round(center.y - board.h / 2), page: this.canvas.currentPage() ?? '',
+        };
+        const results = await this.send([op], 'Importando…');
+        if (!results) return;
+        const id = results[0].id;
+        this.push({ redo: [{ ...op, _ref: id }], undo: [{ op: 'board.delete', id }] });
+        this.setSelection([`b:${id}`]);
+        this.setStatus(mode === 'link' ? `"${board.name}" vinculado` : `Cópia de "${board.name}" criada`);
+    },
+
+    async publishComponent(board) {
+        const systems = (await (await fetch(`${this.collab.systemsUrl}?prefer=${encodeURIComponent(this.collab.projectSystem ?? '')}`, { credentials: 'same-origin', headers: { Accept: 'application/json' } })).json()).design_systems ?? [];
+        const mine = systems.filter((system) => system.owner === this.collab.user?.username);
+        if (!mine.length) {
+            this.setStatus('Crie um design system para um projeto seu em Design systems.', true);
+            return;
+        }
+        const options = mine.map((system, i) => `${i + 1}. ${system.title} (${system.ref})`).join('\n');
+        const pick = mine.length === 1 ? '1' : window.prompt(`Publicar "${board.name}" em qual design system?\n${options}`, '1');
+        const system = mine[Number(pick) - 1];
+        if (!system) return;
+        const description = window.prompt('Descrição do componente (o que é e quando usar):', board.description ?? '') ?? undefined;
+        const results = await this.send([{ op: 'component.publish', id: board.id, system: system.ref, description }], 'Publicando…');
+        if (results) this.setStatus(`"${results[0].name}" publicado em ${results[0].system}`);
+    },
+
+    describeComponent(board) {
+        const description = window.prompt('Descrição (o que é e quando usar):', board.description ?? '');
+        if (description === null) return;
+        const tags = window.prompt('Tags (separadas por vírgula):', board.tags ?? '');
+        if (tags === null) return;
+        this.commit(
+            [{ op: 'board.describe', id: board.id, description, tags }],
+            [{ op: 'board.describe', id: board.id, description: board.description ?? '', tags: board.tags ?? '' }],
+            'Componente descrito',
+        );
     },
 });
 

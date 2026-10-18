@@ -1,6 +1,6 @@
 {
   "resources/css/app.css": {
-    "file": "assets/app-BukJr2Jc.css",
+    "file": "assets/app-A2YzQCgK.css",
     "src": "resources/css/app.css",
     "isEntry": true
   },
@@ -11,13 +11,13 @@
     "isEntry": true
   },
   "resources/js/design-canvas.js": {
-    "file": "assets/design-canvas-DG-C_WcW.js",
+    "file": "assets/design-canvas-DO7lWEo4.js",
     "name": "design-canvas",
     "src": "resources/js/design-canvas.js",
     "isEntry": true
   },
   "resources/js/design-editor.js": {
-    "file": "assets/design-editor-D47CmWiu.js",
+    "file": "assets/design-editor-9zF4n6xS.js",
     "name": "design-editor",
     "src": "resources/js/design-editor.js",
     "isEntry": true

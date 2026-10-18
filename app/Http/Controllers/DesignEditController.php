@@ -4,11 +4,15 @@ namespace App\Http\Controllers;
 
 use App\Actions\Designs\DeleteArtboard;
 use App\Actions\Designs\DesignMutation;
+use App\Actions\Designs\ImportComponent;
+use App\Actions\Designs\PublishComponent;
+use App\Actions\Designs\SaveDesignSystem;
 use App\Actions\Designs\SetDesignTokens;
 use App\Actions\Designs\UpdateDesignLayout;
 use App\Actions\Designs\UpsertArtboard;
 use App\Designs\DesignState;
 use App\Designs\DesignStorage;
+use App\Designs\DesignSystems;
 use App\Designs\InvalidDesign;
 use App\Models\Artifact;
 use App\Models\DesignBoard;
@@ -32,6 +36,10 @@ use Illuminate\Support\Str;
  * - board.html {id, html, base?} (editor visual; base = revisão em que a edição foi feita)
  * - page.upsert {key, name?, sort?} / page.delete {key}
  * - design.tokens {css}
+ * - design.meta {title?, description?, docs?} (design system)
+ * - board.describe {id, description?, tags?} (componente de design system)
+ * - component.import {system, component, mode, x?, y?, page?}
+ * - component.publish {id, system, name?, description?, tags?}
  */
 class DesignEditController extends Controller
 {
@@ -51,7 +59,7 @@ class DesignEditController extends Controller
         $request->validate([
             'ops' => ['required', 'array', 'min:1', 'max:200'],
             'ops.*' => ['array'],
-            'ops.*.op' => ['required', 'string', 'in:board.update,board.duplicate,board.create,board.delete,board.html,note.upsert,note.delete,page.upsert,page.delete,design.tokens'],
+            'ops.*.op' => ['required', 'string', 'in:board.update,board.duplicate,board.create,board.delete,board.html,note.upsert,note.delete,page.upsert,page.delete,design.tokens,design.meta,board.describe,component.import,component.publish'],
         ]);
 
         // validate() devolveria só "op": cada operação leva os próprios campos.
@@ -108,7 +116,75 @@ class DesignEditController extends Controller
             'page.upsert' => $this->pages($design, [array_filter(['key' => (string) ($op['key'] ?? ''), 'name' => $op['name'] ?? null, 'sort' => $op['sort'] ?? null], fn ($v) => $v !== null)]),
             'page.delete' => $this->pages($design, [['key' => (string) ($op['key'] ?? ''), 'delete' => true]]),
             'design.tokens' => $this->tokens($design, (string) ($op['css'] ?? '')),
+            'design.meta' => $this->meta($design, $op),
+            'board.describe' => $this->describe($design, $op),
+            'component.import' => $this->importComponent($design, $request, $op),
+            'component.publish' => $this->publishComponent($design, $request, $op),
         };
+    }
+
+    /**
+     * @param  array<string, mixed>  $op
+     * @return array<string, mixed>
+     */
+    private function meta(Artifact $design, array $op): array
+    {
+        $before = ['title' => $design->title, 'description' => $design->description, 'docs' => $design->docs];
+        app(SaveDesignSystem::class)->update($design, array_intersect_key($op, array_flip(['title', 'description', 'docs'])));
+
+        return ['before' => $before];
+    }
+
+    /**
+     * @param  array<string, mixed>  $op
+     * @return array<string, mixed>
+     */
+    private function describe(Artifact $design, array $op): array
+    {
+        $board = $this->board($design, $op);
+        $before = ['description' => $board->description, 'tags' => $board->tags];
+        app(PublishComponent::class)->describe($design, $board,
+            array_key_exists('description', $op) ? (string) $op['description'] : null,
+            array_key_exists('tags', $op) ? (string) $op['tags'] : null);
+
+        return ['before' => $before];
+    }
+
+    /**
+     * @param  array<string, mixed>  $op
+     * @return array<string, mixed>
+     */
+    private function importComponent(Artifact $design, Request $request, array $op): array
+    {
+        $system = app(DesignSystems::class)->find((string) ($op['system'] ?? ''));
+
+        if (! $system || $request->user()->cannot('view', $system)) {
+            throw new InvalidDesign('Design system não encontrado.');
+        }
+
+        $board = app(ImportComponent::class)->handle($design, $request->user(), $system, (string) ($op['component'] ?? ''), (string) ($op['mode'] ?? 'link'),
+            array_filter(['x' => $this->int($op, 'x'), 'y' => $this->int($op, 'y')], fn ($v) => $v !== null)
+            + (array_key_exists('page', $op) ? ['page' => $op['page']] : []));
+
+        return ['id' => $board->id, 'name' => $board->name];
+    }
+
+    /**
+     * @param  array<string, mixed>  $op
+     * @return array<string, mixed>
+     */
+    private function publishComponent(Artifact $design, Request $request, array $op): array
+    {
+        $system = app(DesignSystems::class)->find((string) ($op['system'] ?? ''));
+
+        if (! $system || $request->user()->cannot('update', $system)) {
+            throw new InvalidDesign('Você só pode publicar em design systems seus.');
+        }
+
+        $component = app(PublishComponent::class)->handle($design, $this->board($design, $op), $system, $request->user(),
+            isset($op['name']) ? trim((string) $op['name']) : null, $op['description'] ?? null, $op['tags'] ?? null);
+
+        return ['name' => $component->name, 'system' => app(DesignSystems::class)->ref($system)];
     }
 
     /**

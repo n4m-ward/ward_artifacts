@@ -318,6 +318,8 @@ class DesignCanvas {
         entry.label.textContent = data.title || data.name;
         entry.meta.textContent = `${data.w}×${data.h}${data.interactive ? ' · Play' : ''}`;
         entry.node.classList.toggle('is-selected', this.selected === data.id);
+        entry.node.classList.toggle('is-transparent', Boolean(data.transparent) || entry.painted === false);
+        entry.listBox?.classList.toggle('is-transparent', Boolean(data.transparent));
 
         // Mudança feita pela própria pessoa no editor: troca sem o aviso "atualizado agora".
         const quiet = entry.quietRevision !== undefined && data.revision <= entry.quietRevision;
@@ -659,7 +661,7 @@ class DesignCanvas {
         const scale = Math.min(1, (rect.width - 48) / data.w, (rect.height - 48) / data.h);
         // zoom (e não transform): o iframe recebe cliques e o texto fica nítido.
         Object.assign(frame.style, { width: `${data.w}px`, height: `${data.h}px`, zoom: String(scale) });
-        const box = el('div', { class: 'ward-focus-box' }, [frame]);
+        const box = el('div', { class: `ward-focus-box${data.transparent ? ' is-transparent' : ''}` }, [frame]);
         stage.replaceChildren(box);
     }
 
@@ -691,6 +693,14 @@ class DesignCanvas {
             if (message?.ward === 'text-edited') {
                 const entry = [...this.boards.values()].find((item) => item.frame.contentWindow === event.source);
                 if (entry) this.editor?.textEdited(entry.data.id, message);
+                return;
+            }
+            if (message?.ward === 'background') {
+                const entry = [...this.boards.values()].find((item) => item.frame.contentWindow === event.source
+                    || item.nextFrame?.contentWindow === event.source);
+                if (!entry) return;
+                entry.painted = Boolean(message.painted);
+                entry.node.classList.toggle('is-transparent', Boolean(entry.data.transparent) || !entry.painted);
                 return;
             }
             if (message?.ward === 'error' && typeof message.message === 'string') {

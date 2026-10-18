@@ -225,6 +225,36 @@
     .ward-ed-token { display: grid; grid-template-columns: 110px 1fr auto; align-items: center; gap: 6px; }
     .ward-ed-token code { overflow: hidden; text-overflow: ellipsis; font-size: 11px; }
     .ward-ed-token input[type="text"], .ward-ed-row > input { width: 100%; box-sizing: border-box; height: 30px; padding: 0 8px; border: 1px solid #d4d4d8; border-radius: 6px; background: transparent; color: inherit; font: inherit; }
+    /* Design system. */
+    .ward-ds-bar { position: absolute; z-index: 50; top: 52px; left: 12px; }
+    .ward-ds-open { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid #bae6fd;
+        background: #f0f9ff; color: #0369a1; font: 600 13px system-ui, sans-serif; cursor: pointer; }
+    .dark .ward-ds-open { border-color: #075985; background: rgb(14 165 233 / .15); color: #7dd3fc; }
+    .ward-ds-docs { font-size: 15px; line-height: 1.6; }
+    .ward-ds-docs h1, .ward-ds-docs h2, .ward-ds-docs h3 { margin: 1.4em 0 .5em; font-weight: 700; line-height: 1.25; }
+    .ward-ds-docs h1 { font-size: 1.6em; } .ward-ds-docs h2 { font-size: 1.3em; } .ward-ds-docs h3 { font-size: 1.1em; }
+    .ward-ds-docs p, .ward-ds-docs ul, .ward-ds-docs ol { margin: .6em 0; } .ward-ds-docs ul { list-style: disc; padding-left: 1.4em; } .ward-ds-docs ol { list-style: decimal; padding-left: 1.4em; }
+    .ward-ds-docs code { padding: .1em .35em; border-radius: 4px; background: rgb(127 127 127 / .15); font-size: .9em; }
+    .ward-ds-docs pre { padding: 12px; border-radius: 8px; background: rgb(127 127 127 / .12); overflow-x: auto; }
+    .ward-ds-docs pre code { padding: 0; background: none; }
+    .ward-ds-docs a { color: #0284c7; text-decoration: underline; }
+    [x-cloak] { display: none !important; }
+    .ward-ed-components .ward-filter { width: 100%; box-sizing: border-box; }
+    .ward-ed-link { color: #0284c7; font-size: 12px; } .dark .ward-ed-link { color: #7dd3fc; }
+    .ward-ed-cmp-list { display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
+    .ward-ed-cmp { display: flex; flex-direction: column; gap: 4px; padding: 8px; border: 1px solid rgb(127 127 127 / .25); border-radius: 10px; }
+    .ward-ed-cmp p { margin: 0; }
+    .ward-ed-cmp-preview { position: relative; overflow: hidden; border-radius: 6px; background: repeating-conic-gradient(#e4e4e7 0 25%, #fff 0 50%) 0 0 / 12px 12px; }
+    .ward-ed-cmp-preview iframe { position: absolute; left: 0; top: 0; border: 0; transform-origin: 0 0; pointer-events: none; background: transparent; }
+    @media (max-width: 1100px) { .ward-ed-toolbar { left: 12px; transform: none; max-width: calc(100% - 200px); overflow-x: auto; } }
+    /* Artboard sem fundo próprio (componente de design system): transparente, com contorno tracejado. */
+    /* color-scheme igual ao do artboard: senão o Chrome pinta o fundo do iframe (página escura x artboard claro). */
+    .ward-board iframe, .ward-list-box iframe, .ward-focus-box iframe, .ward-ed-cmp-preview iframe { color-scheme: normal; }
+    .ward-board.is-transparent iframe, .ward-list-box.is-transparent, .ward-list-box.is-transparent iframe { background: transparent; }
+    .ward-board.is-transparent iframe { box-shadow: none; outline: calc(1px * var(--inv)) dashed rgb(127 127 127 / .55); outline-offset: 0; }
+    .ward-board.is-transparent.is-selected iframe { outline: calc(2px * var(--inv)) solid #38bdf8; }
+    .ward-focus-box.is-transparent { background: transparent; box-shadow: none; outline: 1px dashed rgb(255 255 255 / .35); }
+    .ward-focus-box.is-transparent iframe { background: transparent; }
     /* Modo lista (tela estreita): o canvas liga a classe conforme a largura. */
     .is-list .ward-viewport, .is-list .ward-zoom { display: none !important; }
     .is-list .ward-list { display: flex; flex-direction: column; align-items: center; gap: 24px; position: absolute; inset: 0; overflow-y: auto; padding: 52px 16px 16px; }

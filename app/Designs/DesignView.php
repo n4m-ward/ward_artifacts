@@ -50,7 +50,11 @@ class DesignView
                 ] : null,
                 // Comentários e o relato do que a pessoa vê (qualquer pessoa logada que vê o design).
                 'collab' => $collab ? [
-                    'user' => ['id' => auth()->id(), 'name' => auth()->user()->name],
+                    'user' => ['id' => auth()->id(), 'name' => auth()->user()->name, 'username' => auth()->user()->username],
+                    'systemsUrl' => route('design-systems.search'),
+                    // Design system do projeto deste design (aparece primeiro no painel Componentes).
+                    'projectSystem' => ($projectSystem = app(DesignSystems::class)->forProject($design->project)) ? app(DesignSystems::class)->ref($projectSystem) : null,
+                    'isSystem' => $design->isDesignSystem(),
                     'commentsUrl' => route('designs.comments.store', $design->uuid),
                     'viewUrl' => route('designs.view', $design->uuid),
                     'printUrl' => route('designs.print', $design->uuid),

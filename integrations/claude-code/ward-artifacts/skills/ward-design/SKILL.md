@@ -27,6 +27,20 @@ O usuário quer **ver você desenhando**: o canvas fica aberto desde o início e
    - Sem navegador nenhum: passe a `url` ao usuário e diga que ela atualiza sozinha.
 3. Diga ao usuário que o canvas está aberto e que as telas vão aparecendo ali.
 
+## Design system primeiro
+
+Antes de definir uma direção do zero, veja se já existe um design system (um por projeto, visíveis a
+todos): `list_design_systems` e `get_design_system("usuario/projeto")`.
+- Existe: use o tema dele (os tokens entram sozinhos ao importar) e reaproveite componentes com
+  `import_component` (`link` muda junto com o original; `copy` cria uma versão adaptada) ou
+  `<ward-include ds="usuario/projeto" name="Botao"></ward-include>` dentro de uma tela.
+- Não existe e o projeto vai ter várias telas: crie com `save_design_system` (título, descrição,
+  documentação em markdown), defina o tema com `set_design_tokens` e cada componente como artboard
+  (`upsert_artboard` com `description` e `tags`), sem fundo próprio. Promova peças boas de um design
+  com `publish_component`.
+- Componentes de design system são editados como qualquer design (mesmas ferramentas, com o id ou
+  "usuario/projeto"). Só o dono do projeto (ou um admin) altera.
+
 ## 2. Direção antes do HTML
 
 1. `get_design_guide` **antes do primeiro artboard**: regras do formato, critérios de acabamento e

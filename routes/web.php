@@ -8,6 +8,7 @@ use App\Http\Controllers\DesignCommentController;
 use App\Http\Controllers\DesignEditController;
 use App\Http\Controllers\DesignLiveController;
 use App\Http\Controllers\DesignPrintController;
+use App\Http\Controllers\DesignSystemController;
 use App\Models\User;
 use Illuminate\Support\Facades\Route;
 use Livewire\Volt\Volt;
@@ -27,6 +28,11 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('settings/appearance', 'settings.appearance')->name('settings.appearance');
 
     Volt::route('connections', 'connections.index')->name('connections.index');
+
+    // Design systems: um por projeto, visíveis para todos os usuários logados.
+    Volt::route('design-systems', 'design-systems.index')->name('design-systems.index');
+    Route::get('design-systems/search', [DesignSystemController::class, 'search'])->name('design-systems.search');
+    Route::get('d/{artifact}/docs', [DesignSystemController::class, 'docs'])->where('artifact', '[0-9a-f]{32}')->name('design-systems.docs');
 
     Volt::route('users', 'users.index')
         ->middleware('can:viewAny,'.User::class)

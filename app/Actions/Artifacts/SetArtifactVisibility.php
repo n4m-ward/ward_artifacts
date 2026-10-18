@@ -15,6 +15,11 @@ class SetArtifactVisibility
 {
     public function base(Artifact $artifact, Visibility $visibility): Artifact
     {
+        // Design system é do Ward Artifacts inteiro: nunca fica restrito ao dono.
+        if ($artifact->isDesignSystem() && $visibility === Visibility::Owner) {
+            throw new InvalidArgumentException('O design system é sempre visível para todos os usuários logados.');
+        }
+
         $artifact->update(['visibility' => $visibility]);
 
         return $artifact;
