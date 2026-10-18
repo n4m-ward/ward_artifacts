@@ -97,9 +97,13 @@ class DesignState
      *
      * @return array<string, mixed>
      */
-    public function appConfig(Artifact $design): array
+    public function appConfig(Artifact $design, ?User $user = null): array
     {
         return [
+            // Editor completo dentro do MCP App: as chamadas passam pela ferramenta
+            // design_app_request (sem cookie nem CSRF). Exportar PNG/PDF fica de fora.
+            ...$this->editorConfig($design, $user),
+            'app' => true,
             'design' => $design->uuid,
             'title' => $design->title,
             'url' => $design->url(),
@@ -110,6 +114,43 @@ class DesignState
             'allow' => DesignView::ALLOW,
             // O app busca de novo se o estado for velho (chat reaberto, tokens vencidos).
             'issuedAt' => now()->getTimestampMs(),
+        ];
+    }
+
+    /**
+     * Configuração do editor do canvas (resources/js/design-editor.js): `edit` só para
+     * dono ou admin, `collab` (comentários, relato do que a pessoa vê, design systems)
+     * para qualquer pessoa logada que vê o design. Sem `$csrf` é o MCP App.
+     *
+     * @return array{edit: array<string, string>|null, collab: array<string, mixed>|null}
+     */
+    public function editorConfig(Artifact $design, ?User $user, ?string $csrf = null): array
+    {
+        if ($user === null || ! $user->can('view', $design)) {
+            return ['edit' => null, 'collab' => null];
+        }
+
+        $systems = app(DesignSystems::class);
+        $projectSystem = $systems->forProject($design->project);
+
+        return [
+            'edit' => $user->can('update', $design) ? array_filter([
+                'url' => route('designs.edit', $design->uuid),
+                'sourceUrl' => route('designs.board-source', [$design->uuid, 0]),
+                'assetsUrl' => route('designs.assets.index', $design->uuid),
+                'csrf' => $csrf,
+            ]) : null,
+            'collab' => array_filter([
+                'user' => ['id' => $user->id, 'name' => $user->name, 'username' => $user->username],
+                'systemsUrl' => route('design-systems.search'),
+                // Design system do projeto deste design (aparece primeiro no painel Componentes).
+                'projectSystem' => $projectSystem ? $systems->ref($projectSystem) : null,
+                'isSystem' => $design->isDesignSystem(),
+                'commentsUrl' => route('designs.comments.store', $design->uuid),
+                'viewUrl' => route('designs.view', $design->uuid),
+                'printUrl' => $csrf ? route('designs.print', $design->uuid) : null,
+                'csrf' => $csrf,
+            ], fn ($value) => $value !== null),
         ];
     }
 

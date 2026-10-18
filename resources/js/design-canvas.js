@@ -812,7 +812,8 @@ class DesignCanvas {
         if (this.options.poll) {
             try {
                 const state = await this.options.poll(this.state.revision);
-                if (state) this.setState(state);
+                // Durante um arraste ou um envio do editor, o estado do servidor espera.
+                if (state && !this.hold) this.setState(state);
             } catch {
                 // a fonte decide se tenta de novo; aqui só segue o ciclo
             }

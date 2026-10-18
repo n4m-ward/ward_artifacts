@@ -27,7 +27,6 @@ class DesignView
         }
 
         $state = $this->state->toArray($design, $ttl, comments: ! $preview && auth()->check());
-        $editable = ! $preview && auth()->user()?->can('update', $design);
         $collab = ! $preview && auth()->check();
 
         return response()->view('artifacts.design', [
@@ -41,25 +40,8 @@ class DesignView
                 'contentOrigin' => $this->gateway->origin(),
                 'sandbox' => $this->gateway->sandbox(),
                 'allow' => self::ALLOW,
-                // Edição à mão (resources/js/design-editor.js): só dono ou admin.
-                'edit' => $editable ? [
-                    'url' => route('designs.edit', $design->uuid),
-                    'sourceUrl' => route('designs.board-source', [$design->uuid, 0]),
-                    'assetsUrl' => route('designs.assets.index', $design->uuid),
-                    'csrf' => csrf_token(),
-                ] : null,
-                // Comentários e o relato do que a pessoa vê (qualquer pessoa logada que vê o design).
-                'collab' => $collab ? [
-                    'user' => ['id' => auth()->id(), 'name' => auth()->user()->name, 'username' => auth()->user()->username],
-                    'systemsUrl' => route('design-systems.search'),
-                    // Design system do projeto deste design (aparece primeiro no painel Componentes).
-                    'projectSystem' => ($projectSystem = app(DesignSystems::class)->forProject($design->project)) ? app(DesignSystems::class)->ref($projectSystem) : null,
-                    'isSystem' => $design->isDesignSystem(),
-                    'commentsUrl' => route('designs.comments.store', $design->uuid),
-                    'viewUrl' => route('designs.view', $design->uuid),
-                    'printUrl' => route('designs.print', $design->uuid),
-                    'csrf' => csrf_token(),
-                ] : null,
+                // Edição à mão (dono ou admin) e comentários (qualquer pessoa logada).
+                ...$this->state->editorConfig($design, $preview ? null : auth()->user(), csrf_token()),
             ],
             'editable' => $collab,
         ]);

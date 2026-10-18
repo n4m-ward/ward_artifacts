@@ -6,6 +6,7 @@ use App\Mcp\Apps\DesignApp;
 use App\Mcp\Tools\AddDesignAssetTool;
 use App\Mcp\Tools\CreateDesignTool;
 use App\Mcp\Tools\DeleteArtboardTool;
+use App\Mcp\Tools\DesignAppRequestTool;
 use App\Mcp\Tools\DesignLiveTool;
 use App\Mcp\Tools\DesignReportViewTool;
 use App\Mcp\Tools\GetArtboardSourceTool;
@@ -115,6 +116,7 @@ class WardServer extends Server
         OpenDesignTool::class,
         DesignLiveTool::class,
         DesignReportViewTool::class,
+        DesignAppRequestTool::class,
     ];
 
     protected array $resources = [
