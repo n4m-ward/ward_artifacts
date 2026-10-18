@@ -133,6 +133,11 @@ class Artifact extends Model
         return $this->hasMany(DesignComment::class);
     }
 
+    public function assets(): HasMany
+    {
+        return $this->hasMany(DesignAsset::class);
+    }
+
     public function snapshots(): HasMany
     {
         return $this->hasMany(DesignSnapshot::class);

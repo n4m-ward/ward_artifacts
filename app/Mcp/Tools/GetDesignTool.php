@@ -37,12 +37,14 @@ class GetDesignTool extends WardTool
         $preview = $this->previewUrl($this->user($request), $design);
         $viewing = $state->viewing($design, $this->user($request));
         $comments = $state->comments($design, openOnly: true);
+        $assets = $design->assets()->orderBy('id')->get()->map->toCanvas()->values()->all();
 
         $lines = collect($data['boards'])->map(fn ($b) => "- {$b['name']} ({$b['kind']}, {$b['w']}×{$b['h']} em {$b['x']},{$b['y']}, rev {$b['revision']})".($b['interactive'] ? ' interativo' : ''));
 
         return Response::make(Response::text(
             "\"{$design->title}\": ".count($data['boards'])." artboard(s), revisão {$data['revision']}. {$design->url()}\n".
             ($lines->isEmpty() ? 'Ainda sem artboards.' : $lines->implode("\n"))."\n".
+            ($assets ? 'Imagens do design (use no HTML como "assets/{nome}"): '.collect($assets)->map(fn ($a) => $a['name'].($a['width'] ? " {$a['width']}×{$a['height']}" : ''))->implode(', ').".\n" : '').
             $this->describeViewing($viewing).
             $this->describeComments($comments)."\n".
             $this->previewHint($preview)
@@ -50,6 +52,7 @@ class GetDesignTool extends WardTool
             'canvas' => $data,
             'viewing' => $viewing,
             'comments' => $comments,
+            'assets' => $assets,
             'preview_url' => $preview,
         ]);
     }

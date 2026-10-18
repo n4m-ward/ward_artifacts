@@ -65,6 +65,15 @@ class DesignCanvas
             $zip->addFromString("boards/{$board->name}.html", $this->storage->html($board));
         }
 
+        // Imagens ao lado dos HTMLs: "assets/{nome}" continua funcionando ao abrir o arquivo.
+        foreach ($design->assets()->orderBy('id')->get() as $asset) {
+            $path = $this->storage->assetPath($design, $asset->name);
+
+            if ($this->storage->disk()->fileExists($path)) {
+                $zip->addFromString("boards/assets/{$asset->name}", (string) $this->storage->disk()->get($path));
+            }
+        }
+
         $zip->close();
 
         return count($canvas['boards']);

@@ -3,6 +3,7 @@
 namespace App\Mcp\Servers;
 
 use App\Mcp\Apps\DesignApp;
+use App\Mcp\Tools\AddDesignAssetTool;
 use App\Mcp\Tools\CreateDesignTool;
 use App\Mcp\Tools\DeleteArtboardTool;
 use App\Mcp\Tools\DesignLiveTool;
@@ -58,6 +59,8 @@ Ward Design (canvas com vários artboards, para mockups, telas de app, landing p
   upsert_artboard por tela → print da tela no seu navegador e correção até ficar sem defeitos (nenhuma
   tela está pronta sem você olhar) → update_layout → print do canvas inteiro.
 - Alta fidelidade: conteúdo plausível (não [PREÇO]), fotos que você viu carregar, densidade de produto.
+- Imagens do design: add_design_asset envia (base64) e devolve "assets/{nome}" para usar no HTML;
+  get_design lista as que existem, inclusive as que a pessoa enviou no canvas.
 - Para mudar uma tela: get_artboard_source → editar → upsert_artboard com o mesmo name.
 - save_design_version para guardar um ponto. get_design mostra o canvas, o que a pessoa está vendo
   (artboard e elemento selecionados, erros de script), os comentários abertos e devolve preview_url.
@@ -83,6 +86,7 @@ class WardServer extends Server
         GetDesignTool::class,
         GetArtboardSourceTool::class,
         ResolveCommentTool::class,
+        AddDesignAssetTool::class,
         DeleteArtboardTool::class,
         SaveDesignVersionTool::class,
         OpenDesignTool::class,
