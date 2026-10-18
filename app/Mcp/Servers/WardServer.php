@@ -41,6 +41,10 @@ use Laravel\Mcp\Server\Attributes\Version;
 #[Instructions(<<<'TXT'
 Ward Artifacts publica páginas HTML geradas por IA em artifacts.wardtecnology.com.
 
+Skills: se você tiver as skills ward-artifact-create, ward-artifact-publish, ward-artifact-edit ou
+ward-design (WardCode e Claude Code trazem), carregue a que corresponde à tarefa ANTES de usar estas
+ferramentas: elas têm o passo a passo completo e as regras de qualidade.
+
 Fluxo:
 1. Comece pelo get_template (tailwind por padrão; canvas para jogos/simulações) e escreva o artifact
    como um único .html autocontido: CSS e JS inline, imagens em data: URI. Recursos externos só quando
@@ -60,8 +64,8 @@ Fluxo:
 
 Ward Design (canvas com vários artboards, para mockups, telas de app, landing pages e posts):
 - create_design → abra o canvas antes da primeira tela, para a pessoa ver você trabalhando:
-  open_design se o cliente mostra MCP Apps (chat do Claude); senão abra o preview_url no seu
-  navegador (ex.: Claude Code) → get_design_guide → defina a direção (fontes, paleta) → um
+  open_design se o cliente mostra MCP Apps (chat do Claude, aba App do WardCode); senão abra o
+  preview_url no seu navegador (ex.: Claude Code) → get_design_guide → defina a direção (fontes, paleta) → um
   upsert_artboard por tela → print da tela no seu navegador e correção até ficar sem defeitos (nenhuma
   tela está pronta sem você olhar) → update_layout → print do canvas inteiro.
 - Alta fidelidade: conteúdo plausível (não [PREÇO]), fotos que você viu carregar, densidade de produto.
