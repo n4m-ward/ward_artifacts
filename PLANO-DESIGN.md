@@ -157,12 +157,19 @@ Clientes sem MCP Apps (Claude Code no terminal, Codex, OpenCode) recebem texto +
 | D1 ✅ | Base | `type=design`, tabelas, ações (criar, upsert, layout, apagar, versão), ferramentas MCP, skill `ward-design`, página simples do canvas com zoom |
 | D2 ✅ | Canvas ao vivo | Página com pan/zoom, foco, Play, notas, ao vivo por consulta curta, compartilhar, zip |
 | D3 ✅ | MCP App | `open_design` no Claude, prévia em streaming, seleção → IA, "Pedir mudança" |
-| D4 | Edição humana | Mover/redimensionar, notas, Tweaks, comentários que a IA lê, upload de imagens |
-| D5 | Avançado | Edição visual de texto e estilos, exportar PNG/PDF, histórico de versões na tela |
-| D6 | Ward Code | Suporte a MCP Apps no harness da Ward (renderizar `ui://` + ponte de mensagens) |
+| E1 ✅ | Canvas editável à mão | Selecionar (clique, shift, área), mover, redimensionar, alinhar/distribuir, duplicar, apagar, renomear, notas com cor/tamanho/negrito, desfazer/refazer, atalhos (`POST /d/{uuid}/edit`) |
+| E2 ✅ | A IA enxerga o canvas | Comentários ancorados (elemento, artboard ou canvas) com respostas, `resolve_comment`; `get_design` traz seleção (artboard + elemento), artboards visíveis e erros de script; artboard com erro marcado no canvas |
+| E3 ✅ | Edição visual | Clique duplo entra no artboard e seleciona elementos; texto no lugar; painel de propriedades; ações de estrutura; mini editor de CSS (estilo do elemento e regras do `<style>`); Tweaks (`ward-tweaks`) |
+| E4 ✅ | Imagens e exportação | Biblioteca de imagens do design (upload, arrastar, colar, `add_design_asset`), `assets/{nome}` relativo; PNG (no navegador, com fontes embutidas) e PDF (um ou vários artboards) |
+| E5 ✅ | Páginas, tema e componentes | Abas de páginas, filtro de artboards, tokens do design (`set_design_tokens`, painel Tema), componentes com `<ward-include>` |
+| DS ✅ | Design systems | Um por projeto, sempre visível para usuários logados (link público temporário opcional); documentação, tema, componentes com descrição/tags; página `/design-systems`; painel Componentes no canvas (vincular ou copiar); MCP `list_design_systems`, `get_design_system`, `save_design_system`, `import_component`, `publish_component`; artboard sem fundo próprio fica transparente |
+| W1 | Ward Code: Ward Artifacts nativo | MCP `ward-artifacts` embutido e sempre ativo no Ward Code, OAuth por padrão, instruções completas para o modelo |
+| W2 | Ward Code: MCP Apps | Ward Code renderiza `ui://` (o canvas abre numa aba lateral ao vivo enquanto a IA edita), ponte `tools/call`, mensagem para o chat e contexto do modelo (seleção) |
 | D7 | Post-its | Post-its coloridos para outras pessoas, com corda opcional até um artboard ou componente (detalhes abaixo) |
 
 Cada fase termina com testes, deploy pela `main` e verificação em produção (como nas fases anteriores).
+O que o canvas web não consegue (acordar a IA a partir do canvas, "Fast Edit", seleção indo para o
+contexto do modelo sem chamada de ferramenta) entra no Ward Code, que é nosso: W1 e W2.
 
 ## D7 — Post-its (no fim, depois de tudo pronto)
 
