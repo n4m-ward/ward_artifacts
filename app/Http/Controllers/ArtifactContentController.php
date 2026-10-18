@@ -78,16 +78,17 @@ class ArtifactContentController extends Controller
      */
     private function headers(ContentGateway $gateway, string $path, bool $board = false): array
     {
-        // Artboards também aparecem no MCP App, dentro do Claude.
-        $ancestors = implode(' ', [
-            rtrim((string) config('app.url'), '/'),
-            ...($board ? config('ward.designs.embed_ancestors') : []),
-        ]);
+        // Artboards também aparecem no MCP App (Claude, Ward Code). Com "*" ou
+        // "any" em embed_ancestors eles podem ser embutidos em qualquer lugar.
+        $embed = $board ? config('ward.designs.embed_ancestors') : [];
+        $ancestors = array_intersect($embed, ['*', 'any'])
+            ? ''
+            : '; frame-ancestors '.implode(' ', [rtrim((string) config('app.url'), '/'), ...$embed]);
 
         return [
             'Content-Type' => $this->contentType($path),
             'Cache-Control' => 'private, max-age=300',
-            'Content-Security-Policy' => "sandbox {$gateway->sandbox()}; frame-ancestors {$ancestors}",
+            'Content-Security-Policy' => "sandbox {$gateway->sandbox()}{$ancestors}",
             'X-Content-Type-Options' => 'nosniff',
             'X-Robots-Tag' => 'noindex, nofollow',
             // O token está no caminho: não pode vazar no Referer para CDNs externas.

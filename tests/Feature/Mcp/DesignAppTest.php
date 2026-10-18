@@ -170,16 +170,23 @@ class DesignAppTest extends TestCase
             ->assertDontSee('selecionado');
     }
 
-    public function test_artboards_can_be_framed_by_claude_but_artifacts_cannot(): void
+    public function test_artboards_can_be_framed_by_mcp_app_hosts_but_artifacts_cannot(): void
     {
         $gateway = app(ContentGateway::class);
+        $board = $this->design->boards()->sole();
 
-        $csp = $this->get($gateway->boardUrl($this->design->boards()->sole()))->headers->get('Content-Security-Policy');
-        $this->assertStringContainsString('frame-ancestors http://localhost https://claude.ai', $csp);
-        $this->assertStringContainsString('https://*.claudemcpcontent.com', $csp);
+        // Padrão: qualquer host de MCP App (inclusive iframe de origem opaca).
+        $csp = $this->get($gateway->boardUrl($board))->headers->get('Content-Security-Policy');
+        $this->assertStringStartsWith('sandbox ', $csp);
+        $this->assertStringNotContainsString('frame-ancestors', $csp);
+
+        config(['ward.designs.embed_ancestors' => ['https://claude.ai', 'https://*.claudemcpcontent.com']]);
+        $csp = $this->get($gateway->boardUrl($board))->headers->get('Content-Security-Policy');
+        $this->assertStringContainsString('frame-ancestors http://localhost https://claude.ai https://*.claudemcpcontent.com', $csp);
 
         $page = app(PublishArtifact::class)->handle($this->owner, 'Pagina', 'Onboarding', $this->htmlFile());
         $csp = $this->get($gateway->url($page->currentVersion))->headers->get('Content-Security-Policy');
+        $this->assertStringContainsString('frame-ancestors http://localhost', $csp);
         $this->assertStringNotContainsString('claude', $csp);
     }
 
