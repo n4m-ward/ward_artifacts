@@ -21,7 +21,7 @@ class UpsertArtboard extends DesignMutation
     public function __construct(private DesignStorage $storage) {}
 
     /**
-     * @param  array{name: string, html?: ?string, kind?: ?string, w?: ?int, h?: ?int, x?: ?int, y?: ?int, title?: ?string, interactive?: ?bool}  $data
+     * @param  array{name: string, html?: ?string, kind?: ?string, w?: ?int, h?: ?int, x?: ?int, y?: ?int, title?: ?string, interactive?: ?bool, page?: ?string}  $data
      */
     public function handle(Artifact $design, User $author, array $data): DesignBoard
     {
@@ -53,6 +53,7 @@ class UpsertArtboard extends DesignMutation
         }
 
         $kind = isset($data['kind']) ? (BoardKind::tryFrom($data['kind']) ?? throw new InvalidDesign('kind deve ser "fixed" ou "page".')) : null;
+        $page = array_key_exists('page', $data) ? static::pageKey($design, $data['page']) : false;
 
         foreach (['w', 'h'] as $dimension) {
             if (isset($data[$dimension]) && ($data[$dimension] < 40 || $data[$dimension] > 8000)) {
@@ -60,7 +61,7 @@ class UpsertArtboard extends DesignMutation
             }
         }
 
-        return $this->mutate($design, function () use ($design, $author, $data, $name, $board, $html, $kind) {
+        return $this->mutate($design, function () use ($design, $author, $data, $name, $board, $html, $kind, $page) {
             if ($board === null) {
                 [$x, $y] = $this->nextPosition($design);
 
@@ -73,6 +74,7 @@ class UpsertArtboard extends DesignMutation
                     'w' => $data['w'],
                     'h' => $data['h'],
                     'interactive' => (bool) ($data['interactive'] ?? false),
+                    'page' => $page === false ? null : $page,
                     'sort' => (int) $design->boards()->max('sort') + 1,
                     'revision' => 0,
                     'storage_path' => '',
@@ -89,6 +91,10 @@ class UpsertArtboard extends DesignMutation
                     'interactive' => $data['interactive'] ?? null,
                 ], fn ($value) => $value !== null));
                 $board->updated_by = $author->id;
+
+                if ($page !== false) {
+                    $board->page = $page;
+                }
             }
 
             if ($html !== null) {
@@ -109,7 +115,12 @@ class UpsertArtboard extends DesignMutation
 
         $this->storage->disk()->put($path, $html);
 
-        $board->forceFill(['revision' => $revision, 'storage_path' => $path, 'size_bytes' => strlen($html)]);
+        $board->forceFill([
+            'revision' => $revision,
+            'storage_path' => $path,
+            'size_bytes' => strlen($html),
+            'includes' => DesignBoard::includesIn($html) ?: null,
+        ]);
 
         if ($previous !== '' && $previous !== $path) {
             $this->storage->disk()->delete($previous);

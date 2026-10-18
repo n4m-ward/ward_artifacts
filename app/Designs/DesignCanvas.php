@@ -26,6 +26,8 @@ class DesignCanvas
             'v' => 1,
             'title' => $design->title,
             'revision' => $design->design_revision,
+            'pages' => $design->pages()->orderBy('sort')->orderBy('id')->get(['key', 'name'])->map(fn ($page) => ['key' => $page->key, 'name' => $page->name])->values()->all(),
+            'tokens' => $design->design_tokens,
             'boards' => $boards->map(fn (DesignBoard $board) => $this->board($board))->values()->all(),
             'notes' => $design->notes()->orderBy('id')->get()->map(fn (DesignNote $note) => $note->toCanvas())->values()->all(),
         ];
@@ -40,6 +42,8 @@ class DesignCanvas
             'name' => $board->name,
             'title' => $board->title,
             'kind' => $board->kind->value,
+            'page' => $board->page,
+            'includes' => $board->includes ?? [],
             'x' => $board->x,
             'y' => $board->y,
             'w' => $board->w,
@@ -61,8 +65,9 @@ class DesignCanvas
         $canvas = $this->toArray($design);
         $zip->addFromString('canvas.json', json_encode($canvas, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 
+        // HTML como aparece no canvas: tokens aplicados e componentes expandidos.
         foreach ($design->orderedBoards()->get() as $board) {
-            $zip->addFromString("boards/{$board->name}.html", $this->storage->html($board));
+            $zip->addFromString("boards/{$board->name}.html", app(BoardRenderer::class)->render($design, $board));
         }
 
         // Imagens ao lado dos HTMLs: "assets/{nome}" continua funcionando ao abrir o arquivo.

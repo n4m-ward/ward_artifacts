@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Artifacts\ContentGateway;
+use App\Designs\BoardRenderer;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Mime\MimeTypes;
@@ -33,7 +34,9 @@ class ArtifactContentController extends Controller
                 return $disk->response($file, null, ['Cache-Control' => 'private, max-age=86400'] + $this->headers($gateway, $name));
             }
 
-            return response($this->withRuntime((string) $disk->get($board->storage_path)), 200, $this->headers($gateway, 'index.html', board: true));
+            $html = app(BoardRenderer::class)->render($board->artifact, $board, (string) $disk->get($board->storage_path));
+
+            return response($this->withRuntime($html), 200, $this->headers($gateway, 'index.html', board: true));
         }
 
         $version = $gateway->resolve($token);

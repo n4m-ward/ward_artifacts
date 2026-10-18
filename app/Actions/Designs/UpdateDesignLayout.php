@@ -14,10 +14,49 @@ class UpdateDesignLayout extends DesignMutation
 {
     /**
      * @param  list<array<string, mixed>>  $boards  {name, x?, y?, w?, h?, title?, new_name?, interactive?}
-     * @param  list<array<string, mixed>>  $notes  {key, kind?, x?, y?, w?, text?, color?, size?, bold?, delete?}
+     * @param  list<array<string, mixed>>  $notes  {key, kind?, x?, y?, w?, text?, color?, size?, bold?, page?, delete?}
+     * @param  list<array<string, mixed>>  $pages  {key, name?, sort?, delete?} (vêm primeiro: artboards e notas já podem usar a página nova)
      */
-    public function handle(Artifact $design, array $boards = [], array $notes = []): void
+    public function handle(Artifact $design, array $boards = [], array $notes = [], array $pages = []): void
     {
+        foreach ($pages as $page) {
+            if (! preg_match('/^[A-Za-z0-9_-]{1,40}$/', (string) ($page['key'] ?? ''))) {
+                throw new InvalidDesign('Cada página precisa de uma key (letras, números, _ ou -, até 40).');
+            }
+        }
+
+        if ($pages !== []) {
+            $this->mutate($design, function () use ($design, $pages) {
+                foreach ($pages as $change) {
+                    $page = $design->pages()->where('key', $change['key'])->first();
+
+                    if (! empty($change['delete'])) {
+                        // O conteúdo da página apagada vai para a primeira.
+                        $design->boards()->where('page', $change['key'])->update(['page' => null]);
+                        $design->notes()->where('page', $change['key'])->update(['page' => null]);
+                        $page?->delete();
+
+                        continue;
+                    }
+
+                    if ($page === null && blank($change['name'] ?? null)) {
+                        throw new InvalidDesign("A página \"{$change['key']}\" é nova e precisa de name.");
+                    }
+
+                    $design->pages()->updateOrCreate(['key' => $change['key']], array_filter([
+                        'name' => isset($change['name']) ? mb_substr(trim((string) $change['name']), 0, 80) : null,
+                        'sort' => isset($change['sort']) ? (int) $change['sort'] : ($page === null ? (int) $design->pages()->max('sort') + 1 : null),
+                    ], fn ($value) => $value !== null && $value !== ''));
+                }
+            });
+        }
+
+        foreach ([...$boards, ...$notes] as $change) {
+            if (array_key_exists('page', $change)) {
+                static::pageKey($design, $change['page']);
+            }
+        }
+
         $existing = $design->boards()->get()->keyBy('name');
 
         foreach ($boards as $change) {
@@ -69,7 +108,13 @@ class UpdateDesignLayout extends DesignMutation
                     'w' => $change['w'] ?? null,
                     'h' => $change['h'] ?? null,
                     'interactive' => $change['interactive'] ?? null,
-                ], fn ($value) => $value !== null))->save();
+                ], fn ($value) => $value !== null));
+
+                if (array_key_exists('page', $change)) {
+                    $board->page = static::pageKey($design, $change['page']);
+                }
+
+                $board->save();
             }
 
             foreach ($notes as $change) {
@@ -85,7 +130,9 @@ class UpdateDesignLayout extends DesignMutation
                     throw new InvalidDesign("A nota \"{$change['key']}\" é nova e precisa de text.");
                 }
 
-                $design->notes()->updateOrCreate(['key' => $change['key']], array_filter([
+                $page = array_key_exists('page', $change) ? ['page' => static::pageKey($design, $change['page'])] : [];
+
+                $design->notes()->updateOrCreate(['key' => $change['key']], $page + array_filter([
                     'kind' => $change['kind'] ?? ($note === null ? 'sticky' : null),
                     'x' => $change['x'] ?? null,
                     'y' => $change['y'] ?? null,

@@ -16,7 +16,7 @@ class DesignNote extends Model
 
     public const SIZES = ['s', 'm', 'l', 'xl'];
 
-    protected $fillable = ['artifact_id', 'key', 'kind', 'x', 'y', 'w', 'text', 'color', 'size', 'bold'];
+    protected $fillable = ['artifact_id', 'key', 'kind', 'page', 'x', 'y', 'w', 'text', 'color', 'size', 'bold'];
 
     protected function casts(): array
     {
@@ -38,6 +38,7 @@ class DesignNote extends Model
         return [
             'key' => $this->key,
             'kind' => $this->kind,
+            'page' => $this->page,
             'x' => $this->x,
             'y' => $this->y,
             'w' => $this->w,

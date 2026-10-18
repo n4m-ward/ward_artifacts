@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\Designs\DeleteArtboard;
 use App\Actions\Designs\DesignMutation;
+use App\Actions\Designs\SetDesignTokens;
 use App\Actions\Designs\UpdateDesignLayout;
 use App\Actions\Designs\UpsertArtboard;
 use App\Designs\DesignState;
@@ -29,6 +30,8 @@ use Illuminate\Support\Str;
  * - note.upsert {key, kind?, x?, y?, w?, text?, color?, size?, bold?}
  * - note.delete {key}
  * - board.html {id, html, base?} (editor visual; base = revisão em que a edição foi feita)
+ * - page.upsert {key, name?, sort?} / page.delete {key}
+ * - design.tokens {css}
  */
 class DesignEditController extends Controller
 {
@@ -48,7 +51,7 @@ class DesignEditController extends Controller
         $request->validate([
             'ops' => ['required', 'array', 'min:1', 'max:200'],
             'ops.*' => ['array'],
-            'ops.*.op' => ['required', 'string', 'in:board.update,board.duplicate,board.create,board.delete,board.html,note.upsert,note.delete'],
+            'ops.*.op' => ['required', 'string', 'in:board.update,board.duplicate,board.create,board.delete,board.html,note.upsert,note.delete,page.upsert,page.delete,design.tokens'],
         ]);
 
         // validate() devolveria só "op": cada operação leva os próprios campos.
@@ -102,7 +105,32 @@ class DesignEditController extends Controller
             'board.html' => $this->saveHtml($design, $request, $op),
             'note.upsert' => $this->upsertNote($design, $op),
             'note.delete' => $this->deleteNote($design, $op),
+            'page.upsert' => $this->pages($design, [array_filter(['key' => (string) ($op['key'] ?? ''), 'name' => $op['name'] ?? null, 'sort' => $op['sort'] ?? null], fn ($v) => $v !== null)]),
+            'page.delete' => $this->pages($design, [['key' => (string) ($op['key'] ?? ''), 'delete' => true]]),
+            'design.tokens' => $this->tokens($design, (string) ($op['css'] ?? '')),
         };
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $pages
+     * @return array<string, mixed>
+     */
+    private function pages(Artifact $design, array $pages): array
+    {
+        $this->layout->handle($design, [], [], $pages);
+
+        return ['key' => $pages[0]['key']];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function tokens(Artifact $design, string $css): array
+    {
+        $before = $design->design_tokens;
+        app(SetDesignTokens::class)->handle($design, $css);
+
+        return ['before' => $before];
     }
 
     /**
@@ -121,11 +149,11 @@ class DesignEditController extends Controller
             'h' => $this->int($op, 'h'),
             'title' => array_key_exists('title', $op) ? (string) $op['title'] : null,
             'new_name' => isset($op['name']) && $op['name'] !== $board->name ? trim((string) $op['name']) : null,
-        ], fn ($value) => $value !== null);
+        ], fn ($value) => $value !== null) + (array_key_exists('page', $op) ? ['page' => $op['page']] : []);
 
         $this->layout->handle($design, [$change]);
 
-        return ['id' => $board->id];
+        return ['id' => $board->id, 'page' => $board->page];
     }
 
     /**
@@ -146,6 +174,7 @@ class DesignEditController extends Controller
             'w' => $source->w,
             'h' => $source->h,
             'interactive' => $source->interactive,
+            'page' => $source->page,
         ]);
 
         return ['id' => $copy->id, 'name' => $copy->name];
@@ -173,6 +202,7 @@ class DesignEditController extends Controller
             'w' => $this->int($op, 'w'),
             'h' => $this->int($op, 'h'),
             'interactive' => (bool) ($op['interactive'] ?? false),
+            ...(array_key_exists('page', $op) ? ['page' => $op['page']] : []),
         ]);
 
         return ['id' => $board->id, 'name' => $board->name];
@@ -219,6 +249,7 @@ class DesignEditController extends Controller
             'w' => $board->w,
             'h' => $board->h,
             'interactive' => $board->interactive,
+            'page' => $board->page,
             'html' => $this->storage->html($board),
         ];
 
@@ -243,7 +274,7 @@ class DesignEditController extends Controller
             'color' => $op['color'] ?? null,
             'size' => $op['size'] ?? null,
             'bold' => isset($op['bold']) ? (bool) $op['bold'] : null,
-        ], fn ($value) => $value !== null);
+        ], fn ($value) => $value !== null) + (array_key_exists('page', $op) ? ['page' => $op['page']] : []);
 
         $this->layout->handle($design, [], [$note]);
 

@@ -26,20 +26,29 @@ class DesignState
      */
     public function toArray(Artifact $design, ?int $contentTtlMinutes = null, bool $comments = false): array
     {
+        $boards = $design->orderedBoards()->get();
+        $byName = $boards->keyBy('name');
+        $renderer = app(BoardRenderer::class);
+
         return [
             'revision' => $design->design_revision,
-            'boards' => $design->orderedBoards()->get()->map(fn (DesignBoard $board) => [
+            'pages' => $design->pages()->orderBy('sort')->orderBy('id')->get()->map(fn ($page) => ['key' => $page->key, 'name' => $page->name])->values()->all(),
+            'tokens' => $design->design_tokens,
+            'boards' => $boards->map(fn (DesignBoard $board) => [
                 'id' => $board->id,
                 'name' => $board->name,
                 'title' => $board->title,
                 'kind' => $board->kind->value,
+                'page' => $board->page,
+                // Muda quando o artboard, um componente que ele usa ou os tokens mudam (o canvas recarrega).
+                'version' => $version = $renderer->version($design, $board, $byName),
                 'x' => $board->x,
                 'y' => $board->y,
                 'w' => $board->w,
                 'h' => $board->h,
                 'interactive' => $board->interactive,
                 'revision' => $board->revision,
-                'url' => $this->gateway->boardUrl($board, $contentTtlMinutes),
+                'url' => $this->gateway->boardUrl($board, $contentTtlMinutes, $version),
             ])->values()->all(),
             'notes' => $design->notes()->orderBy('id')->get()->map(fn (DesignNote $note) => $note->toCanvas())->values()->all(),
             // Comentários só para quem está logado (nunca no link público).

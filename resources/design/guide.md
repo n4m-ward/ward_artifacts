@@ -94,6 +94,19 @@ post 1080×1080 · story 1080×1920 · banner 1200×628 · A4 794×1123.
 6. **Links entre artboards** (protótipo): `<a href="board:NomeDoArtboard">` e marque os artboards com
    `interactive: true`.
 
+## Tokens, componentes e páginas
+
+- **Tokens** (`set_design_tokens`): defina a direção uma vez como variáveis CSS (`--paper`, `--ink`,
+  `--accent`, `--display`, `--text`, `--radius`) e use `var(--nome)` em todos os artboards. O bloco entra
+  no `:root` de cada tela; a pessoa ajusta no painel Tema e todas as telas mudam juntas. Não redefina
+  esses nomes no `:root` do artboard.
+- **Componentes**: uma peça repetida (barra de navegação, rodapé, card) vira um artboard próprio
+  (ex.: `Navbar`, só a peça, no tamanho dela) e entra nas telas com
+  `<ward-include name="Navbar"></ward-include>`. O `<style>` e as fontes do componente vêm junto.
+  Mudou o componente, mudam todas as telas que o usam.
+- **Páginas**: muitos artboards? Separe por fluxo ou por tipo com `update_layout.pages`
+  (`{"key": "checkout", "name": "Checkout"}`) e `page` em cada artboard.
+
 ## Tweaks (controles para a pessoa ajustar sem pedir)
 
 Declare poucos controles que valham a pena (uma cor de destaque, um raio, modo escuro, densidade),

@@ -101,6 +101,8 @@
       textOnly: element.children.length === 0 && text.length > 0,
       attrs: { src: element.getAttribute('src'), alt: element.getAttribute('alt'), href: element.getAttribute('href') },
       parentDisplay: parent ? parent.display : null,
+      // Elemento que vem de um componente (<ward-include>): edita-se no artboard do componente.
+      component: (element.closest && element.closest('[data-ward-component]')) ? element.closest('[data-ward-component]').getAttribute('data-ward-component') : null,
       childCount: element.children.length,
     };
   };

@@ -29,6 +29,7 @@ class UpdateDesignLayoutTool extends WardTool
                 'w' => $schema->integer(),
                 'h' => $schema->integer(),
                 'interactive' => $schema->boolean(),
+                'page' => $schema->string()->description('Mover para a página (key). Vazio: primeira página.'),
             ]))->description('Artboards a mudar.'),
             'notes' => $schema->array()->items($schema->object([
                 'key' => $schema->string()->description('Identificador da nota (letras, números, _ ou -).')->required(),
@@ -40,8 +41,15 @@ class UpdateDesignLayoutTool extends WardTool
                 'color' => $schema->string()->enum(DesignNote::COLORS),
                 'size' => $schema->string()->enum(DesignNote::SIZES)->description('Tamanho do texto (padrão: m na adesiva; o título é sempre grande).'),
                 'bold' => $schema->boolean(),
+                'page' => $schema->string()->description('Página da nota (key).'),
                 'delete' => $schema->boolean()->description('true para apagar a nota.'),
             ]))->description('Notas a criar, mudar ou apagar.'),
+            'pages' => $schema->array()->items($schema->object([
+                'key' => $schema->string()->description('Identificador da página (letras, números, _ ou -).')->required(),
+                'name' => $schema->string()->description('Nome mostrado na aba.'),
+                'sort' => $schema->integer(),
+                'delete' => $schema->boolean()->description('Apaga a página; o conteúdo vai para a primeira.'),
+            ]))->description('Páginas do canvas (abas), aplicadas antes dos artboards e notas.'),
         ];
     }
 
@@ -53,6 +61,8 @@ class UpdateDesignLayoutTool extends WardTool
             'boards.*' => ['array'],
             'notes' => ['nullable', 'array', 'max:200'],
             'notes.*' => ['array'],
+            'pages' => ['nullable', 'array', 'max:40'],
+            'pages.*' => ['array'],
         ]);
 
         $design = $this->findDesign($request, $validated['design']);
@@ -65,7 +75,7 @@ class UpdateDesignLayoutTool extends WardTool
         }
 
         try {
-            $update->handle($design, $validated['boards'] ?? [], $validated['notes'] ?? []);
+            $update->handle($design, $validated['boards'] ?? [], $validated['notes'] ?? [], $validated['pages'] ?? []);
         } catch (InvalidDesign $e) {
             return Response::error($e->getMessage());
         }

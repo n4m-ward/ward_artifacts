@@ -37,6 +37,7 @@ const ICONS = {
     check: 'M5 12l5 5 9-10',
     download: 'M12 4v11M7 10l5 5 5-5M5 20h14',
     image: 'M4 5h16v14H4zM4 16l5-5 4 4 3-3 4 4M15 9.5h.01',
+    theme: 'M12 3a9 9 0 100 18c1 0 1.5-.8 1.2-1.6-.4-1 .3-2.4 1.6-2.4H17a4 4 0 004-4c0-5-4-10-9-10zM7.5 11h.01M10 7h.01M15 7.5h.01',
     close: 'M6 6l12 12M18 6L6 18',
 };
 
@@ -135,8 +136,8 @@ class DesignEditor {
 
     allKeys() {
         return [
-            ...this.canvas.state.boards.map((board) => `b:${board.id}`),
-            ...this.canvas.state.notes.map((note) => `n:${note.key}`),
+            ...this.canvas.pageBoards().map((board) => `b:${board.id}`),
+            ...this.canvas.state.notes.filter((note) => this.canvas.inPage(note)).map((note) => `n:${note.key}`),
         ];
     }
 
@@ -194,7 +195,8 @@ class DesignEditor {
         toolbar.append(this.commentsButton);
         if (this.canEdit) {
             this.imagesButton = button('Imagens do design', 'image', () => this.toggleImages(), { 'aria-pressed': 'false' });
-            toolbar.append(this.imagesButton);
+            this.themeButton = button('Tema do design (tokens)', 'theme', () => this.toggleTheme());
+            toolbar.append(this.imagesButton, this.themeButton);
         }
         this.exportButton = button('Exportar', 'download', () => this.toggleExport(), { 'aria-haspopup': 'menu', 'aria-expanded': 'false' });
         toolbar.append(this.exportButton);
@@ -240,6 +242,7 @@ class DesignEditor {
 
     afterRender() {
         this.renderPins();
+        if (this.themeOpen && !this.props.hidden && !this.props.contains(document.activeElement)) this.renderTheme();
         if (this.inspect) this.drawElement();
         if (this.gesture) return;
         const before = this.selection.size;
@@ -362,6 +365,15 @@ class DesignEditor {
 
         if (boards.length && !notes.length) {
             children.push(button(`Duplicar (${isMac ? '⌘' : 'Ctrl+'}D)`, 'duplicate', () => this.duplicate()));
+        }
+        if (this.canvas.pages().length > 1) {
+            const move = el('select', { class: 'ward-ed-select', 'aria-label': 'Mover para a página' }, [
+                el('option', { value: '', text: 'Mover para…' }),
+                ...this.canvas.pages().filter((page) => page.key !== this.canvas.currentPage())
+                    .map((page) => el('option', { value: page.key, text: page.name })),
+            ]);
+            move.addEventListener('change', () => move.value && this.moveToPage(move.value));
+            children.push(move);
         }
         children.push(button('Apagar (Delete)', 'trash', () => this.deleteSelection(), { class: 'ward-ed-btn is-danger' }));
 
@@ -726,7 +738,7 @@ class DesignEditor {
     createNote(kind, world) {
         const key = `n${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
         const note = {
-            key, kind, x: Math.round(world.x), y: Math.round(world.y), w: kind === 'title' ? null : 260,
+            key, kind, page: this.canvas.currentPage(), x: Math.round(world.x), y: Math.round(world.y), w: kind === 'title' ? null : 260,
             text: kind === 'title' ? 'Título' : 'Nota', color: kind === 'title' ? null : 'yellow', size: null, bold: false,
         };
         this.canvas.state.notes.push(note);
@@ -1589,6 +1601,21 @@ Object.assign(DesignEditor.prototype, {
         }
 
         const board = this.canvas.boards.get(this.inspect.boardId)?.data;
+        if (e.component) {
+            const target = this.canvas.state.boards.find((item) => item.name === e.component);
+            this.props.replaceChildren(
+                el('div', { class: 'ward-ed-props-head' }, [el('strong', { text: `<${e.tag}>` }), button('Fechar (Esc)', 'close', () => this.exitBoard())]),
+                el('p', { class: 'ward-ed-hint', text: `Este elemento vem do componente "${e.component}". Edite o componente: a mudança aparece em todo artboard que o usa.` }),
+                target ? button(`Abrir o componente ${e.component}`, null, () => {
+                    this.exitBoard();
+                    if (!this.canvas.inPage(target)) this.canvas.setPage(this.canvas.pageOf(target));
+                    this.setSelection([`b:${target.id}`]);
+                    this.canvas.fit([target]);
+                }, { text: `Abrir "${e.component}"`, class: 'ward-ed-btn is-primary' }) : el('p', { class: 'ward-ed-muted', text: 'O componente vem de um design system: abra-o pelo painel Componentes.' }),
+            );
+            this.props.hidden = false;
+            return;
+        }
         this.props.replaceChildren(...[
             el('div', { class: 'ward-ed-props-head' }, [
                 el('div', {}, [el('strong', { text: `<${e.tag}>` }), el('span', { class: 'ward-ed-muted', text: ` ${board?.title || board?.name || ''}` })]),
@@ -1917,6 +1944,153 @@ Object.assign(DesignEditor.prototype, {
             el('p', { class: 'ward-ed-hint', text: hint }),
             grid.length ? el('div', { class: 'ward-ed-assets' }, grid) : el('p', { class: 'ward-ed-muted ward-ed-empty', text: 'Nenhuma imagem ainda.' }),
         );
+    },
+});
+
+// ---------- páginas e tema (tokens) ----------
+
+Object.assign(DesignEditor.prototype, {
+    decoratePages(bar) {
+        if (!this.canEdit || this.canvas.isMobile()) return;
+        for (const tab of bar.querySelectorAll('[data-page]')) {
+            tab.addEventListener('dblclick', () => this.renamePage(tab.dataset.page));
+            tab.addEventListener('contextmenu', (event) => {
+                event.preventDefault();
+                this.deletePage(tab.dataset.page);
+            });
+            tab.title += ' · clique duplo renomeia, botão direito apaga';
+        }
+        const add = el('button', { type: 'button', class: 'ward-page-tab ward-page-add', text: '+ Página', title: 'Nova página' });
+        add.addEventListener('click', () => this.addPage());
+        bar.append(add);
+    },
+
+    async addPage() {
+        const pages = this.canvas.pages();
+        const key = `p${Date.now().toString(36)}`;
+        const ops = [];
+        // A primeira página nova também cria a "Página 1" para o que já existe.
+        if (!pages.length) ops.push({ op: 'page.upsert', key: 'principal', name: 'Página 1', sort: 0 });
+        ops.push({ op: 'page.upsert', key, name: `Página ${pages.length + (pages.length ? 1 : 2)}`, sort: pages.length + 1 });
+        const results = await this.send(ops, 'Criando página…');
+        if (!results) return;
+        this.push({ redo: ops, undo: [...ops].reverse().map((op) => ({ op: 'page.delete', key: op.key })) });
+        this.canvas.setPage(key);
+        this.setStatus('Página criada. Clique duplo no nome para renomear.');
+    },
+
+    renamePage(key) {
+        const page = this.canvas.pages().find((item) => item.key === key);
+        const name = window.prompt('Nome da página', page?.name ?? '');
+        if (!name || !name.trim() || name.trim() === page.name) return;
+        this.commit([{ op: 'page.upsert', key, name: name.trim() }], [{ op: 'page.upsert', key, name: page.name }], 'Página renomeada');
+    },
+
+    async deletePage(key) {
+        const page = this.canvas.pages().find((item) => item.key === key);
+        if (!page || !window.confirm(`Apagar a página "${page.name}"? Os artboards e notas dela vão para a primeira página.`)) return;
+        const moved = this.canvas.state.boards.filter((board) => board.page === key).map((board) => ({ op: 'board.update', id: board.id, page: key }));
+        const notes = this.canvas.state.notes.filter((note) => note.page === key).map((note) => ({ op: 'note.upsert', key: note.key, page: key }));
+        const results = await this.send([{ op: 'page.delete', key }], 'Apagando página…');
+        if (!results) return;
+        this.push({ redo: [{ op: 'page.delete', key }], undo: [{ op: 'page.upsert', key, name: page.name }, ...moved, ...notes] });
+        this.canvas.setPage(null);
+    },
+
+    moveToPage(key) {
+        const redo = [];
+        const undo = [];
+        for (const item of this.selection) {
+            if (item.startsWith('b:')) {
+                const data = this.boardEntry(item).data;
+                redo.push({ op: 'board.update', id: data.id, page: key });
+                undo.push({ op: 'board.update', id: data.id, page: data.page ?? '' });
+            } else {
+                const note = this.noteData(item);
+                redo.push({ op: 'note.upsert', key: note.key, page: key });
+                undo.push({ op: 'note.upsert', key: note.key, page: note.page ?? '' });
+            }
+        }
+        this.setSelection([]);
+        const name = this.canvas.pages().find((page) => page.key === key)?.name;
+        this.commit(redo, undo, `Movido para "${name}"`);
+    },
+
+    // ----- tema -----
+
+    toggleTheme(force) {
+        const open = force ?? (this.props.hidden || !this.themeOpen);
+        this.themeOpen = open;
+        if (!open) {
+            this.props.hidden = true;
+            return;
+        }
+        this.exitBoard();
+        this.tweaksOpen = false;
+        this.panel.hidden = true;
+        this.renderTheme();
+    },
+
+    saveTokens(css, label = 'Tema atualizado') {
+        const before = this.canvas.state.tokens ?? '';
+        if (css.trim() === before.trim()) return;
+        this.canvas.state.tokens = css;
+        this.commit([{ op: 'design.tokens', css }], [{ op: 'design.tokens', css: before }], label);
+    },
+
+    renderTheme() {
+        if (!this.themeOpen) return;
+        const css = this.canvas.state.tokens ?? '';
+        const tokens = [...css.matchAll(/(--[A-Za-z0-9_-]+)\s*:\s*([^;}]+);?/g)].map((m) => [m[1], m[2].trim()]);
+        const write = (list) => list.map(([name, value]) => `${name}: ${value};`).join('\n');
+
+        const rows = tokens.map(([name, value], index) => {
+            const hex = toHex(value);
+            const input = el('input', { type: 'text', value });
+            input.addEventListener('keydown', (event) => event.stopPropagation());
+            input.addEventListener('change', () => {
+                tokens[index][1] = input.value.trim();
+                this.saveTokens(write(tokens));
+            });
+            const controls = [input];
+            if (hex && !/var\(|gradient|url\(/.test(value)) {
+                const picker = el('input', { type: 'color', value: hex });
+                picker.addEventListener('change', () => {
+                    tokens[index][1] = picker.value;
+                    this.saveTokens(write(tokens));
+                });
+                controls.unshift(picker);
+            }
+            const remove = button(`Remover ${name}`, 'close', () => {
+                tokens.splice(index, 1);
+                this.saveTokens(write(tokens), 'Token removido');
+            }, { class: 'ward-ed-btn is-small' });
+            return el('div', { class: 'ward-ed-token' }, [el('code', { text: name }), el('span', { class: 'ward-ed-color' }, controls), remove]);
+        });
+
+        const newName = el('input', { type: 'text', placeholder: '--accent' });
+        const newValue = el('input', { type: 'text', placeholder: '#c2410c' });
+        for (const input of [newName, newValue]) input.addEventListener('keydown', (event) => event.stopPropagation());
+        const add = button('Adicionar token', null, () => {
+            const name = newName.value.trim().replace(/^(?!--)/, '--');
+            if (!/^--[A-Za-z0-9_-]+$/.test(name) || !newValue.value.trim()) return this.setStatus('Use um nome como --accent e um valor.', true);
+            this.saveTokens(write([...tokens, [name, newValue.value.trim()]]), 'Token adicionado');
+        }, { text: 'Adicionar', class: 'ward-ed-btn is-primary' });
+
+        const raw = codeArea(css, { label: 'Tokens do design (CSS)', placeholder: '--ink: #1c1917;\n--accent: #c2410c;', onCommit: (value) => this.saveTokens(value) });
+
+        this.props.replaceChildren(
+            el('div', { class: 'ward-ed-props-head' }, [el('strong', { text: 'Tema do design' }), button('Fechar', 'close', () => this.toggleTheme(false))]),
+            el('p', { class: 'ward-ed-hint', text: 'Variáveis CSS que entram no :root de todos os artboards. Use var(--nome) no CSS das telas.' }),
+            el('section', { class: 'ward-ed-section' }, [el('h3', { text: 'Tokens' }), ...(rows.length ? rows : [el('p', { class: 'ward-ed-muted', text: 'Nenhum token ainda.' })])]),
+            el('section', { class: 'ward-ed-section' }, [el('h3', { text: 'Novo token' }), el('div', { class: 'ward-ed-row' }, [newName, newValue]), add]),
+            el('section', { class: 'ward-ed-section' }, [
+                el('div', { class: 'ward-ed-rule-head' }, [el('h3', { text: 'CSS' }), el('span', { class: 'ward-ed-spacer' }),
+                    button('Copiar os tokens', null, () => this.copy(raw.value, 'Tokens copiados'), { text: 'Copiar', class: 'ward-ed-btn is-text is-small' })]),
+                raw.node,
+            ]),
+        );
+        this.props.hidden = false;
     },
 });
 

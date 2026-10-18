@@ -21,6 +21,7 @@ use App\Mcp\Tools\PublishArtifactTool;
 use App\Mcp\Tools\RenameArtifactTool;
 use App\Mcp\Tools\ResolveCommentTool;
 use App\Mcp\Tools\SaveDesignVersionTool;
+use App\Mcp\Tools\SetDesignTokensTool;
 use App\Mcp\Tools\UpdateArtifactTool;
 use App\Mcp\Tools\UpdateDesignLayoutTool;
 use App\Mcp\Tools\UpsertArtboardTool;
@@ -59,6 +60,10 @@ Ward Design (canvas com vários artboards, para mockups, telas de app, landing p
   upsert_artboard por tela → print da tela no seu navegador e correção até ficar sem defeitos (nenhuma
   tela está pronta sem você olhar) → update_layout → print do canvas inteiro.
 - Alta fidelidade: conteúdo plausível (não [PREÇO]), fotos que você viu carregar, densidade de produto.
+- Tokens (set_design_tokens): cores, fontes e raios do design como variáveis CSS no :root de todos os
+  artboards; use var(--nome) nas telas. Componentes: um artboard pode ser usado dentro de outro com
+  <ward-include name="Header"></ward-include> (muda no componente, muda em todos). Páginas:
+  update_layout.pages cria abas; upsert_artboard.page coloca a tela numa página.
 - Imagens do design: add_design_asset envia (base64) e devolve "assets/{nome}" para usar no HTML;
   get_design lista as que existem, inclusive as que a pessoa enviou no canvas.
 - Para mudar uma tela: get_artboard_source → editar → upsert_artboard com o mesmo name.
@@ -87,6 +92,7 @@ class WardServer extends Server
         GetArtboardSourceTool::class,
         ResolveCommentTool::class,
         AddDesignAssetTool::class,
+        SetDesignTokensTool::class,
         DeleteArtboardTool::class,
         SaveDesignVersionTool::class,
         OpenDesignTool::class,

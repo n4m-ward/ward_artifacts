@@ -36,6 +36,22 @@ abstract class DesignMutation
         });
     }
 
+    /**
+     * Chave de página válida neste design (null ou "" = primeira página).
+     */
+    public static function pageKey(Artifact $design, mixed $page): ?string
+    {
+        if ($page === null || $page === '') {
+            return null;
+        }
+
+        if (! $design->pages()->where('key', (string) $page)->exists()) {
+            throw new InvalidDesign("Página não encontrada: \"{$page}\". Crie com update_layout (pages).");
+        }
+
+        return (string) $page;
+    }
+
     public static function validName(string $name): bool
     {
         return (bool) preg_match('/^[A-Za-z0-9][A-Za-z0-9 _-]{0,59}$/', $name);

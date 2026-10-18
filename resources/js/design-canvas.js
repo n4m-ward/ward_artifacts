@@ -77,6 +77,10 @@ class DesignCanvas {
         this.empty = root.querySelector('[data-empty]');
         this.banner = root.querySelector('[data-banner]');
         this.list = root.querySelector('[data-canvas-list]');
+        this.pageKey = `ward-design-page:${config.design}`;
+        this.page = storage(this.pageKey) ?? null;
+        this.filter = '';
+        this.buildTopBar();
 
         this.renderAll();
         this.bindCanvas();
@@ -98,9 +102,96 @@ class DesignCanvas {
         window.addEventListener('resize', () => this.applyView());
     }
 
+    // ---------- páginas e filtro ----------
+
+    pages() {
+        return this.state.pages ?? [];
+    }
+
+    /** Página de um artboard/nota (sem página = a primeira). */
+    pageOf(item) {
+        const pages = this.pages();
+        if (!pages.length) return null;
+        return pages.some((page) => page.key === item.page) ? item.page : pages[0].key;
+    }
+
+    currentPage() {
+        const pages = this.pages();
+        if (!pages.length) return null;
+        return pages.some((page) => page.key === this.page) ? this.page : pages[0].key;
+    }
+
+    inPage(item) {
+        return this.pageOf(item) === this.currentPage();
+    }
+
+    pageBoards() {
+        return this.state.boards.filter((board) => this.inPage(board));
+    }
+
+    setPage(key) {
+        this.page = key;
+        storage(this.pageKey, key);
+        this.select(null);
+        this.renderAll();
+        this.fit();
+    }
+
+    matches(board) {
+        if (!this.filter) return true;
+        const text = `${board.name} ${board.title ?? ''}`.toLowerCase();
+        return this.filter.split(/\s+/).every((word) => text.includes(word));
+    }
+
+    buildTopBar() {
+        this.pagesBar = el('nav', { class: 'ward-pages', 'aria-label': 'Páginas do design', hidden: true });
+        const search = el('input', { type: 'search', class: 'ward-filter', placeholder: 'Filtrar artboards', 'aria-label': 'Filtrar artboards por nome' });
+        search.addEventListener('input', () => {
+            this.filter = search.value.trim().toLowerCase();
+            this.renderAll();
+        });
+        search.addEventListener('keydown', (event) => {
+            event.stopPropagation();
+            if (event.key === 'Enter') this.fitMatches();
+            if (event.key === 'Escape') {
+                search.value = '';
+                this.filter = '';
+                this.renderAll();
+                search.blur();
+            }
+        });
+        this.filterInput = search;
+        this.filterCount = el('span', { class: 'ward-filter-count', hidden: true });
+        this.root.append(this.pagesBar, el('div', { class: 'ward-filter-box' }, [search, this.filterCount]));
+    }
+
+    renderPages() {
+        const pages = this.pages();
+        const current = this.currentPage();
+        const tabs = pages.map((page) => {
+            const count = this.state.boards.filter((board) => this.pageOf(board) === page.key).length;
+            const tab = el('button', {
+                type: 'button', class: 'ward-page-tab', 'data-page': page.key, 'aria-current': page.key === current ? 'page' : null,
+                text: page.name, title: `${page.name} · ${count} artboard(s)`,
+            });
+            tab.addEventListener('click', () => this.setPage(page.key));
+            return tab;
+        });
+        this.pagesBar.replaceChildren(...tabs);
+        this.editor?.decoratePages?.(this.pagesBar);
+        this.pagesBar.hidden = this.pagesBar.children.length === 0;
+    }
+
+    fitMatches() {
+        const hits = this.pageBoards().filter((board) => this.matches(board));
+        if (!hits.length) return;
+        this.fit(hits);
+    }
+
     // ---------- render ----------
 
     renderAll() {
+        this.renderPages();
         this.renderNotes();
         const ids = new Set(this.state.boards.map((board) => board.id));
 
@@ -119,6 +210,14 @@ class DesignCanvas {
                 this.createBoard(data);
                 added = true;
             } else this.updateBoard(entry, data);
+            const node = this.boards.get(data.id).node;
+            node.hidden = !this.inPage(data);
+            node.classList.toggle('is-filtered-out', !this.matches(data));
+        }
+        if (this.filterCount) {
+            const hits = this.pageBoards().filter((board) => this.matches(board)).length;
+            this.filterCount.hidden = !this.filter;
+            this.filterCount.textContent = `${hits} de ${this.pageBoards().length}`;
         }
         if (added && this.userMoved === false) this.fit();
 
@@ -135,7 +234,7 @@ class DesignCanvas {
     renderNotes() {
         // A nota em edição no editor não é recriada (perderia o cursor).
         const editing = this.editor?.editingNote ?? null;
-        this.notesLayer.replaceChildren(...this.state.notes.map((note) => {
+        this.notesLayer.replaceChildren(...this.state.notes.filter((note) => this.inPage(note)).map((note) => {
             if (editing && editing.dataset.note === note.key) return editing;
             const classes = [
                 note.kind === 'title' ? 'ward-note-title' : 'ward-note-sticky',
@@ -208,7 +307,8 @@ class DesignCanvas {
     }
 
     updateBoard(entry, data, initial = false) {
-        const changed = !initial && data.revision !== entry.data.revision;
+        // version muda também quando um componente usado ou os tokens do design mudam.
+        const changed = !initial && (data.version ?? data.revision) !== (entry.data.version ?? entry.data.revision);
         entry.data = data;
 
         Object.assign(entry.node.style, {
@@ -297,9 +397,10 @@ class DesignCanvas {
         Object.assign(entry.listFrame.style, {
             width: `${data.w}px`, height: `${data.h}px`, transform: `scale(${scale})`,
         });
-        if (entry.listFrame.dataset.revision !== String(data.revision)) {
+        const version = String(data.version ?? data.revision);
+        if (entry.listFrame.dataset.revision !== version) {
             entry.listFrame.src = data.url;
-            entry.listFrame.dataset.revision = String(data.revision);
+            entry.listFrame.dataset.revision = version;
         }
     }
 
@@ -343,10 +444,10 @@ class DesignCanvas {
         this.zoomAt(scale / this.view.scale);
     }
 
-    bounds() {
+    bounds(boards = null) {
         const items = [
-            ...this.state.boards.map((b) => [b.x, b.y, b.x + b.w, b.y + b.h]),
-            ...this.state.notes.map((n) => [n.x, n.y, n.x + (n.w || 260), n.y + 100]),
+            ...(boards ?? this.pageBoards()).map((b) => [b.x, b.y, b.x + b.w, b.y + b.h]),
+            ...(boards ? [] : this.state.notes.filter((n) => this.inPage(n)).map((n) => [n.x, n.y, n.x + (n.w || 260), n.y + 100])),
         ];
         if (!items.length) return null;
         return items.reduce((acc, [a, b, c, d]) => [
@@ -354,8 +455,8 @@ class DesignCanvas {
         ], [Infinity, Infinity, -Infinity, -Infinity]);
     }
 
-    fit() {
-        const box = this.bounds();
+    fit(boards = null) {
+        const box = this.bounds(boards);
         const rect = this.viewport.getBoundingClientRect();
         if (!box || !rect.width) {
             this.view = { x: 40, y: 40, scale: 1 };
@@ -378,7 +479,7 @@ class DesignCanvas {
         const rect = this.viewport.getBoundingClientRect();
         const { x, y, scale } = this.view;
         for (const entry of this.boards.values()) {
-            if (entry.loaded) continue;
+            if (entry.loaded || !this.inPage(entry.data)) continue;
             const { data } = entry;
             const left = data.x * scale + x;
             const top = data.y * scale + y;
@@ -497,7 +598,7 @@ class DesignCanvas {
     // ---------- foco e Play ----------
 
     ordered() {
-        return this.state.boards;
+        return this.pageBoards();
     }
 
     currentFocusId() {
@@ -650,7 +751,7 @@ class DesignCanvas {
     visibleBoards() {
         const rect = this.viewport.getBoundingClientRect();
         const { x, y, scale } = this.view;
-        return this.state.boards.filter((data) => {
+        return this.pageBoards().filter((data) => {
             const left = data.x * scale + x;
             const top = data.y * scale + y;
             return left < rect.width && left + data.w * scale > 0 && top < rect.height && top + data.h * scale > 0;
