@@ -2,6 +2,7 @@
 
 namespace App\Mcp\Tools;
 
+use App\Actions\Designs\PublishComponent;
 use App\Actions\Designs\UpsertArtboard;
 use App\Designs\DesignCanvas;
 use App\Designs\InvalidDesign;
@@ -33,6 +34,8 @@ class UpsertArtboardTool extends WardTool
             'title' => $schema->string()->max(120)->description('Rótulo mostrado acima do artboard (opcional).'),
             'interactive' => $schema->boolean()->description('true se tem controles que funcionam ou links board: entre artboards.'),
             'page' => $schema->string()->description('Chave da página do canvas (crie com update_layout.pages). Vazio: primeira página.'),
+            'description' => $schema->string()->description('Em design system: o que o componente é e quando usar.'),
+            'tags' => $schema->string()->description('Em design system: palavras para o filtro, separadas por vírgula (ex.: "botão, ação, primário").'),
         ];
     }
 
@@ -50,6 +53,8 @@ class UpsertArtboardTool extends WardTool
             'title' => ['nullable', 'string', 'max:120'],
             'interactive' => ['nullable', 'boolean'],
             'page' => ['nullable', 'string', 'max:40'],
+            'description' => ['nullable', 'string', 'max:2000'],
+            'tags' => ['nullable', 'string', 'max:200'],
         ]);
 
         $design = $this->findDesign($request, $validated['design']);
@@ -66,7 +71,12 @@ class UpsertArtboardTool extends WardTool
             if (! $request->has('page')) {
                 unset($data['page']);
             }
+            unset($data['description'], $data['tags']);
             $board = $upsert->handle($design, $this->user($request), $data);
+
+            if ($request->has('description') || $request->has('tags')) {
+                app(PublishComponent::class)->describe($design, $board, $validated['description'] ?? null, $validated['tags'] ?? null);
+            }
         } catch (InvalidDesign $e) {
             return Response::error($e->getMessage());
         }

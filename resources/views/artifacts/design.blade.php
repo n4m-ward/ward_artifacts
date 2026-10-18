@@ -17,7 +17,7 @@
     </head>
     <body class="flex h-dvh flex-col overflow-hidden bg-white text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100">
         @include('artifacts.partials.bar', [
-            'meta' => '@'.$owner->username.' · '.$artifact->project->name.' · design',
+            'meta' => '@'.$owner->username.' · '.$artifact->project->name.' · '.($artifact->isDesignSystem() ? 'design system' : 'design'),
         ])
 
         <main class="relative min-h-0 flex-1" data-design-canvas>
@@ -40,6 +40,10 @@
                 <span aria-hidden="true">·</span>
                 <span data-board-count>{{ $boardCount }} artboard{{ $boardCount === 1 ? '' : 's' }}</span>
             </div>
+
+            @if ($artifact->isDesignSystem() && auth()->check())
+                <div class="ward-ds-bar">@include('designs.system-docs')</div>
+            @endif
 
             <p data-banner hidden role="status" class="absolute left-1/2 top-3 -translate-x-1/2 rounded-lg bg-amber-100 px-3 py-2 text-sm text-amber-900"></p>
 

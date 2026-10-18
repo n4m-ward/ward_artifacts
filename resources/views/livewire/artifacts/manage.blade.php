@@ -39,6 +39,12 @@ new class extends Component {
 
         $this->validate(['visibility' => ['required', Rule::enum(Visibility::class)]]);
 
+        if ($this->artifact->isDesignSystem() && $this->visibility === Visibility::Owner->value) {
+            $this->visibility = Visibility::Users->value;
+
+            return;
+        }
+
         $action->base($this->artifact, Visibility::from($this->visibility));
     }
 
@@ -122,10 +128,16 @@ new class extends Component {
                     </flux:button>
                 </div>
 
-                <flux:radio.group wire:model.live="visibility" label="Quem pode ver">
-                    <flux:radio value="owner" label="Só eu" description="Só você (e os admins) abrem este artifact." />
-                    <flux:radio value="users" label="Usuários logados" description="Qualquer pessoa com conta no Ward Artifacts e com o link." />
-                </flux:radio.group>
+                @if ($artifact->isDesignSystem())
+                    <flux:callout icon="swatch">
+                        <flux:callout.text>Design system: sempre visível para todos os usuários logados do Ward Artifacts. Para quem não tem conta, use o link público temporário abaixo.</flux:callout.text>
+                    </flux:callout>
+                @else
+                    <flux:radio.group wire:model.live="visibility" label="Quem pode ver">
+                        <flux:radio value="owner" label="Só eu" description="Só você (e os admins) abrem este artifact." />
+                        <flux:radio value="users" label="Usuários logados" description="Qualquer pessoa com conta no Ward Artifacts e com o link." />
+                    </flux:radio.group>
+                @endif
 
                 <flux:separator />
 

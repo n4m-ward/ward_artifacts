@@ -4,6 +4,7 @@ namespace App\Mcp\Tools;
 
 use App\Actions\Artifacts\CreateArtifactPreview;
 use App\Artifacts\InvalidArtifact;
+use App\Designs\DesignSystems;
 use App\Models\Artifact;
 use App\Models\User;
 use Closure;
@@ -25,10 +26,16 @@ abstract class WardTool extends Tool
     }
 
     /**
-     * Aceita o id (32 caracteres hex) ou a URL completa do artifact.
+     * Aceita o id (32 caracteres hex), a URL completa do artifact ou, para design
+     * systems, "usuario/projeto".
      */
     protected function findArtifact(?string $reference): ?Artifact
     {
+        // Design system também pela referência curta "usuario/projeto".
+        if ($reference && preg_match('#^@?[a-z0-9-]+/[a-z0-9-]+$#i', trim($reference))) {
+            return app(DesignSystems::class)->find($reference)?->loadMissing('user', 'project', 'currentVersion');
+        }
+
         if (! $reference || ! preg_match('/([0-9a-f]{32})/i', $reference, $match)) {
             return null;
         }

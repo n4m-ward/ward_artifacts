@@ -21,7 +21,7 @@ class Artifact extends Model
     protected $fillable = [
         'uuid', 'user_id', 'project_id', 'title', 'slug',
         'visibility', 'public_until', 'current_version_id', 'size_bytes',
-        'type', 'design_revision',
+        'type', 'design_revision', 'design_system', 'description', 'docs', 'uses_design_system_id',
     ];
 
     protected function casts(): array
@@ -30,6 +30,7 @@ class Artifact extends Model
             'visibility' => Visibility::class,
             'type' => ArtifactType::class,
             'design_revision' => 'integer',
+            'design_system' => 'boolean',
             'public_until' => 'datetime',
             'size_bytes' => 'integer',
         ];
@@ -136,6 +137,16 @@ class Artifact extends Model
     public function assets(): HasMany
     {
         return $this->hasMany(DesignAsset::class);
+    }
+
+    public function usesDesignSystem(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'uses_design_system_id');
+    }
+
+    public function isDesignSystem(): bool
+    {
+        return $this->design_system && $this->isDesign();
     }
 
     public function pages(): HasMany

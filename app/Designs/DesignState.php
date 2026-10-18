@@ -40,6 +40,10 @@ class DesignState
                 'title' => $board->title,
                 'kind' => $board->kind->value,
                 'page' => $board->page,
+                'description' => $board->description,
+                'tags' => $board->tags,
+                // Sem fundo próprio (componente de design system, ou artboard que só vincula um): transparente no canvas.
+                'transparent' => $design->isDesignSystem() || $this->onlyLinksComponents($board),
                 // Muda quando o artboard, um componente que ele usa ou os tokens mudam (o canvas recarrega).
                 'version' => $version = $renderer->version($design, $board, $byName),
                 'x' => $board->x,
@@ -54,6 +58,17 @@ class DesignState
             // Comentários só para quem está logado (nunca no link público).
             'comments' => $comments ? $this->comments($design) : null,
         ];
+    }
+
+    /**
+     * Artboard criado por import_component (link): só inclui componentes de design system.
+     */
+    private function onlyLinksComponents(DesignBoard $board): bool
+    {
+        $includes = $board->includes ?? [];
+
+        return $includes !== [] && $board->size_bytes < 1024
+            && collect($includes)->every(fn ($reference) => str_contains($reference, ':'));
     }
 
     /**

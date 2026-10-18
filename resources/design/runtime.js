@@ -46,6 +46,29 @@
     reportError(`Promise rejeitada: ${(reason && reason.message) || reason}`);
   });
 
+  // O artboard pinta fundo próprio? Olha os quatro cantos: cada um precisa estar sobre algum elemento
+  // com fundo (cor ou imagem). Sem isso (ex.: um componente solto), o canvas o mostra transparente.
+  const paints = (node) => {
+    const style = getComputedStyle(node);
+    const color = style.backgroundColor;
+    const clear = !color || color === 'transparent' || /rgba?\([^)]*,\s*0\)$/.test(color) || /\/\s*0\)$/.test(color);
+    return !clear || (style.backgroundImage && style.backgroundImage !== 'none');
+  };
+  const coveredAt = (x, y) => {
+    for (let node = document.elementFromPoint(x, y); node; node = node.parentElement) {
+      if (paints(node)) return true;
+    }
+    // O fundo do <body> se espalha pela página inteira.
+    return Boolean(document.body && paints(document.body));
+  };
+  const reportBackground = () => {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const painted = [[2, 2], [w - 3, 2], [2, h - 3], [w - 3, h - 3]].every(([x, y]) => coveredAt(x, y));
+    post({ ward: 'background', painted });
+  };
+  window.addEventListener('load', reportBackground);
+
   document.addEventListener('click', (event) => {
     const link = event.target.closest && event.target.closest('a[href^="board:"]');
     if (!link) return;

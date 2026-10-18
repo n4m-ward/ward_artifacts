@@ -11,15 +11,20 @@ use App\Mcp\Tools\DesignReportViewTool;
 use App\Mcp\Tools\GetArtboardSourceTool;
 use App\Mcp\Tools\GetArtifactSourceTool;
 use App\Mcp\Tools\GetDesignGuideTool;
+use App\Mcp\Tools\GetDesignSystemTool;
 use App\Mcp\Tools\GetDesignTool;
 use App\Mcp\Tools\GetTemplateTool;
+use App\Mcp\Tools\ImportComponentTool;
 use App\Mcp\Tools\InviteUserTool;
 use App\Mcp\Tools\ListArtifactsTool;
+use App\Mcp\Tools\ListDesignSystemsTool;
 use App\Mcp\Tools\ListProjectsTool;
 use App\Mcp\Tools\OpenDesignTool;
 use App\Mcp\Tools\PublishArtifactTool;
+use App\Mcp\Tools\PublishComponentTool;
 use App\Mcp\Tools\RenameArtifactTool;
 use App\Mcp\Tools\ResolveCommentTool;
+use App\Mcp\Tools\SaveDesignSystemTool;
 use App\Mcp\Tools\SaveDesignVersionTool;
 use App\Mcp\Tools\SetDesignTokensTool;
 use App\Mcp\Tools\UpdateArtifactTool;
@@ -64,6 +69,9 @@ Ward Design (canvas com vários artboards, para mockups, telas de app, landing p
   artboards; use var(--nome) nas telas. Componentes: um artboard pode ser usado dentro de outro com
   <ward-include name="Header"></ward-include> (muda no componente, muda em todos). Páginas:
   update_layout.pages cria abas; upsert_artboard.page coloca a tela numa página.
+- Design systems (um por projeto, visíveis para todos): list_design_systems e get_design_system antes de
+  desenhar; reaproveite com import_component (link ou copy) ou <ward-include ds="usuario/projeto"
+  name="X">. Crie/documente com save_design_system; promova peças com publish_component.
 - Imagens do design: add_design_asset envia (base64) e devolve "assets/{nome}" para usar no HTML;
   get_design lista as que existem, inclusive as que a pessoa enviou no canvas.
 - Para mudar uma tela: get_artboard_source → editar → upsert_artboard com o mesmo name.
@@ -93,6 +101,11 @@ class WardServer extends Server
         ResolveCommentTool::class,
         AddDesignAssetTool::class,
         SetDesignTokensTool::class,
+        ListDesignSystemsTool::class,
+        GetDesignSystemTool::class,
+        SaveDesignSystemTool::class,
+        ImportComponentTool::class,
+        PublishComponentTool::class,
         DeleteArtboardTool::class,
         SaveDesignVersionTool::class,
         OpenDesignTool::class,
