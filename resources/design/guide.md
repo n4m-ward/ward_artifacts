@@ -50,16 +50,13 @@ do design.
 ## 3. Avaliar o print: nenhuma tela está pronta sem você olhar
 
 Toda tela passa por avaliação visual antes de ser considerada pronta. Depois de cada `upsert_artboard`,
-**olhe a imagem** da tela:
+**tire um print** da tela no navegador do seu ambiente (no Claude Code, o painel de navegador) com o
+canvas aberto pelo `preview_url`, e olhe a imagem:
 
-- `get_artboard_image(design, name)`: print de um artboard, renderizado no servidor como aparece no
-  canvas (fontes, fotos e CSS reais). É o padrão depois de criar ou mudar uma tela.
-- `get_design_image(design)`: print do canvas inteiro. Use ao terminar uma rodada ou ao mexer em
-  várias telas, para ver o conjunto.
-- **Navegador do seu ambiente** (o painel de navegador do Claude Code, por exemplo), com o canvas aberto
-  pelo `preview_url`: use quando o print do servidor falhar ou não estiver disponível, ou quando
-  precisar interagir (abrir uma tela em foco, testar um link `board:`). Escolha o que for melhor no
-  momento; o importante é ver a imagem.
+- Para uma tela: abra o artboard em foco (clique duplo nele, ou o link "abrir sozinho") ou dê zoom na
+  área dele. Os iframes do canvas às vezes demoram alguns segundos para pintar na captura: espere e
+  capture de novo.
+- Para o conjunto: "ajustar tudo" (tecla 1) e um print do canvas inteiro.
 
 Na imagem, procure:
 
@@ -72,8 +69,9 @@ Na imagem, procure:
 - áreas vazias que fazem a tela parecer inacabada.
 
 Achou algo: corrija com `upsert_artboard` do mesmo `name` e olhe de novo. Repita até a tela estar sem
-defeitos. Só então passe para a próxima ou diga ao usuário que terminou. No fim, um
-`get_design_image` para conferir o conjunto.
+defeitos; só então passe para a próxima ou diga ao usuário que terminou. No fim, um print do canvas
+inteiro para conferir o conjunto. Sem navegador nenhum, revise o HTML contando alturas e larguras e
+avise o usuário de que não conseguiu ver a tela.
 
 ## Tipos de artboard
 
@@ -112,10 +110,9 @@ post 1080×1080 · story 1080×1920 · banner 1200×628 · A4 794×1123.
 1. `create_design` → guarde o `id` e **abra o canvas antes de criar telas**: `open_design` em clientes com
    MCP Apps (o canvas aparece no chat); nos outros, abra o `preview_url` no seu navegador e passe a `url`
    ao usuário. O canvas atualiza sozinho a cada mudança, então a pessoa acompanha você trabalhando.
-2. Direção (seção 1), depois para cada tela: `upsert_artboard` → `get_artboard_image` → corrigir até
+2. Direção (seção 1), depois para cada tela: `upsert_artboard` → print no navegador → corrigir até
    ficar sem defeitos (seção 3).
-3. `update_layout` para organizar fileiras, títulos e notas, e `get_design_image` para o conjunto.
-4. Para mudar uma tela: `get_artboard_source` → editar → `upsert_artboard` com o mesmo `name` →
-   `get_artboard_image`.
+3. `update_layout` para organizar fileiras, títulos e notas, e um print do canvas inteiro.
+4. Para mudar uma tela: `get_artboard_source` → editar → `upsert_artboard` com o mesmo `name`.
 5. `save_design_version` quando chegar num ponto que valha guardar.
 6. Entregue ao usuário a `url` do design. O `preview_url` (uso único, sem login) é para você.

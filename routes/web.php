@@ -4,7 +4,6 @@ use App\Http\Controllers\ArtifactDownloadController;
 use App\Http\Controllers\ArtifactPreviewController;
 use App\Http\Controllers\ArtifactViewerController;
 use App\Http\Controllers\DesignLiveController;
-use App\Http\Controllers\DesignSnapshotController;
 use App\Models\User;
 use Illuminate\Support\Facades\Route;
 use Livewire\Volt\Volt;
@@ -43,12 +42,6 @@ Route::get('d/{artifact}/live', DesignLiveController::class)
     ->where('artifact', '[0-9a-f]{32}')
     ->middleware('throttle:240,1')
     ->name('designs.live');
-
-// O canvas estático que o Chrome do servidor fotografa (get_design_image).
-Route::get('d/{artifact}/snapshot', DesignSnapshotController::class)
-    ->where('artifact', '[0-9a-f]{32}')
-    ->middleware(['signed:relative', 'throttle:60,1'])
-    ->name('designs.snapshot');
 
 Route::get('artifacts/{artifact}/download', ArtifactDownloadController::class)
     ->name('artifacts.download');

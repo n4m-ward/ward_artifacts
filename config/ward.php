@@ -41,26 +41,6 @@ return [
         ))),
         // Por quanto tempo get_design conta o que a pessoa está olhando no app.
         'viewing_ttl_minutes' => 30,
-
-        // Prints para a IA conferir o que desenhou (get_artboard_image,
-        // get_design_image): um Chrome headless no servidor abre o artboard ou
-        // o canvas. Sem binário configurado, as ferramentas avisam e a IA usa
-        // o navegador dela. Na Hostinger: chrome-headless-shell do Chrome for
-        // Testing + as bibliotecas que faltam numa pasta (library_path).
-        'screenshots' => [
-            'chrome' => env('WARD_SCREENSHOT_CHROME'),
-            'library_path' => env('WARD_SCREENSHOT_LIBRARY_PATH'),
-            'timeout' => 45,
-            // Tempo virtual que a página tem para carregar fontes, fotos e JS.
-            'budget_ms' => 8000,
-            // Tamanho máximo do print de um artboard (px, já com a escala).
-            'board_max_width' => 1200,
-            'board_max_height' => 3600,
-            // Janela do print do canvas inteiro.
-            'design_width' => 1600,
-            'design_max_height' => 2000,
-            'jpeg_quality' => 82,
-        ],
     ],
 
     // Fuso usado para mostrar datas no painel (o banco guarda em UTC).

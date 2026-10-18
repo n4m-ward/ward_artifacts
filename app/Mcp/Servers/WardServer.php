@@ -7,11 +7,9 @@ use App\Mcp\Tools\CreateDesignTool;
 use App\Mcp\Tools\DeleteArtboardTool;
 use App\Mcp\Tools\DesignLiveTool;
 use App\Mcp\Tools\DesignReportViewTool;
-use App\Mcp\Tools\GetArtboardImageTool;
 use App\Mcp\Tools\GetArtboardSourceTool;
 use App\Mcp\Tools\GetArtifactSourceTool;
 use App\Mcp\Tools\GetDesignGuideTool;
-use App\Mcp\Tools\GetDesignImageTool;
 use App\Mcp\Tools\GetDesignTool;
 use App\Mcp\Tools\GetTemplateTool;
 use App\Mcp\Tools\InviteUserTool;
@@ -56,8 +54,8 @@ Ward Design (canvas com vários artboards, para mockups, telas de app, landing p
 - create_design → abra o canvas antes da primeira tela, para a pessoa ver você trabalhando:
   open_design se o cliente mostra MCP Apps (chat do Claude); senão abra o preview_url no seu
   navegador (ex.: Claude Code) → get_design_guide → defina a direção (fontes, paleta) → um
-  upsert_artboard por tela → get_artboard_image para OLHAR cada tela e corrigir até ficar sem defeitos
-  → update_layout → get_design_image para conferir o conjunto. Sem print do servidor, use seu navegador.
+  upsert_artboard por tela → print da tela no seu navegador e correção até ficar sem defeitos (nenhuma
+  tela está pronta sem você olhar) → update_layout → print do canvas inteiro.
 - Alta fidelidade: conteúdo plausível (não [PREÇO]), fotos que você viu carregar, densidade de produto.
 - Para mudar uma tela: get_artboard_source → editar → upsert_artboard com o mesmo name.
 - save_design_version para guardar um ponto. get_design mostra o canvas, o artboard que a pessoa
@@ -81,8 +79,6 @@ class WardServer extends Server
         UpdateDesignLayoutTool::class,
         GetDesignTool::class,
         GetArtboardSourceTool::class,
-        GetArtboardImageTool::class,
-        GetDesignImageTool::class,
         DeleteArtboardTool::class,
         SaveDesignVersionTool::class,
         OpenDesignTool::class,
