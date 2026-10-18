@@ -14,7 +14,7 @@ class UpdateDesignLayout extends DesignMutation
 {
     /**
      * @param  list<array<string, mixed>>  $boards  {name, x?, y?, w?, h?, title?, new_name?, interactive?}
-     * @param  list<array<string, mixed>>  $notes  {key, kind?, x?, y?, w?, text?, color?, delete?}
+     * @param  list<array<string, mixed>>  $notes  {key, kind?, x?, y?, w?, text?, color?, size?, bold?, delete?}
      */
     public function handle(Artifact $design, array $boards = [], array $notes = []): void
     {
@@ -27,6 +27,10 @@ class UpdateDesignLayout extends DesignMutation
 
             if (isset($change['new_name']) && ! static::validName($change['new_name'])) {
                 throw new InvalidDesign("Nome de artboard inválido: \"{$change['new_name']}\".");
+            }
+
+            if (isset($change['new_name']) && $change['new_name'] !== $change['name'] && isset($existing[$change['new_name']])) {
+                throw new InvalidDesign("Já existe um artboard chamado \"{$change['new_name']}\".");
             }
 
             foreach (['w', 'h'] as $dimension) {
@@ -47,6 +51,10 @@ class UpdateDesignLayout extends DesignMutation
 
             if (isset($note['color']) && ! in_array($note['color'], DesignNote::COLORS, true)) {
                 throw new InvalidDesign('Cor de nota inválida. Use: '.implode(', ', DesignNote::COLORS).'.');
+            }
+
+            if (isset($note['size']) && ! in_array($note['size'], DesignNote::SIZES, true)) {
+                throw new InvalidDesign('Tamanho de nota inválido. Use: '.implode(', ', DesignNote::SIZES).'.');
             }
         }
 
@@ -84,6 +92,8 @@ class UpdateDesignLayout extends DesignMutation
                     'w' => $change['w'] ?? null,
                     'text' => $change['text'] ?? null,
                     'color' => $change['color'] ?? null,
+                    'size' => $change['size'] ?? null,
+                    'bold' => isset($change['bold']) ? (bool) $change['bold'] : null,
                 ], fn ($value) => $value !== null));
             }
         });

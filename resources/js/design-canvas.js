@@ -12,8 +12,8 @@ const POLL_HIDDEN = 10000;
 const MOBILE_BREAKPOINT = 640;
 
 const NOTE_COLORS = {
-    gray: '#E4E4E7', yellow: '#FEF3C7', blue: '#DBEAFE',
-    green: '#DCFCE7', pink: '#FCE7F3', purple: '#EDE9FE',
+    gray: '#E4E4E7', yellow: '#FEF3C7', orange: '#FFEDD5', red: '#FEE2E2', green: '#DCFCE7',
+    teal: '#CCFBF1', blue: '#DBEAFE', purple: '#EDE9FE', pink: '#FCE7F3',
 };
 
 function el(tag, attrs = {}, children = []) {
@@ -47,6 +47,10 @@ class DesignCanvas {
      * options.persistView: guarda zoom/posição no localStorage (padrão: true).
      * options.mobileBreakpoint: abaixo desta largura vira lista (padrão: 640).
      * options.listMaxHeight: altura máxima de cada artboard na lista (padrão: sem limite).
+     *
+     * Um editor (resources/js/design-editor.js) pode se ligar em canvas.editor:
+     * pointerDown(event) devolve true quando trata o clique; canvas.hold pausa o
+     * ao vivo durante um arraste ou um envio.
      */
     constructor(root, config, options = {}) {
         this.root = root;
@@ -60,6 +64,8 @@ class DesignCanvas {
         this.selected = null;
         this.focusIndex = null;
         this.viewKey = `ward-design-view:${config.design}`;
+        this.editor = null;
+        this.hold = false;
 
         this.viewport = root.querySelector('[data-canvas-viewport]');
         this.world = root.querySelector('[data-canvas-world]');
@@ -123,26 +129,46 @@ class DesignCanvas {
 
         if (this.empty) this.empty.hidden = this.state.boards.length > 0;
         this.loadVisible();
+        this.editor?.afterRender();
     }
 
     renderNotes() {
+        // A nota em edição no editor não é recriada (perderia o cursor).
+        const editing = this.editor?.editingNote ?? null;
         this.notesLayer.replaceChildren(...this.state.notes.map((note) => {
+            if (editing && editing.dataset.note === note.key) return editing;
+            const classes = [
+                note.kind === 'title' ? 'ward-note-title' : 'ward-note-sticky',
+                note.size ? `is-size-${note.size}` : '',
+                note.bold ? 'is-bold' : '',
+            ].join(' ').trim();
             if (note.kind === 'title') {
                 return el('div', {
-                    class: 'ward-note-title',
+                    class: classes,
                     text: note.text,
+                    'data-note': note.key,
                     style: { left: `${note.x}px`, top: `${note.y}px`, maxWidth: note.w ? `${note.w}px` : '2400px' },
                 });
             }
             return el('div', {
-                class: 'ward-note-sticky',
+                class: classes,
                 text: note.text,
+                'data-note': note.key,
                 style: {
                     left: `${note.x}px`, top: `${note.y}px`, width: `${note.w || 260}px`,
                     background: NOTE_COLORS[note.color] || NOTE_COLORS.yellow,
                 },
             });
         }));
+    }
+
+    /** Ponto da tela (clientX/Y) em coordenadas do canvas. */
+    toWorld(clientX, clientY) {
+        const rect = this.viewport.getBoundingClientRect();
+        return {
+            x: (clientX - rect.left - this.view.x) / this.view.scale,
+            y: (clientY - rect.top - this.view.y) / this.view.scale,
+        };
     }
 
     createBoard(data) {
@@ -277,8 +303,9 @@ class DesignCanvas {
         const { x, y, scale } = this.view;
         this.world.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
         this.world.style.setProperty('--inv', String(1 / scale));
-        this.zoomLabel.textContent = `${Math.round(scale * 100)}%`;
+        if (this.zoomLabel) this.zoomLabel.textContent = `${Math.round(scale * 100)}%`;
         this.loadVisible();
+        this.editor?.afterView();
         if (this.isMobile()) {
             // No celular o canvas fica oculto: não salva uma visualização sem sentido.
             for (const entry of this.boards.values()) if (entry.listNode) this.updateListItem(entry);
@@ -358,6 +385,7 @@ class DesignCanvas {
         let pinch = null;
 
         this.viewport.addEventListener('pointerdown', (event) => {
+            if (this.editor?.pointerDown(event)) return;
             if (event.target.closest('button, a')) return;
             this.viewport.setPointerCapture(event.pointerId);
             pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
@@ -424,7 +452,7 @@ class DesignCanvas {
             }
         }, { passive: false });
 
-        this.root.querySelector('[data-zoom-toolbar]').addEventListener('click', (event) => {
+        this.root.querySelector('[data-zoom-toolbar]')?.addEventListener('click', (event) => {
             const action = event.target.closest('[data-zoom]')?.dataset.zoom;
             if (action) this.userMoved = action !== 'fit';
             if (action === 'in') this.zoomAt(1.25);
@@ -439,11 +467,12 @@ class DesignCanvas {
         this.selected = id;
         for (const [boardId, entry] of this.boards) entry.node.classList.toggle('is-selected', boardId === id);
         if (changed) this.options.onSelect?.(this.boards.get(id)?.data ?? null);
+        this.editor?.afterSelect(id);
     }
 
-    /** Estado novo vindo de fora (ex.: resultado de uma ferramenta no MCP App). */
-    setState(state) {
-        if (!state || state.revision === this.state.revision) return;
+    /** Estado novo vindo de fora (resultado de uma ferramenta no MCP App, ou do editor). */
+    setState(state, force = false) {
+        if (!state || (!force && state.revision === this.state.revision)) return;
         this.state = state;
         this.renderAll();
     }
@@ -541,6 +570,7 @@ class DesignCanvas {
 
     bindKeyboard() {
         document.addEventListener('keydown', (event) => {
+            if (event.defaultPrevented) return;
             if (event.target.closest('input, textarea, select, [contenteditable]')) return;
             if (this.focusIndex !== null) {
                 if (event.key === 'Escape') this.closeFocus();
@@ -599,7 +629,8 @@ class DesignCanvas {
                 this.showBanner('Este canvas não está mais disponível para esta sessão. Recarregue a página.');
                 return;
             }
-            if (response.status === 200) {
+            // Durante um arraste ou um envio do editor, o estado do servidor espera.
+            if (response.status === 200 && !this.hold) {
                 this.state = await response.json();
                 this.renderAll();
             }
