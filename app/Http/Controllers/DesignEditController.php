@@ -28,6 +28,7 @@ use Illuminate\Support\Str;
  * - board.delete {id}
  * - note.upsert {key, kind?, x?, y?, w?, text?, color?, size?, bold?}
  * - note.delete {key}
+ * - board.html {id, html, base?} (editor visual; base = revisão em que a edição foi feita)
  */
 class DesignEditController extends Controller
 {
@@ -47,7 +48,7 @@ class DesignEditController extends Controller
         $request->validate([
             'ops' => ['required', 'array', 'min:1', 'max:200'],
             'ops.*' => ['array'],
-            'ops.*.op' => ['required', 'string', 'in:board.update,board.duplicate,board.create,board.delete,note.upsert,note.delete'],
+            'ops.*.op' => ['required', 'string', 'in:board.update,board.duplicate,board.create,board.delete,board.html,note.upsert,note.delete'],
         ]);
 
         // validate() devolveria só "op": cada operação leva os próprios campos.
@@ -98,6 +99,7 @@ class DesignEditController extends Controller
             'board.duplicate' => $this->duplicateBoard($design, $request, $op),
             'board.create' => $this->createBoard($design, $request, $op),
             'board.delete' => $this->deleteBoard($design, $op),
+            'board.html' => $this->saveHtml($design, $request, $op),
             'note.upsert' => $this->upsertNote($design, $op),
             'note.delete' => $this->deleteNote($design, $op),
         };
@@ -174,6 +176,29 @@ class DesignEditController extends Controller
         ]);
 
         return ['id' => $board->id, 'name' => $board->name];
+    }
+
+    /**
+     * HTML novo de um artboard, vindo do editor visual. Se a IA (ou outra aba)
+     * mudou o artboard depois que a edição começou, recusa em vez de sobrescrever.
+     *
+     * @param  array<string, mixed>  $op
+     * @return array<string, mixed>
+     */
+    private function saveHtml(Artifact $design, Request $request, array $op): array
+    {
+        $board = $this->board($design, $op);
+
+        if (isset($op['base']) && (int) $op['base'] !== $board->revision) {
+            throw new InvalidDesign("O artboard \"{$board->name}\" mudou enquanto você editava. O canvas foi atualizado: refaça a última mudança.");
+        }
+
+        $saved = $this->upsert->handle($design, $request->user(), [
+            'name' => $board->name,
+            'html' => (string) ($op['html'] ?? ''),
+        ]);
+
+        return ['id' => $saved->id, 'revision' => $saved->revision];
     }
 
     /**

@@ -99,6 +99,7 @@ class DesignEditor {
         this.bindKeys();
         this.bindDoubleClick();
         this.initComments();
+        if (this.canEdit) this.initInspector();
         this.afterRender();
     }
 
@@ -148,8 +149,15 @@ class DesignEditor {
         this.selection = new Set(keys.filter((key) => this.exists(key)));
         const boards = [...this.selection].filter((key) => key.startsWith('b:'));
         this.syncing = true;
-        this.canvas.select(this.selection.size === 1 && boards.length === 1 ? Number(boards[0].slice(2)) : null);
+        const single = this.selection.size === 1 && boards.length === 1 ? Number(boards[0].slice(2)) : null;
+        this.canvas.select(single);
         this.syncing = false;
+        if (this.inspect && this.inspect.boardId !== single) this.exitBoard();
+        if (this.canEdit && single !== null && this.tweaksFor !== single) this.loadTweaks(single);
+        if (single === null && this.tweaksOpen) {
+            this.tweaksOpen = false;
+            if (!this.inspect) this.props.hidden = true;
+        }
         this.drawSelection();
     }
 
@@ -223,6 +231,7 @@ class DesignEditor {
 
     afterRender() {
         this.renderPins();
+        if (this.inspect) this.drawElement();
         if (this.gesture) return;
         const before = this.selection.size;
         for (const key of [...this.selection]) if (!this.exists(key)) this.selection.delete(key);
@@ -285,6 +294,15 @@ class DesignEditor {
             const data = this.boardEntry(boards[0]).data;
             children.push(el('span', { class: 'ward-ed-label', text: `${data.title || data.name} · ${data.w}×${data.h}` }));
             children.push(button('Abrir em foco (Enter)', 'open', () => this.canvas.openFocus(data.id)));
+            children.push(button('Editar elementos: clique duplo no artboard', null, () => this.enterBoardCenter(data.id), { text: 'Editar', class: 'ward-ed-btn is-text' }));
+            if (this.tweaksFor === data.id && this.tweaks) {
+                children.push(button('Tweaks deste artboard', null, () => {
+                    this.tweaksOpen = true;
+                    this.exitBoard();
+                    this.panel.hidden = true;
+                    this.renderTweaks();
+                }, { text: 'Tweaks', class: 'ward-ed-btn is-text', 'aria-pressed': String(Boolean(this.tweaksOpen)) }));
+            }
         }
 
         if (boards.length >= 2) {
@@ -364,6 +382,16 @@ class DesignEditor {
         if (this.canvas.isMobile() || this.canvas.focusIndex !== null) return false;
         if (event.button === 0 && !this.space && this.commentPointerDown(event)) return true;
         if (!this.canEdit) return false;
+
+        // Dentro de um artboard em edição: o clique escolhe outro elemento.
+        if (this.inspect && event.button === 0 && !this.space && this.tool === 'select') {
+            const inside = event.target.closest('[data-board]');
+            if (inside && Number(inside.dataset.board) === this.inspect.boardId && !event.target.closest('[data-handle], .ward-board-caption')) {
+                this.enterBoard(this.inspect.boardId, event.clientX, event.clientY);
+                return true;
+            }
+            this.exitBoard();
+        }
         if (this.editingNote) {
             if (event.target.closest('[data-note]') === this.editingNote) return true;
             this.editingNote.blur();
@@ -941,6 +969,22 @@ class DesignEditor {
                 event.stopImmediatePropagation();
                 return;
             }
+            if (this.inspect) {
+                let used = true;
+                if (key === 'escape') this.exitBoard();
+                else if (key === 'enter') this.editTextInPlace();
+                else if (key === 'delete' || key === 'backspace') this.elementAction('delete');
+                else if (mod && key === 'd') this.elementAction('duplicate');
+                else if (mod && key === 'z' && !event.shiftKey) this.undo();
+                else if ((mod && key === 'z' && event.shiftKey) || (mod && key === 'y')) this.redo();
+                else used = false;
+                if (used) {
+                    event.preventDefault();
+                    event.stopImmediatePropagation();
+                    return;
+                }
+                if (key.startsWith('arrow')) return;
+            }
 
             if (mod && key === 'z' && !event.shiftKey) this.undo();
             else if ((mod && key === 'z' && event.shiftKey) || (mod && key === 'y')) this.redo();
@@ -981,6 +1025,14 @@ class DesignEditor {
             if (this.canvas.isMobile()) return;
             const note = event.target.closest('[data-note]');
             const name = event.target.closest('.ward-board-name');
+            const board = event.target.closest('[data-board]');
+            if (this.canEdit && board && !name && this.tool === 'select') {
+                event.stopImmediatePropagation();
+                const id = Number(board.dataset.board);
+                if (this.inspect?.boardId === id && this.inspect.element?.textOnly) this.editTextInPlace();
+                else this.enterBoard(id, event.clientX, event.clientY);
+                return;
+            }
             if (note) {
                 event.stopImmediatePropagation();
                 this.setSelection([`n:${note.dataset.note}`]);
@@ -992,6 +1044,483 @@ class DesignEditor {
         }, true);
     }
 }
+
+// ---------- edição visual (elementos dentro do artboard) e Tweaks ----------
+
+let colorProbe = null;
+/** Qualquer cor CSS (rgb, oklch, nome...) em #rrggbb; null se transparente ou inválida. */
+const toHex = (color) => {
+    if (!color || color === 'transparent' || color === 'none') return null;
+    if (/^#[0-9a-f]{6}$/i.test(color)) return color.toLowerCase();
+    try {
+        colorProbe ??= document.createElement('canvas').getContext('2d', { willReadFrequently: true });
+        colorProbe.clearRect(0, 0, 1, 1);
+        colorProbe.fillStyle = '#000';
+        colorProbe.fillStyle = color;
+        colorProbe.fillRect(0, 0, 1, 1);
+        const [r, g, b, a] = colorProbe.getImageData(0, 0, 1, 1).data;
+        if (a === 0) return null;
+        return `#${[r, g, b].map((n) => n.toString(16).padStart(2, '0')).join('')}`;
+    } catch {
+        return null;
+    }
+};
+const firstFamily = (family) => (family || '').split(',')[0].replace(/["']/g, '').trim();
+const SHADOWS = {
+    none: ['Nenhuma', 'none'],
+    soft: ['Suave', '0 1px 3px rgb(0 0 0 / .12)'],
+    medium: ['Média', '0 6px 20px rgb(0 0 0 / .14)'],
+    strong: ['Forte', '0 18px 50px rgb(0 0 0 / .24)'],
+};
+
+function field(label, control, extra = null) {
+    return el('label', { class: 'ward-ed-field' }, [el('span', { text: label }), control, extra]);
+}
+
+Object.assign(DesignEditor.prototype, {
+    initInspector() {
+        this.inspect = null;
+        this.sources = new Map();
+        this.htmlBatch = new Map();
+        this.props = el('aside', { class: 'ward-ed-props', hidden: true, 'aria-label': 'Propriedades do elemento' });
+        this.canvas.root.append(this.props);
+        this.elementBox = el('div', { class: 'ward-ed-element', hidden: true });
+        this.canvas.world.append(this.elementBox);
+    },
+
+    sourceUrl(boardId) {
+        return this.config.sourceUrl.replace(/\/boards\/0\/source$/, `/boards/${boardId}/source`);
+    },
+
+    loadSource(boardId) {
+        const entry = this.canvas.boards.get(boardId);
+        const cached = this.sources.get(boardId);
+        // Com edição pendente, o documento em memória é o certo (o servidor ainda não tem).
+        if (cached && (this.htmlBatch.has(boardId) || (entry && cached.revision === entry.data.revision))) return Promise.resolve(cached);
+        // Duas edições seguidas esperam a mesma leitura (senão uma apagaria a outra).
+        this.sourceLoads ??= new Map();
+        if (this.sourceLoads.has(boardId)) return this.sourceLoads.get(boardId);
+        const load = (async () => {
+            const response = await fetch(this.sourceUrl(boardId), { credentials: 'same-origin', headers: { Accept: 'application/json' } });
+            if (!response.ok) throw new Error('source');
+            const json = await response.json();
+            const source = { revision: json.revision, html: json.html, doc: new DOMParser().parseFromString(json.html, 'text/html') };
+            this.sources.set(boardId, source);
+            return source;
+        })();
+        this.sourceLoads.set(boardId, load);
+        load.finally(() => this.sourceLoads.delete(boardId)).catch(() => {});
+        return load;
+    },
+
+    sourceNode(doc, path) {
+        let node = doc.body;
+        if (path === '') return node;
+        for (const index of String(path).split('/')) node = node?.children[Number(index)];
+        return node ?? null;
+    },
+
+    serialize(doc) {
+        return `<!doctype html>\n${doc.documentElement.outerHTML}`;
+    },
+
+    // ----- seleção de elemento -----
+
+    async enterBoard(boardId, clientX, clientY) {
+        const board = this.canvas.boards.get(boardId)?.data;
+        if (!board) return;
+        const world = this.canvas.toWorld(clientX, clientY);
+        const element = await this.canvas.pick(boardId, world.x - board.x, world.y - board.y);
+        if (element) this.selectElement(boardId, element);
+    },
+
+    selectElement(boardId, element) {
+        this.inspect = { boardId, element, path: element.path };
+        const board = this.canvas.boards.get(boardId)?.data;
+        this.lastPicked = board ? { board: board.name, element } : null;
+        if (!this.selection.has(`b:${boardId}`) || this.selection.size !== 1) this.setSelection([`b:${boardId}`]);
+        this.drawElement();
+        this.renderProps();
+        this.reportView();
+    },
+
+    enterBoardCenter(boardId) {
+        const entry = this.canvas.boards.get(boardId);
+        if (!entry) return;
+        const rect = entry.frame.getBoundingClientRect();
+        this.enterBoard(boardId, rect.left + rect.width / 2, rect.top + Math.min(rect.height / 2, 80));
+    },
+
+    exitBoard() {
+        if (!this.inspect) return;
+        this.inspect = null;
+        this.elementBox.hidden = true;
+        this.props.hidden = true;
+        this.renderBar();
+    },
+
+    drawElement() {
+        const board = this.inspect && this.canvas.boards.get(this.inspect.boardId)?.data;
+        if (!board || !this.inspect.element) {
+            this.elementBox.hidden = true;
+            return;
+        }
+        const r = this.inspect.element.rect;
+        Object.assign(this.elementBox.style, rectStyle({ x: board.x + r.x, y: board.y + r.y, w: r.w, h: r.h }));
+        this.elementBox.dataset.tag = this.inspect.element.tag;
+        this.elementBox.hidden = false;
+    },
+
+    async refreshElement() {
+        if (!this.inspect) return;
+        const element = await this.canvas.ask(this.inspect.boardId, { ward: 'describe', path: this.inspect.path });
+        if (!this.inspect) return;
+        if (!element) return this.exitBoard();
+        this.inspect.element = element;
+        this.drawElement();
+        this.renderProps();
+    },
+
+    frameSwapped(boardId) {
+        if (this.inspect?.boardId === boardId) this.refreshElement();
+        if (this.tweaksFor === boardId) this.loadTweaks(boardId);
+    },
+
+    // ----- edição -----
+
+    async editElement(mutate, { live = null, label = 'Elemento atualizado', select = undefined } = {}) {
+        if (!this.inspect) return;
+        const { boardId, path, element } = this.inspect;
+        let source;
+        try {
+            source = await this.loadSource(boardId);
+        } catch {
+            return this.setStatus('Não consegui ler o HTML deste artboard.', true);
+        }
+        const node = this.sourceNode(source.doc, path);
+        if (!node || node.tagName.toLowerCase() !== element.tag) {
+            return this.setStatus('Este elemento é criado por script: peça a mudança à IA (comentário).', true);
+        }
+        if (live) this.canvas.tell(boardId, { ward: 'apply', path, ...live });
+        const result = mutate(node, source.doc);
+        if (select !== undefined) this.inspect.path = select ?? result ?? path;
+        this.scheduleHtmlSave(boardId, label);
+    },
+
+    setStyle(prop, value) {
+        this.editElement((node) => {
+            if (value === null || value === '') node.style.removeProperty(prop);
+            else node.style.setProperty(prop, value);
+            if (!node.getAttribute('style')) node.removeAttribute('style');
+        }, { live: { style: { [prop]: value || null } }, label: 'Estilo atualizado' });
+    },
+
+    setAttr(name, value) {
+        this.editElement((node) => {
+            if (value === null || value === '') node.removeAttribute(name);
+            else node.setAttribute(name, value);
+        }, { live: { attrs: { [name]: value || null } }, label: 'Atributo atualizado' });
+    },
+
+    setInlineCss(css) {
+        this.editElement((node) => {
+            if (css.trim()) node.setAttribute('style', css.trim());
+            else node.removeAttribute('style');
+        }, { live: null, label: 'CSS atualizado' });
+    },
+
+    /** Junta edições seguidas (ex.: arrastar um controle) num passo só do desfazer. */
+    scheduleHtmlSave(boardId, label) {
+        const source = this.sources.get(boardId);
+        if (!source) return;
+        if (!this.htmlBatch.has(boardId)) this.htmlBatch.set(boardId, { before: source.html, base: source.revision, label });
+        this.canvas.hold = true;
+        clearTimeout(this.htmlTimer);
+        this.htmlTimer = setTimeout(() => this.flushHtml(), 450);
+    },
+
+    async flushHtml() {
+        const batches = [...this.htmlBatch.entries()];
+        this.htmlBatch.clear();
+        for (const [boardId, batch] of batches) {
+            const source = this.sources.get(boardId);
+            const after = this.serialize(source.doc);
+            if (after === batch.before) continue;
+            const entry = this.canvas.boards.get(boardId);
+            const results = await this.send([{ op: 'board.html', id: boardId, html: after, base: batch.base }], 'Salvando…');
+            if (!results) {
+                this.sources.delete(boardId); // o servidor recusou: relê o HTML na próxima edição
+                continue;
+            }
+            source.html = after;
+            source.revision = results[0].revision;
+            if (entry) entry.quietRevision = results[0].revision;
+            this.push({
+                redo: [{ op: 'board.html', id: boardId, html: after }],
+                undo: [{ op: 'board.html', id: boardId, html: batch.before }],
+            });
+            this.setStatus(batch.label);
+        }
+        this.release();
+    },
+
+    textEdited(boardId, message) {
+        const entry = this.canvas.boards.get(boardId);
+        entry?.node.classList.remove('is-editing-text');
+        if (message.text === null || message.text === message.before || this.inspect?.boardId !== boardId) return;
+        this.editElement((node) => {
+            node.textContent = message.text;
+        }, { label: 'Texto atualizado' });
+    },
+
+    editTextInPlace() {
+        if (!this.inspect?.element?.textOnly) return;
+        const entry = this.canvas.boards.get(this.inspect.boardId);
+        entry.node.classList.add('is-editing-text');
+        entry.frame.focus();
+        this.canvas.tell(this.inspect.boardId, { ward: 'edit-text', path: this.inspect.path });
+    },
+
+    // ----- ações de estrutura -----
+
+    elementAction(action) {
+        const path = this.inspect?.path;
+        if (path === undefined) return;
+        const parts = path === '' ? [] : path.split('/').map(Number);
+        const index = parts[parts.length - 1];
+        const parentPath = parts.slice(0, -1).join('/');
+
+        if (action === 'parent') {
+            if (!parts.length) return;
+            this.inspect.path = parentPath;
+            return this.refreshElement();
+        }
+        if (action === 'duplicate') {
+            return this.editElement((node) => node.after(node.cloneNode(true)), { label: 'Elemento duplicado', select: [...parts.slice(0, -1), index + 1].join('/') });
+        }
+        if (action === 'delete') {
+            this.editElement((node) => node.remove(), { label: 'Elemento apagado' }).then(() => this.exitBoard());
+            return;
+        }
+        if (action === 'up' || action === 'down') {
+            return this.editElement((node) => {
+                const sibling = action === 'up' ? node.previousElementSibling : node.nextElementSibling;
+                if (!sibling) return path;
+                if (action === 'up') sibling.before(node);
+                else sibling.after(node);
+                return [...parts.slice(0, -1), index + (action === 'up' ? -1 : 1)].join('/');
+            }, { label: 'Elemento movido', select: null });
+        }
+        if (action === 'flex' || action === 'grid') {
+            return this.editElement((node, doc) => {
+                const wrapper = doc.createElement('div');
+                wrapper.setAttribute('style', action === 'flex'
+                    ? 'display: flex; align-items: center; gap: 12px'
+                    : 'display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px');
+                node.replaceWith(wrapper);
+                wrapper.append(node);
+            }, { label: action === 'flex' ? 'Envolvido em flex' : 'Envolvido em grid', select: path });
+        }
+    },
+
+    // ----- painel de propriedades -----
+
+    renderProps() {
+        if (!this.inspect?.element || this.canvas.isMobile()) {
+            this.props.hidden = true;
+            return;
+        }
+        if (this.props.contains(document.activeElement) && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) {
+            this.propsDirty = true;
+            return; // não troca o painel no meio de uma digitação
+        }
+        this.panel.hidden = true;
+        const e = this.inspect.element;
+        const st = e.styles || {};
+        const inline = {};
+        for (const part of (e.inline || '').split(';')) {
+            const [k, ...v] = part.split(':');
+            if (k?.trim()) inline[k.trim()] = v.join(':').trim();
+        }
+        const value = (prop) => inline[prop] ?? '';
+        const text = (prop, placeholder) => {
+            const input = el('input', { type: 'text', value: value(prop), placeholder: placeholder ?? st[prop] ?? '' });
+            input.addEventListener('change', () => this.setStyle(prop, input.value.trim()));
+            input.addEventListener('keydown', (event) => event.stopPropagation());
+            return input;
+        };
+        const color = (prop) => {
+            const current = toHex(inline[prop] || st[prop]) || '#000000';
+            const picker = el('input', { type: 'color', value: current });
+            const hex = el('input', { type: 'text', value: inline[prop] ?? '', placeholder: toHex(st[prop]) ?? 'transparente', class: 'ward-ed-hex' });
+            picker.addEventListener('input', () => {
+                hex.value = picker.value;
+                this.setStyle(prop, picker.value);
+            });
+            hex.addEventListener('change', () => this.setStyle(prop, hex.value.trim()));
+            hex.addEventListener('keydown', (event) => event.stopPropagation());
+            return el('span', { class: 'ward-ed-color' }, [picker, hex]);
+        };
+        const select = (prop, options) => {
+            const input = el('select', {}, [el('option', { value: '', text: `— (${st[prop] || 'padrão'})` }),
+                ...options.map(([v, label]) => el('option', { value: v, text: label, selected: value(prop) === v }))]);
+            input.addEventListener('change', () => this.setStyle(prop, input.value));
+            return input;
+        };
+        const section = (title, children) => el('section', { class: 'ward-ed-section' }, [el('h3', { text: title }), ...children.filter(Boolean)]);
+        const act = (label, iconName, action, cls = '') => button(label, iconName, () => this.elementAction(action), { class: `ward-ed-btn ${cls}`.trim() });
+
+        const shadowSelect = el('select', {}, Object.entries(SHADOWS).map(([key, [label, css]]) => el('option', { value: css, text: label, selected: value('box-shadow') === css })));
+        shadowSelect.prepend(el('option', { value: '', text: `— (${st['box-shadow'] === 'none' ? 'nenhuma' : 'atual'})`, selected: !Object.values(SHADOWS).some(([, css]) => css === value('box-shadow')) }));
+        shadowSelect.addEventListener('change', () => this.setStyle('box-shadow', shadowSelect.value));
+
+        const opacity = el('input', { type: 'range', min: '0', max: '100', value: String(Math.round(Number(st.opacity ?? 1) * 100)) });
+        opacity.addEventListener('input', () => this.setStyle('opacity', String(Number(opacity.value) / 100)));
+
+        const css = el('textarea', { class: 'ward-ed-input ward-ed-code', rows: '4', spellcheck: 'false' });
+        css.value = (e.inline || '').split(';').map((x) => x.trim()).filter(Boolean).join(';\n');
+        css.addEventListener('change', () => this.setInlineCss(css.value.replace(/\n/g, ' ')));
+        css.addEventListener('keydown', (event) => event.stopPropagation());
+
+        const isFlex = (st.display || '').includes('flex') || (st.display || '').includes('grid');
+        const attrFields = [];
+        if (e.tag === 'img') {
+            for (const name of ['src', 'alt']) {
+                const input = el('input', { type: 'text', value: e.attrs?.[name] ?? '' });
+                input.addEventListener('change', () => this.setAttr(name, input.value.trim()));
+                input.addEventListener('keydown', (event) => event.stopPropagation());
+                attrFields.push(field(name === 'src' ? 'Imagem (URL)' : 'Texto alternativo', input));
+            }
+        }
+        if (e.tag === 'a') {
+            const input = el('input', { type: 'text', value: e.attrs?.href ?? '', placeholder: 'https://… ou board:Tela' });
+            input.addEventListener('change', () => this.setAttr('href', input.value.trim()));
+            input.addEventListener('keydown', (event) => event.stopPropagation());
+            attrFields.push(field('Link', input));
+        }
+
+        const board = this.canvas.boards.get(this.inspect.boardId)?.data;
+        this.props.replaceChildren(...[
+            el('div', { class: 'ward-ed-props-head' }, [
+                el('div', {}, [el('strong', { text: `<${e.tag}>` }), el('span', { class: 'ward-ed-muted', text: ` ${board?.title || board?.name || ''}` })]),
+                button('Fechar (Esc)', 'close', () => this.exitBoard()),
+            ]),
+            e.text ? el('p', { class: 'ward-ed-muted ward-ed-snippet', text: `“${e.text.slice(0, 80)}”` }) : null,
+            el('div', { class: 'ward-ed-props-actions' }, [
+                button('Selecionar o pai', null, () => this.elementAction('parent'), { text: 'Pai', class: 'ward-ed-btn is-text' }),
+                act('Duplicar elemento', 'duplicate', 'duplicate'),
+                button('Subir', null, () => this.elementAction('up'), { text: '↑', class: 'ward-ed-btn' }),
+                button('Descer', null, () => this.elementAction('down'), { text: '↓', class: 'ward-ed-btn' }),
+                button('Envolver em flex', null, () => this.elementAction('flex'), { text: 'Flex', class: 'ward-ed-btn is-text' }),
+                button('Envolver em grid', null, () => this.elementAction('grid'), { text: 'Grid', class: 'ward-ed-btn is-text' }),
+                act('Apagar elemento', 'trash', 'delete', 'is-danger'),
+            ]),
+            e.textOnly ? el('p', { class: 'ward-ed-hint', text: 'Clique duplo no texto (ou Enter) para editar no lugar.' }) : null,
+            section('Tipografia', [
+                field('Fonte', text('font-family', firstFamily(st['font-family']))),
+                el('div', { class: 'ward-ed-row' }, [field('Tamanho', text('font-size')), field('Peso', select('font-weight', ['300', '400', '500', '600', '700', '800', '900'].map((w) => [w, w])))]),
+                el('div', { class: 'ward-ed-row' }, [field('Altura da linha', text('line-height')), field('Espaçamento', text('letter-spacing'))]),
+                field('Cor do texto', color('color')),
+                field('Alinhamento', select('text-align', [['left', 'Esquerda'], ['center', 'Centro'], ['right', 'Direita'], ['justify', 'Justificado']])),
+            ]),
+            section('Preenchimento e borda', [
+                field('Fundo', color('background-color')),
+                el('div', { class: 'ward-ed-row' }, [field('Raio', text('border-radius')), field('Borda', text('border', st.border?.startsWith('0px') ? 'ex.: 1px solid #ddd' : st.border))]),
+                field('Sombra', shadowSelect),
+                field(`Opacidade`, opacity),
+            ]),
+            section('Espaço e tamanho', [
+                el('div', { class: 'ward-ed-row' }, [field('Padding', text('padding')), field('Margem', text('margin'))]),
+                el('div', { class: 'ward-ed-row' }, [field('Largura', text('width')), field('Altura', text('height'))]),
+            ]),
+            section('Layout', [
+                field('Exibição', select('display', [['block', 'Bloco'], ['flex', 'Flex'], ['grid', 'Grid'], ['inline-block', 'Em linha'], ['none', 'Oculto']])),
+                isFlex ? el('div', { class: 'ward-ed-row' }, [
+                    field('Direção', select('flex-direction', [['row', 'Linha'], ['column', 'Coluna']])),
+                    field('Espaço (gap)', text('gap')),
+                ]) : null,
+                isFlex ? el('div', { class: 'ward-ed-row' }, [
+                    field('Distribuir', select('justify-content', [['flex-start', 'Início'], ['center', 'Centro'], ['flex-end', 'Fim'], ['space-between', 'Entre']])),
+                    field('Alinhar', select('align-items', [['stretch', 'Esticar'], ['flex-start', 'Início'], ['center', 'Centro'], ['flex-end', 'Fim']])),
+                ]) : null,
+            ]),
+            attrFields.length ? section('Atributos', attrFields) : null,
+            section('CSS deste elemento', [css]),
+        ].filter(Boolean));
+        this.props.hidden = false;
+    },
+
+    // ----- Tweaks -----
+
+    async loadTweaks(boardId) {
+        const tweaks = await this.canvas.ask(boardId, { ward: 'tweaks' });
+        this.tweaksFor = boardId;
+        this.tweaks = tweaks && typeof tweaks === 'object' ? tweaks : null;
+        this.renderBar();
+        if (this.tweaksOpen) this.renderTweaks();
+    },
+
+    renderTweaks() {
+        if (!this.tweaks || !this.tweaksOpen) return;
+        const boardId = this.tweaksFor;
+        const controls = Object.entries(this.tweaks).map(([key, def]) => {
+            const label = def.label || key;
+            let input;
+            if (def.type === 'color') {
+                input = el('input', { type: 'color', value: toHex(def.value) || '#000000' });
+            } else if (def.type === 'range') {
+                input = el('input', { type: 'range', min: String(def.min ?? 0), max: String(def.max ?? 100), step: String(def.step ?? 1), value: String(def.value ?? 0) });
+            } else if (def.type === 'boolean') {
+                input = el('input', { type: 'checkbox', checked: Boolean(def.value) });
+            } else if (def.type === 'enum') {
+                input = el('select', {}, (def.options || []).map((option) => el('option', { value: option, text: option, selected: option === def.value })));
+            } else {
+                input = el('input', { type: 'text', value: String(def.value ?? '') });
+                input.addEventListener('keydown', (event) => event.stopPropagation());
+            }
+            const read = () => (def.type === 'boolean' ? input.checked : def.type === 'range' ? Number(input.value) : input.value);
+            const show = el('span', { class: 'ward-ed-muted', text: def.type === 'range' ? `${def.value}${def.unit || ''}` : '' });
+            input.addEventListener(def.type === 'text' ? 'change' : 'input', () => {
+                const v = read();
+                def.value = v;
+                if (def.type === 'range') show.textContent = `${v}${def.unit || ''}`;
+                this.canvas.tell(boardId, { ward: 'tweak', key, value: v });
+                this.saveTweak(boardId, key, v);
+            });
+            return field(label, input, show);
+        });
+        this.props.replaceChildren(
+            el('div', { class: 'ward-ed-props-head' }, [el('strong', { text: 'Tweaks' }), button('Fechar', 'close', () => { this.tweaksOpen = false; this.props.hidden = true; })]),
+            el('p', { class: 'ward-ed-hint', text: 'Controles que a IA deixou neste artboard. A mudança vale para o arquivo salvo.' }),
+            section('Ajustes', controls),
+        );
+        this.props.hidden = false;
+
+        function section(title, children) {
+            return el('section', { class: 'ward-ed-section' }, [el('h3', { text: title }), ...children]);
+        }
+    },
+
+    async saveTweak(boardId, key, value) {
+        let source;
+        try {
+            source = await this.loadSource(boardId);
+        } catch {
+            return;
+        }
+        const node = source.doc.getElementById('ward-tweaks');
+        if (!node) return;
+        try {
+            const tweaks = JSON.parse(node.textContent);
+            if (!tweaks[key]) return;
+            tweaks[key].value = value;
+            node.textContent = `\n${JSON.stringify(tweaks, null, 2)}\n`;
+        } catch {
+            return;
+        }
+        this.scheduleHtmlSave(boardId, 'Tweak aplicado');
+    },
+});
 
 // ---------- comentários, erros e o que a pessoa está vendo ----------
 
@@ -1261,6 +1790,10 @@ Object.assign(DesignEditor.prototype, {
     togglePanel(force) {
         const open = force ?? this.panel.hidden;
         this.panel.hidden = !open;
+        if (open && this.props) {
+            this.props.hidden = true;
+            this.tweaksOpen = false;
+        }
         this.commentsButton.setAttribute('aria-pressed', String(open));
         this.commentsButton.setAttribute('aria-expanded', String(open));
         if (open) this.renderPanel();

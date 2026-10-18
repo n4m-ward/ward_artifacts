@@ -150,4 +150,25 @@ class DesignEditTest extends TestCase
         $this->design->update(['visibility' => 'users']);
         $this->assertNull($config(User::factory()->create())['edit']);
     }
+
+    public function test_visual_editor_saves_html_and_refuses_stale_edits(): void
+    {
+        $base = $this->home->revision;
+
+        $this->edit([['op' => 'board.html', 'id' => $this->home->id, 'html' => '<!doctype html><p style="color: red">inicio</p>', 'base' => $base]])
+            ->assertOk()
+            ->assertJsonPath('results.0.revision', $base + 1)
+            ->assertJsonPath('state.boards.0.revision', $base + 1);
+
+        $this->assertSame('<!doctype html><p style="color: red">inicio</p>', Storage::disk('artifacts')->get($this->home->fresh()->storage_path));
+
+        // Edição feita sobre a revisão antiga (a IA mudou no meio): recusada, nada sobrescrito.
+        $this->edit([['op' => 'board.html', 'id' => $this->home->id, 'html' => '<!doctype html><p>velho</p>', 'base' => $base]])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'O artboard "Home" mudou enquanto você editava. O canvas foi atualizado: refaça a última mudança.');
+
+        // Desfazer manda o HTML anterior sem base.
+        $this->edit([['op' => 'board.html', 'id' => $this->home->id, 'html' => '<!doctype html><p>inicio</p>']])->assertOk();
+        $this->assertSame($base + 2, $this->home->fresh()->revision);
+    }
 }

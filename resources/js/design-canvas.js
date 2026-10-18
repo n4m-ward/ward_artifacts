@@ -219,10 +219,12 @@ class DesignCanvas {
         entry.meta.textContent = `${data.w}×${data.h}${data.interactive ? ' · Play' : ''}`;
         entry.node.classList.toggle('is-selected', this.selected === data.id);
 
+        // Mudança feita pela própria pessoa no editor: troca sem o aviso "atualizado agora".
+        const quiet = entry.quietRevision !== undefined && data.revision <= entry.quietRevision;
         if (changed && entry.loaded) {
             this.swapFrame(entry, data.url);
-            this.flash(entry);
-        } else if (changed) {
+            if (!quiet) this.flash(entry);
+        } else if (changed && !quiet) {
             this.flash(entry);
         }
 
@@ -245,6 +247,7 @@ class DesignCanvas {
             entry.frame.remove();
             entry.frame = next;
             entry.nextFrame = null;
+            this.editor?.frameSwapped(entry.data.id);
         }, { once: true });
         next.src = url;
         entry.frame.after(next);
@@ -578,9 +581,14 @@ class DesignCanvas {
                 if (target) this.openFocus(target.id);
                 return;
             }
-            if (message?.ward === 'picked') {
-                this.picks.get(message.request)?.(message.element ?? null);
+            if (message?.ward === 'picked' || message?.ward === 'tweaks-read') {
+                this.picks.get(message.request)?.(message.ward === 'picked' ? (message.element ?? null) : (message.tweaks ?? null));
                 this.picks.delete(message.request);
+                return;
+            }
+            if (message?.ward === 'text-edited') {
+                const entry = [...this.boards.values()].find((item) => item.frame.contentWindow === event.source);
+                if (entry) this.editor?.textEdited(entry.data.id, message);
                 return;
             }
             if (message?.ward === 'error' && typeof message.message === 'string') {
@@ -614,6 +622,11 @@ class DesignCanvas {
      * Resolve com a descrição do elemento, ou null (artboard não carregado, sem resposta).
      */
     pick(boardId, x, y) {
+        return this.ask(boardId, { ward: 'pick', x, y });
+    }
+
+    /** Pergunta algo ao runtime do artboard e espera a resposta (ou null em 800 ms). */
+    ask(boardId, message) {
         const entry = this.boards.get(boardId);
         if (!entry || !entry.loaded || !entry.frame.contentWindow) return Promise.resolve(null);
         const request = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -622,8 +635,14 @@ class DesignCanvas {
             setTimeout(() => {
                 if (this.picks.delete(request)) resolve(null);
             }, 800);
-            entry.frame.contentWindow.postMessage({ ward: 'pick', request, x, y }, this.config.contentOrigin);
+            entry.frame.contentWindow.postMessage({ ...message, request }, this.config.contentOrigin);
         });
+    }
+
+    /** Manda uma mensagem ao runtime do artboard, sem esperar resposta. */
+    tell(boardId, message) {
+        const entry = this.boards.get(boardId);
+        entry?.frame.contentWindow?.postMessage(message, this.config.contentOrigin);
     }
 
     /** Artboards que aparecem na tela agora. */
