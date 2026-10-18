@@ -186,6 +186,45 @@
     .ward-ed-rule-head code { color: #71717a; font-size: 11px; }
     .ward-ed-rule-head h3 { margin: 0; }
     .ward-ed-btn.is-small { height: 26px; min-width: 0; padding: 0 8px; font-size: 12px; }
+    /* Imagens e exportação. */
+    .ward-viewport.is-dropping { outline: 3px dashed #0ea5e9; outline-offset: -8px; }
+    .ward-ed-menu { position: absolute; z-index: 30; min-width: 240px; display: flex; flex-direction: column; padding: 6px; border-radius: 12px;
+        background: #fff; color: #18181b; border: 1px solid #e4e4e7; box-shadow: 0 12px 36px rgb(0 0 0 / .22); font-size: 13px; }
+    .dark .ward-ed-menu { background: #18181b; color: #f4f4f5; border-color: #3f3f46; }
+    .ward-ed-menu-label { padding: 6px 10px; color: #71717a; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ward-ed-menu-item { min-height: 36px; padding: 0 10px; border: 0; border-radius: 8px; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+    .ward-ed-menu-item:hover:not(:disabled), .ward-ed-menu-item:focus-visible { background: rgb(127 127 127 / .14); outline: none; }
+    .ward-ed-menu-item:disabled { opacity: .4; cursor: default; }
+    .ward-ed-menu-sep { height: 1px; margin: 4px 0; background: rgb(127 127 127 / .25); }
+    .ward-ed-assets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; overflow-y: auto; }
+    .ward-ed-asset-cell { position: relative; }
+    .ward-ed-asset { display: block; width: 100%; aspect-ratio: 1; padding: 0; border: 1px solid rgb(127 127 127 / .3); border-radius: 8px; overflow: hidden;
+        background: repeating-conic-gradient(#e4e4e7 0 25%, #fff 0 50%) 0 0 / 12px 12px; cursor: pointer; }
+    .ward-ed-asset:hover, .ward-ed-asset:focus-visible { border-color: #0ea5e9; outline: none; }
+    .ward-ed-asset img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .ward-ed-btn.ward-ed-asset-remove { position: absolute; top: 4px; right: 4px; min-width: 24px; height: 24px; padding: 0; border-radius: 6px; background: rgb(0 0 0 / .55); color: #fff; opacity: 0; }
+    .ward-ed-asset-cell:hover .ward-ed-asset-remove, .ward-ed-asset-remove:focus-visible { opacity: 1; }
+    .ward-ed-asset-remove svg { width: 14px; height: 14px; }
+    /* Páginas e filtro. */
+    .ward-pages { position: absolute; z-index: 15; top: 10px; left: 50%; transform: translateX(-50%); display: flex; gap: 2px; padding: 3px; max-width: calc(100% - 420px);
+        overflow-x: auto; border-radius: 10px; background: rgb(255 255 255 / .95); border: 1px solid #e4e4e7; box-shadow: 0 2px 10px rgb(0 0 0 / .08); }
+    .dark .ward-pages { background: rgb(24 24 27 / .95); border-color: #3f3f46; }
+    .ward-page-tab { flex: none; height: 30px; padding: 0 12px; border: 0; border-radius: 7px; background: none; color: #52525b; font: 500 13px/1 system-ui, sans-serif; cursor: pointer; white-space: nowrap; }
+    .dark .ward-page-tab { color: #a1a1aa; }
+    .ward-page-tab:hover { background: rgb(127 127 127 / .12); }
+    .ward-page-tab[aria-current="page"] { background: #18181b; color: #fff; } .dark .ward-page-tab[aria-current="page"] { background: #f4f4f5; color: #18181b; }
+    .ward-filter-box { position: absolute; z-index: 15; top: 10px; right: 12px; display: flex; align-items: center; gap: 6px; }
+    .ward-filter { width: 190px; height: 34px; padding: 0 10px; border-radius: 9px; border: 1px solid #e4e4e7; background: rgb(255 255 255 / .95); color: #18181b; font: 13px system-ui, sans-serif; }
+    .dark .ward-filter { border-color: #3f3f46; background: rgb(24 24 27 / .95); color: #f4f4f5; }
+    .ward-filter:focus { outline: 2px solid #0ea5e9; outline-offset: 0; }
+    .ward-filter-count { padding: 2px 8px; border-radius: 999px; background: #0ea5e9; color: #fff; font: 600 12px system-ui, sans-serif; }
+    .ward-board.is-filtered-out { opacity: .15; }
+    .is-list .ward-pages, .is-list .ward-filter-box { display: none; }
+    .ward-page-add { color: #0369a1; } .dark .ward-page-add { color: #7dd3fc; }
+    .ward-ed-select { height: 32px; padding: 0 8px; border: 1px solid rgb(127 127 127 / .35); border-radius: 8px; background: transparent; color: inherit; font: inherit; }
+    .ward-ed-token { display: grid; grid-template-columns: 110px 1fr auto; align-items: center; gap: 6px; }
+    .ward-ed-token code { overflow: hidden; text-overflow: ellipsis; font-size: 11px; }
+    .ward-ed-token input[type="text"], .ward-ed-row > input { width: 100%; box-sizing: border-box; height: 30px; padding: 0 8px; border: 1px solid #d4d4d8; border-radius: 6px; background: transparent; color: inherit; font: inherit; }
     /* Modo lista (tela estreita): o canvas liga a classe conforme a largura. */
     .is-list .ward-viewport, .is-list .ward-zoom { display: none !important; }
     .is-list .ward-list { display: flex; flex-direction: column; align-items: center; gap: 24px; position: absolute; inset: 0; overflow-y: auto; padding: 52px 16px 16px; }

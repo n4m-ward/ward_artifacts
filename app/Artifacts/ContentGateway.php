@@ -84,12 +84,17 @@ class ContentGateway
      * URL de um artboard de design. A revisão vai no caminho: quando o HTML
      * muda, a URL muda e nenhum cache antigo é usado.
      */
-    public function boardUrl(DesignBoard $board, ?int $ttlMinutes = null): string
+    /**
+     * $version (de BoardRenderer::version) entra no caminho para o cache do navegador
+     * não segurar o artboard quando muda um componente ou um token do design.
+     */
+    public function boardUrl(DesignBoard $board, ?int $ttlMinutes = null, ?string $version = null): string
     {
         $expiresAt = now()->addMinutes($ttlMinutes ?? (int) config('ward.artifacts.content_ttl_minutes'))->timestamp;
         $payload = "b{$board->id}.{$expiresAt}";
+        $file = preg_replace('/[^A-Za-z0-9._-]+/', '-', $version ?? (string) $board->revision);
 
-        return $this->origin().'/c/'.$payload.'.'.$this->sign($payload).'/'.$board->revision.'.html';
+        return $this->origin().'/c/'.$payload.'.'.$this->sign($payload).'/'.$file.'.html';
     }
 
     public function resolveBoard(string $token): ?DesignBoard

@@ -37,12 +37,20 @@ class GetDesignTool extends WardTool
         $preview = $this->previewUrl($this->user($request), $design);
         $viewing = $state->viewing($design, $this->user($request));
         $comments = $state->comments($design, openOnly: true);
+        $assets = $design->assets()->orderBy('id')->get()->map->toCanvas()->values()->all();
 
-        $lines = collect($data['boards'])->map(fn ($b) => "- {$b['name']} ({$b['kind']}, {$b['w']}×{$b['h']} em {$b['x']},{$b['y']}, rev {$b['revision']})".($b['interactive'] ? ' interativo' : ''));
+        $pageNames = collect($data['pages'])->pluck('name', 'key');
+        $lines = collect($data['boards'])->map(fn ($b) => "- {$b['name']} ({$b['kind']}, {$b['w']}×{$b['h']} em {$b['x']},{$b['y']}, rev {$b['revision']})"
+            .($b['interactive'] ? ' interativo' : '')
+            .($pageNames->isNotEmpty() ? ', página "'.($pageNames[$b['page']] ?? $pageNames->first()).'"' : '')
+            .($b['includes'] ? ', usa '.implode(', ', $b['includes']) : ''));
 
         return Response::make(Response::text(
             "\"{$design->title}\": ".count($data['boards'])." artboard(s), revisão {$data['revision']}. {$design->url()}\n".
             ($lines->isEmpty() ? 'Ainda sem artboards.' : $lines->implode("\n"))."\n".
+            ($pageNames->isNotEmpty() ? 'Páginas: '.$pageNames->map(fn ($name, $key) => "{$name} ({$key})")->implode(', ').".\n" : '').
+            ($data['tokens'] ? "Tokens do design (:root de todos os artboards): {$data['tokens']}\n" : 'Sem tokens: defina cores e fontes compartilhadas com set_design_tokens.'."\n").
+            ($assets ? 'Imagens do design (use no HTML como "assets/{nome}"): '.collect($assets)->map(fn ($a) => $a['name'].($a['width'] ? " {$a['width']}×{$a['height']}" : ''))->implode(', ').".\n" : '').
             $this->describeViewing($viewing).
             $this->describeComments($comments)."\n".
             $this->previewHint($preview)
@@ -50,6 +58,7 @@ class GetDesignTool extends WardTool
             'canvas' => $data,
             'viewing' => $viewing,
             'comments' => $comments,
+            'assets' => $assets,
             'preview_url' => $preview,
         ]);
     }

@@ -68,6 +68,10 @@ Nenhuma tela está pronta sem você olhar a imagem dela. O ciclo de cada tela é
   ipsum nem `[PREÇO]`, a menos que o usuário peça wireframe.
 - Fotos: as do usuário, ou do Unsplash por URL **depois de ver que carregaram e combinam**. Sem foto
   confiável, um placeholder honesto na paleta; nunca um gradiente fingindo ser foto.
+- Imagens do design: as que a pessoa envia no canvas aparecem no `get_design` (use `assets/{nome}` no
+  HTML). Para guardar uma imagem sua no design (logo, foto baixada), `add_design_asset` com base64.
+- Tweaks: declare 2–4 controles úteis (cor de destaque, raio, modo escuro) no bloco `ward-tweaks`
+  (formato no guia); a pessoa ajusta no canvas sem pedir.
 - Tipografia com intenção (não Inter, Roboto, Arial, Space Grotesk nem fonte do sistema por padrão),
   escala com contraste real, ícones SVG com traço consistente, sem emoji.
 - Fuja dos vícios de "tela de IA": gradiente roxo/azul, brilho radial no topo, cartão com borda colorida

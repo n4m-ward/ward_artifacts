@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Artifacts\ContentGateway;
+use App\Designs\BoardRenderer;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Mime\MimeTypes;
@@ -23,7 +24,19 @@ class ArtifactContentController extends Controller
 
             abort_unless($board !== null && $board->storage_path !== '' && $disk->fileExists($board->storage_path), 404);
 
-            return response($this->withRuntime((string) $disk->get($board->storage_path)), 200, $this->headers($gateway, 'index.html', board: true));
+            // Imagens do design: o HTML usa "assets/{nome}", relativo ao artboard.
+            if ($path !== null && str_starts_with($path, 'assets/')) {
+                $name = substr($path, 7);
+                abort_unless((bool) preg_match('/^[a-z0-9-]{1,60}\.(png|jpg|webp|gif|avif|svg)$/', $name), 404);
+                $file = "{$board->artifact->uuid}/assets/{$name}";
+                abort_unless($disk->fileExists($file), 404);
+
+                return $disk->response($file, null, ['Cache-Control' => 'private, max-age=86400'] + $this->headers($gateway, $name));
+            }
+
+            $html = app(BoardRenderer::class)->render($board->artifact, $board, (string) $disk->get($board->storage_path));
+
+            return response($this->withRuntime($html), 200, $this->headers($gateway, 'index.html', board: true));
         }
 
         $version = $gateway->resolve($token);

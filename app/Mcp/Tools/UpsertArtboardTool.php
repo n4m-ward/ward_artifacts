@@ -32,6 +32,7 @@ class UpsertArtboardTool extends WardTool
             'y' => $schema->integer()->description('Posição no canvas (px).'),
             'title' => $schema->string()->max(120)->description('Rótulo mostrado acima do artboard (opcional).'),
             'interactive' => $schema->boolean()->description('true se tem controles que funcionam ou links board: entre artboards.'),
+            'page' => $schema->string()->description('Chave da página do canvas (crie com update_layout.pages). Vazio: primeira página.'),
         ];
     }
 
@@ -48,6 +49,7 @@ class UpsertArtboardTool extends WardTool
             'y' => ['nullable', 'integer'],
             'title' => ['nullable', 'string', 'max:120'],
             'interactive' => ['nullable', 'boolean'],
+            'page' => ['nullable', 'string', 'max:40'],
         ]);
 
         $design = $this->findDesign($request, $validated['design']);
@@ -60,7 +62,11 @@ class UpsertArtboardTool extends WardTool
         }
 
         try {
-            $board = $upsert->handle($design, $this->user($request), $validated);
+            $data = $validated;
+            if (! $request->has('page')) {
+                unset($data['page']);
+            }
+            $board = $upsert->handle($design, $this->user($request), $data);
         } catch (InvalidDesign $e) {
             return Response::error($e->getMessage());
         }
