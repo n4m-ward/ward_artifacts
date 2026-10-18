@@ -3,6 +3,19 @@
   // - Links "board:Nome" pedem à página do canvas para trocar de artboard.
   // - Erros de script e de carregamento vão para o canvas (que marca o artboard).
   // - O canvas pergunta "que elemento está neste ponto?" (comentários e seleção).
+  // Impressão (PDF): o artboard aberto sozinho com ?print=1 ajusta a página ao tamanho dele e imprime.
+  if (/[?&]print=1(&|$)/.test(location.search)) {
+    window.addEventListener('load', async () => {
+      try { await document.fonts.ready; } catch { /* sem fontes */ }
+      const width = Math.max(document.documentElement.scrollWidth, window.innerWidth);
+      const height = Math.max(document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0);
+      const style = document.createElement('style');
+      style.textContent = `@page { size: ${width}px ${height}px; margin: 0 } html, body { margin: 0 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact }`;
+      document.head.append(style);
+      setTimeout(() => window.print(), 400);
+    });
+  }
+
   if (window.parent === window) return;
 
   const post = (message) => {
@@ -152,6 +165,92 @@
         else element.setAttribute(name, value);
       }
       if (typeof data.text === 'string') element.textContent = data.text;
+    } else if (data.ward === 'rules') {
+      // Regras CSS das folhas do artboard que se aplicam ao elemento (as de outra origem não são legíveis).
+      const element = byPath(data.path);
+      const rules = [];
+      const walk = (list, media) => {
+        for (const rule of Array.from(list || [])) {
+          if (rules.length >= 40) return;
+          if (rule.cssRules && !rule.selectorText) {
+            walk(rule.cssRules, rule.conditionText || rule.media?.mediaText || media);
+          } else if (rule.selectorText) {
+            let hit = false;
+            try { hit = element.matches(rule.selectorText); } catch { hit = false; }
+            if (hit) rules.push({ selector: rule.selectorText, css: rule.style.cssText, media: media || null });
+          }
+        }
+      };
+      if (element) {
+        for (const sheet of Array.from(document.styleSheets)) {
+          let list = null;
+          try { list = sheet.cssRules; } catch { list = null; }
+          if (list && (!sheet.ownerNode || sheet.ownerNode.tagName === 'STYLE')) walk(list, null);
+        }
+      }
+      post({ ward: 'answer', request: data.request, value: rules });
+    } else if (data.ward === 'rule-preview') {
+      // Prévia ao vivo de uma regra editada.
+      const visit = (list) => {
+        for (const rule of Array.from(list || [])) {
+          if (rule.cssRules && !rule.selectorText) visit(rule.cssRules);
+          else if (rule.selectorText === data.selector) rule.style.cssText = data.css;
+        }
+      };
+      for (const sheet of Array.from(document.styleSheets)) {
+        try { visit(sheet.cssRules); } catch { /* folha de outra origem */ }
+      }
+    } else if (data.ward === 'export-png') {
+      // PNG do artboard, desenhado aqui dentro (fontes e imagens da própria página).
+      const done = (value) => post({ ward: 'answer', request: data.request, value });
+      // Fontes de outra origem (Google Fonts): o exportador não lê a folha delas, então
+      // baixamos o CSS e embutimos os arquivos dos alfabetos latinos.
+      const fontCss = async () => {
+        const links = Array.from(document.querySelectorAll('link[rel~="stylesheet"]'))
+          .filter((link) => /fonts\.(googleapis|bunny)\.(com|net)/.test(link.href));
+        let css = '';
+        for (const link of links) {
+          try {
+            const text = await (await fetch(link.href)).text();
+            const blocks = text.split(/(?=\/\*\s*[\w-]+\s*\*\/)/);
+            const latin = blocks.filter((block) => /^\/\*\s*latin(-ext)?\s*\*\//.test(block.trim()));
+            css += (latin.length ? latin : blocks).join('\n');
+          } catch { /* sem a fonte: usa a de reserva */ }
+        }
+        const urls = Array.from(new Set(Array.from(css.matchAll(/url\((["']?)(https:[^)"']+)\1\)/g), (match) => match[2])));
+        for (const url of urls) {
+          try {
+            const blob = await (await fetch(url)).blob();
+            const dataUrl = await new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(reader.result);
+              reader.onerror = reject;
+              reader.readAsDataURL(blob);
+            });
+            css = css.split(url).join(dataUrl);
+          } catch { /* fica a URL */ }
+        }
+        return css;
+      };
+      const render = async () => {
+        try {
+          try { await document.fonts.ready; } catch { /* segue */ }
+          const embedded = await fontCss();
+          const url = await window.htmlToImage.toPng(document.documentElement, {
+            width: window.innerWidth, height: window.innerHeight, pixelRatio: data.scale || 1, cacheBust: true,
+            ...(embedded ? { fontEmbedCSS: embedded } : {}),
+          });
+          done({ url });
+        } catch (error) {
+          done({ error: String((error && error.message) || error || 'falhou') });
+        }
+      };
+      if (window.htmlToImage) return render();
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.js';
+      script.onload = render;
+      script.onerror = () => done({ error: 'Não consegui carregar o exportador de imagem.' });
+      document.head.append(script);
     } else if (data.ward === 'tweak') {
       const tweaks = readTweaks();
       if (tweaks && tweaks[data.key]) applyTweak(data.key, tweaks[data.key], data.value);

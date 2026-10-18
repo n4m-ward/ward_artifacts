@@ -35,6 +35,8 @@ const ICONS = {
     comment: 'M4 5h16v11H9l-5 4z',
     comments: 'M7 9h10M7 13h6M4 5h16v11H9l-5 4z',
     check: 'M5 12l5 5 9-10',
+    download: 'M12 4v11M7 10l5 5 5-5M5 20h14',
+    image: 'M4 5h16v14H4zM4 16l5-5 4 4 3-3 4 4M15 9.5h.01',
     close: 'M6 6l12 12M18 6L6 18',
 };
 
@@ -100,6 +102,7 @@ class DesignEditor {
         this.bindDoubleClick();
         this.initComments();
         if (this.canEdit) this.initInspector();
+        this.initAssets();
         this.afterRender();
     }
 
@@ -189,6 +192,12 @@ class DesignEditor {
         this.commentsCount = el('span', { class: 'ward-ed-count', hidden: true });
         this.commentsButton.append(this.commentsCount);
         toolbar.append(this.commentsButton);
+        if (this.canEdit) {
+            this.imagesButton = button('Imagens do design', 'image', () => this.toggleImages(), { 'aria-pressed': 'false' });
+            toolbar.append(this.imagesButton);
+        }
+        this.exportButton = button('Exportar', 'download', () => this.toggleExport(), { 'aria-haspopup': 'menu', 'aria-expanded': 'false' });
+        toolbar.append(this.exportButton);
         this.status = el('span', { class: 'ward-ed-status', role: 'status', 'aria-live': 'polite' });
         toolbar.append(this.status);
         root.append(toolbar);
@@ -1073,6 +1082,80 @@ const SHADOWS = {
     strong: ['Forte', '0 18px 50px rgb(0 0 0 / .24)'],
 };
 
+const escapeHtml = (text) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+/** Realce simples de CSS: comentários, seletores, propriedades e valores. */
+function highlightCss(text) {
+    return text.split('\n').map((line) => {
+        if (/^\s*\/\*.*\*\/\s*$/.test(line)) return `<span class="c">${escapeHtml(line)}</span>`;
+        const declaration = /^(\s*)([-\w]+)(\s*:\s*)(.*?)(;?)(\s*)$/.exec(line);
+        if (declaration && !line.includes('{')) {
+            const [, lead, prop, colon, value, semi, tail] = declaration;
+            return `${lead}<span class="p">${escapeHtml(prop)}</span>${escapeHtml(colon)}<span class="v">${escapeHtml(value)}</span>${semi}${tail}`;
+        }
+        if (line.includes('{')) {
+            const at = line.indexOf('{');
+            return `<span class="s">${escapeHtml(line.slice(0, at))}</span>${escapeHtml(line.slice(at))}`;
+        }
+        return escapeHtml(line);
+    }).join('\n');
+}
+
+/**
+ * Mini editor de código: números de linha, realce, Tab indenta, prévia enquanto
+ * digita (onInput) e aplica com ⌘/Ctrl+Enter ou ao sair (onCommit). Esc volta ao texto inicial.
+ */
+function codeArea(initial, { label, placeholder = '', onInput, onCommit }) {
+    const gutter = el('div', { class: 'ward-ed-code-gutter', 'aria-hidden': 'true' });
+    const pre = el('pre', { class: 'ward-ed-code-hl', 'aria-hidden': 'true' });
+    const input = el('textarea', {
+        class: 'ward-ed-code-input', spellcheck: 'false', autocapitalize: 'off', autocomplete: 'off', 'aria-label': label, placeholder,
+    });
+    input.value = initial;
+    let committed = initial;
+    let timer = null;
+    const paint = () => {
+        pre.innerHTML = `${highlightCss(input.value)}\n`;
+        gutter.textContent = Array.from({ length: Math.max(1, input.value.split('\n').length) }, (_, i) => i + 1).join('\n');
+        input.style.height = 'auto';
+        input.style.height = `${Math.max(input.scrollHeight, 60)}px`;
+    };
+    const commit = () => {
+        clearTimeout(timer);
+        if (input.value === committed) return;
+        committed = input.value;
+        onCommit(input.value);
+    };
+    input.addEventListener('input', () => {
+        paint();
+        clearTimeout(timer);
+        timer = setTimeout(() => onInput?.(input.value), 200);
+    });
+    input.addEventListener('keydown', (event) => {
+        event.stopPropagation();
+        if (event.key === 'Tab') {
+            event.preventDefault();
+            const { selectionStart: a, selectionEnd: b } = input;
+            input.setRangeText('  ', a, b, 'end');
+            input.dispatchEvent(new Event('input'));
+        } else if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+            event.preventDefault();
+            commit();
+        } else if (event.key === 'Escape') {
+            event.preventDefault();
+            input.value = committed;
+            paint();
+            onInput?.(committed);
+            input.blur();
+        }
+    });
+    input.addEventListener('blur', commit);
+    const node = el('div', { class: 'ward-ed-code-area' }, [gutter, el('div', { class: 'ward-ed-code-body' }, [pre, input])]);
+    requestAnimationFrame(paint);
+    paint();
+    return { node, get value() { return input.value; } };
+}
+
 function field(label, control, extra = null) {
     return el('label', { class: 'ward-ed-field' }, [el('span', { text: label }), control, extra]);
 }
@@ -1141,6 +1224,7 @@ Object.assign(DesignEditor.prototype, {
         if (!this.selection.has(`b:${boardId}`) || this.selection.size !== 1) this.setSelection([`b:${boardId}`]);
         this.drawElement();
         this.renderProps();
+        this.renderImages?.();
         this.reportView();
     },
 
@@ -1223,10 +1307,119 @@ Object.assign(DesignEditor.prototype, {
     },
 
     setInlineCss(css) {
+        const value = css.replace(/\s*\n\s*/g, ' ').trim();
         this.editElement((node) => {
-            if (css.trim()) node.setAttribute('style', css.trim());
+            if (value) node.setAttribute('style', value);
             else node.removeAttribute('style');
-        }, { live: null, label: 'CSS atualizado' });
+        }, { live: { attrs: { style: value || null } }, label: 'CSS atualizado' });
+    },
+
+    /** Troca uma regra de um <style> do HTML (achada pelo seletor) pelo texto novo. */
+    async setRule(selector, text) {
+        if (!this.inspect) return;
+        const { boardId } = this.inspect;
+        let source;
+        try {
+            source = await this.loadSource(boardId);
+        } catch {
+            return this.setStatus('Não consegui ler o HTML deste artboard.', true);
+        }
+        const norm = (value) => value.replace(/\s+/g, '').replace(/["']/g, '').toLowerCase();
+        for (const style of source.doc.querySelectorAll('style')) {
+            const css = style.textContent;
+            let start = 0;
+            for (let k = 0; k < css.length; k++) {
+                const ch = css[k];
+                if (ch === '/' && css[k + 1] === '*') {
+                    const end = css.indexOf('*/', k + 2);
+                    if (end < 0) break;
+                    k = end + 1;
+                    start = k + 1;
+                    continue;
+                }
+                if (ch === '}' || ch === ';') {
+                    start = k + 1;
+                } else if (ch === '{') {
+                    const prelude = css.slice(start, k);
+                    if (norm(prelude) === norm(selector)) {
+                        let depth = 1;
+                        let j = k + 1;
+                        while (j < css.length && depth > 0) {
+                            if (css[j] === '{') depth++;
+                            else if (css[j] === '}') depth--;
+                            j++;
+                        }
+                        const lead = prelude.match(/^\s*/)[0];
+                        style.textContent = css.slice(0, start) + lead + text.trim() + css.slice(j);
+                        this.scheduleHtmlSave(boardId, 'Regra CSS atualizada');
+                        return;
+                    }
+                    start = k + 1;
+                }
+            }
+        }
+        this.setStatus(`Não achei "${selector}" nos <style> do artboard (pode vir de um arquivo externo).`, true);
+    },
+
+    copy(text, label = 'Copiado') {
+        navigator.clipboard?.writeText(text).then(() => this.setStatus(label), () => this.setStatus('Não consegui copiar.', true));
+    },
+
+    cssSection(e) {
+        const inlineText = (e.inline || '').split(';').map((x) => x.trim()).filter(Boolean).map((x) => `${x};`).join('\n');
+        const own = codeArea(inlineText, {
+            label: 'CSS do elemento',
+            placeholder: 'color: #111;\npadding: 12px 16px;',
+            onInput: (value) => this.canvas.tell(this.inspect.boardId, { ward: 'apply', path: this.inspect.path, attrs: { style: value.replace(/\s*\n\s*/g, ' ').trim() || null } }),
+            onCommit: (value) => this.setInlineCss(value),
+        });
+        const rules = el('div', { class: 'ward-ed-rules' }, [el('p', { class: 'ward-ed-muted', text: 'Lendo as regras…' })]);
+
+        const boardId = this.inspect.boardId;
+        const path = this.inspect.path;
+        this.canvas.ask(boardId, { ward: 'rules', path }).then((list) => {
+            if (this.inspect?.path !== path) return;
+            if (!Array.isArray(list) || !list.length) {
+                rules.replaceChildren(el('p', { class: 'ward-ed-muted', text: 'Nenhuma regra de <style> se aplica a este elemento.' }));
+                return;
+            }
+            rules.replaceChildren(...list.map((rule) => {
+                const body = rule.css.split(';').map((x) => x.trim()).filter(Boolean).map((x) => `  ${x};`).join('\n');
+                const text = `${rule.selector} {\n${body}\n}`;
+                const area = codeArea(text, {
+                    label: `Regra ${rule.selector}`,
+                    onInput: (value) => {
+                        const inner = value.slice(value.indexOf('{') + 1, value.lastIndexOf('}'));
+                        this.canvas.tell(boardId, { ward: 'rule-preview', selector: rule.selector, css: inner.replace(/\s*\n\s*/g, ' ').trim() });
+                    },
+                    onCommit: (value) => this.setRule(rule.selector, value),
+                });
+                return el('div', { class: 'ward-ed-rule' }, [
+                    el('div', { class: 'ward-ed-rule-head' }, [
+                        el('code', { text: rule.media ? `@media ${rule.media}` : 'regra' }),
+                        button(`Copiar ${rule.selector}`, null, () => this.copy(area.value, 'Regra copiada'), { text: 'Copiar', class: 'ward-ed-btn is-text is-small' }),
+                    ]),
+                    area.node,
+                ]);
+            }));
+        });
+
+        return el('section', { class: 'ward-ed-section' }, [
+            el('div', { class: 'ward-ed-rule-head' }, [
+                el('h3', { text: 'CSS do elemento' }),
+                el('span', { class: 'ward-ed-spacer' }),
+                button('Copiar o CSS do elemento', null, () => this.copy(own.value, 'CSS copiado'), { text: 'Copiar', class: 'ward-ed-btn is-text is-small' }),
+                button('Copiar o HTML do elemento', null, async () => {
+                    const source = await this.loadSource(boardId).catch(() => null);
+                    const node = source && this.sourceNode(source.doc, path);
+                    this.copy(node ? node.outerHTML : e.html, 'HTML copiado');
+                }, { text: 'HTML', class: 'ward-ed-btn is-text is-small' }),
+            ]),
+            own.node,
+            el('p', { class: 'ward-ed-muted', text: '⌘Enter ou sair do campo aplica. Esc desfaz a digitação.' }),
+            el('h3', { text: 'Regras que se aplicam' }),
+            rules,
+        ]);
     },
 
     /** Junta edições seguidas (ex.: arrastar um controle) num passo só do desfazer. */
@@ -1377,10 +1570,6 @@ Object.assign(DesignEditor.prototype, {
         const opacity = el('input', { type: 'range', min: '0', max: '100', value: String(Math.round(Number(st.opacity ?? 1) * 100)) });
         opacity.addEventListener('input', () => this.setStyle('opacity', String(Number(opacity.value) / 100)));
 
-        const css = el('textarea', { class: 'ward-ed-input ward-ed-code', rows: '4', spellcheck: 'false' });
-        css.value = (e.inline || '').split(';').map((x) => x.trim()).filter(Boolean).join(';\n');
-        css.addEventListener('change', () => this.setInlineCss(css.value.replace(/\n/g, ' ')));
-        css.addEventListener('keydown', (event) => event.stopPropagation());
 
         const isFlex = (st.display || '').includes('flex') || (st.display || '').includes('grid');
         const attrFields = [];
@@ -1403,6 +1592,11 @@ Object.assign(DesignEditor.prototype, {
         this.props.replaceChildren(...[
             el('div', { class: 'ward-ed-props-head' }, [
                 el('div', {}, [el('strong', { text: `<${e.tag}>` }), el('span', { class: 'ward-ed-muted', text: ` ${board?.title || board?.name || ''}` })]),
+                el('span', { class: 'ward-ed-spacer' }),
+                button(this.props.classList.contains('is-wide') ? 'Estreitar o painel' : 'Alargar o painel', null, () => {
+                    this.props.classList.toggle('is-wide');
+                    this.renderProps();
+                }, { text: this.props.classList.contains('is-wide') ? '⇥' : '⇤', class: 'ward-ed-btn' }),
                 button('Fechar (Esc)', 'close', () => this.exitBoard()),
             ]),
             e.text ? el('p', { class: 'ward-ed-muted ward-ed-snippet', text: `“${e.text.slice(0, 80)}”` }) : null,
@@ -1445,7 +1639,7 @@ Object.assign(DesignEditor.prototype, {
                 ]) : null,
             ]),
             attrFields.length ? section('Atributos', attrFields) : null,
-            section('CSS deste elemento', [css]),
+            this.cssSection(e),
         ].filter(Boolean));
         this.props.hidden = false;
     },
@@ -1519,6 +1713,210 @@ Object.assign(DesignEditor.prototype, {
             return;
         }
         this.scheduleHtmlSave(boardId, 'Tweak aplicado');
+    },
+});
+
+// ---------- imagens do design e exportação ----------
+
+Object.assign(DesignEditor.prototype, {
+    initAssets() {
+        this.exportMenu = el('div', { class: 'ward-ed-menu', hidden: true, role: 'menu', 'aria-label': 'Exportar' });
+        this.canvas.root.append(this.exportMenu);
+        document.addEventListener('pointerdown', (event) => {
+            if (!this.exportMenu.hidden && !event.target.closest('.ward-ed-menu') && event.target.closest('button') !== this.exportButton) this.toggleExport(false);
+        }, true);
+        if (!this.canEdit) return;
+
+        this.assets = [];
+        this.images = el('aside', { class: 'ward-ed-panel ward-ed-images', hidden: true, 'aria-label': 'Imagens do design' });
+        this.canvas.root.append(this.images);
+
+        // Arrastar arquivos para o canvas e colar imagens enviam para a biblioteca.
+        const viewport = this.canvas.viewport;
+        viewport.addEventListener('dragover', (event) => {
+            if ([...(event.dataTransfer?.types || [])].includes('Files')) {
+                event.preventDefault();
+                viewport.classList.add('is-dropping');
+            }
+        });
+        viewport.addEventListener('dragleave', () => viewport.classList.remove('is-dropping'));
+        viewport.addEventListener('drop', (event) => {
+            viewport.classList.remove('is-dropping');
+            const files = [...(event.dataTransfer?.files || [])].filter((file) => file.type.startsWith('image/'));
+            if (!files.length) return;
+            event.preventDefault();
+            this.upload(files);
+        });
+        document.addEventListener('paste', (event) => {
+            if (event.target.closest('input, textarea, [contenteditable="true"], [contenteditable="plaintext-only"]')) return;
+            const files = [...(event.clipboardData?.files || [])].filter((file) => file.type.startsWith('image/'));
+            if (!files.length) return;
+            event.preventDefault();
+            this.upload(files);
+        });
+    },
+
+    // ----- exportar -----
+
+    toggleExport(force) {
+        const open = force ?? this.exportMenu.hidden;
+        this.exportMenu.hidden = !open;
+        this.exportButton.setAttribute('aria-expanded', String(open));
+        if (!open) return;
+        const selected = [...this.selection].filter((key) => key.startsWith('b:')).map((key) => Number(key.slice(2)));
+        const single = selected.length === 1 ? this.canvas.boards.get(selected[0])?.data : null;
+        const item = (label, action, disabled = false) => {
+            const node = el('button', { type: 'button', role: 'menuitem', class: 'ward-ed-menu-item', text: label, disabled });
+            node.addEventListener('click', () => {
+                this.toggleExport(false);
+                action();
+            });
+            return node;
+        };
+        const hint = single ? `“${single.title || single.name}”` : 'selecione um artboard';
+        this.exportMenu.replaceChildren(
+            el('div', { class: 'ward-ed-menu-label', text: `Artboard: ${hint}` }),
+            item('PNG', () => this.exportPng(single, 1), !single),
+            item('PNG em alta (2×)', () => this.exportPng(single, 2), !single),
+            item('PDF deste artboard', () => this.exportPdf([single.id]), !single),
+            el('div', { class: 'ward-ed-menu-sep' }),
+            selected.length > 1 ? item(`PDF dos ${selected.length} selecionados`, () => this.exportPdf(selected)) : null,
+            item(`PDF de todos (${this.canvas.state.boards.length})`, () => this.exportPdf([]), !this.canvas.state.boards.length),
+        );
+        const rect = this.exportButton.getBoundingClientRect();
+        const rootRect = this.canvas.root.getBoundingClientRect();
+        Object.assign(this.exportMenu.style, { left: `${rect.left - rootRect.left}px`, bottom: `${rootRect.bottom - rect.top + 8}px` });
+    },
+
+    async exportPng(board, scale) {
+        const entry = this.canvas.boards.get(board.id);
+        if (!entry.loaded) {
+            entry.frame.src = board.url;
+            entry.loaded = true;
+            await new Promise((resolve) => entry.frame.addEventListener('load', resolve, { once: true }));
+        }
+        this.setStatus('Gerando PNG…');
+        const result = await this.canvas.ask(board.id, { ward: 'export-png', scale }, 60000);
+        if (!result?.url) return this.setStatus(result?.error ? `PNG: ${result.error}` : 'Não consegui gerar o PNG.', true);
+        const link = el('a', { href: result.url, download: `${board.name}${scale > 1 ? `@${scale}x` : ''}.png` });
+        document.body.append(link);
+        link.click();
+        link.remove();
+        this.setStatus('PNG baixado');
+    },
+
+    exportPdf(ids) {
+        if (ids.length === 1) {
+            const board = this.canvas.boards.get(ids[0])?.data;
+            if (board) window.open(`${board.url}${board.url.includes('?') ? '&' : '?'}print=1`, '_blank', 'noopener');
+            return;
+        }
+        const url = `${this.collab.printUrl}${ids.length ? `?boards=${ids.join(',')}` : ''}`;
+        window.open(url, '_blank', 'noopener');
+    },
+
+    // ----- imagens -----
+
+    toggleImages(force) {
+        const open = force ?? this.images.hidden;
+        this.images.hidden = !open;
+        this.imagesButton.setAttribute('aria-pressed', String(open));
+        if (open) {
+            this.panel.hidden = true;
+            this.loadAssets();
+        }
+        this.renderImages();
+    },
+
+    async loadAssets() {
+        try {
+            const response = await fetch(this.config.assetsUrl, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
+            this.assets = (await response.json()).assets ?? [];
+        } catch {
+            this.assets = [];
+        }
+        this.renderImages();
+    },
+
+    async upload(files) {
+        for (const file of files) {
+            this.setStatus(`Enviando ${file.name}…`);
+            const form = new FormData();
+            form.append('file', file);
+            try {
+                const response = await fetch(this.config.assetsUrl, {
+                    method: 'POST', credentials: 'same-origin', body: form,
+                    headers: { Accept: 'application/json', 'X-CSRF-TOKEN': this.config.csrf, 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                const json = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    this.setStatus(json.message || json.errors?.file?.[0] || `Não consegui enviar ${file.name}.`, true);
+                    continue;
+                }
+                this.assets = json.assets ?? this.assets;
+                this.setStatus(`Imagem pronta: ${json.asset.path}`);
+            } catch {
+                this.setStatus('Sem conexão.', true);
+            }
+        }
+        if (this.images.hidden) this.toggleImages(true);
+        else this.renderImages();
+    },
+
+    useAsset(asset) {
+        const element = this.inspect?.element;
+        if (!element) {
+            this.copy(asset.path, `Caminho copiado: ${asset.path}`);
+            return;
+        }
+        if (element.tag === 'img') {
+            this.setAttr('src', asset.path);
+            if (!element.attrs?.alt) this.setAttr('alt', asset.original_name?.replace(/\.[a-z0-9]+$/i, '') ?? '');
+        } else {
+            this.editElement((node) => {
+                node.style.setProperty('background-image', `url(${asset.path})`);
+                node.style.setProperty('background-size', 'cover');
+                node.style.setProperty('background-position', 'center');
+            }, { live: { style: { 'background-image': `url(${asset.path})`, 'background-size': 'cover', 'background-position': 'center' } }, label: 'Imagem de fundo aplicada' });
+        }
+    },
+
+    async removeAsset(asset) {
+        if (!window.confirm(`Apagar ${asset.name}? Artboards que usam a imagem ficam sem ela.`)) return;
+        const response = await fetch(`${this.config.assetsUrl}/${encodeURIComponent(asset.name)}`, {
+            method: 'DELETE', credentials: 'same-origin',
+            headers: { Accept: 'application/json', 'X-CSRF-TOKEN': this.config.csrf, 'X-Requested-With': 'XMLHttpRequest' },
+        });
+        if (response.ok) this.assets = (await response.json()).assets ?? [];
+        this.renderImages();
+    },
+
+    renderImages() {
+        if (!this.images || this.images.hidden) return;
+        const input = el('input', { type: 'file', accept: 'image/png,image/jpeg,image/webp,image/gif,image/avif,image/svg+xml', multiple: true, hidden: true });
+        input.addEventListener('change', () => this.upload([...input.files]));
+        const target = this.inspect?.element;
+        const hint = target
+            ? (target.tag === 'img' ? 'Clique numa imagem para trocar a do <img> selecionado.' : `Clique numa imagem para usar como fundo do <${target.tag}>.`)
+            : 'Arraste arquivos para o canvas ou cole (⌘V). Clique numa imagem para copiar o caminho; com um elemento selecionado, ela é aplicada nele.';
+
+        const grid = this.assets.map((asset) => {
+            const use = el('button', { type: 'button', class: 'ward-ed-asset', title: `${asset.name}${asset.width ? ` · ${asset.width}×${asset.height}` : ''}` }, [
+                el('img', { src: asset.url, alt: asset.original_name || asset.name, loading: 'lazy' }),
+            ]);
+            use.addEventListener('click', () => this.useAsset(asset));
+            const remove = button(`Apagar ${asset.name}`, 'close', () => this.removeAsset(asset), { class: 'ward-ed-btn ward-ed-asset-remove' });
+            return el('div', { class: 'ward-ed-asset-cell' }, [use, remove]);
+        });
+
+        this.images.replaceChildren(
+            el('div', { class: 'ward-ed-panel-head' }, [el('strong', { text: 'Imagens' }), button('Fechar', 'close', () => this.toggleImages(false))]),
+            el('div', { class: 'ward-ed-thread-actions' }, [
+                button('Enviar imagens', null, () => input.click(), { text: 'Enviar imagens', class: 'ward-ed-btn is-primary' }), input,
+            ]),
+            el('p', { class: 'ward-ed-hint', text: hint }),
+            grid.length ? el('div', { class: 'ward-ed-assets' }, grid) : el('p', { class: 'ward-ed-muted ward-ed-empty', text: 'Nenhuma imagem ainda.' }),
+        );
     },
 });
 

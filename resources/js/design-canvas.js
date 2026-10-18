@@ -581,8 +581,9 @@ class DesignCanvas {
                 if (target) this.openFocus(target.id);
                 return;
             }
-            if (message?.ward === 'picked' || message?.ward === 'tweaks-read') {
-                this.picks.get(message.request)?.(message.ward === 'picked' ? (message.element ?? null) : (message.tweaks ?? null));
+            if (message?.ward === 'picked' || message?.ward === 'tweaks-read' || message?.ward === 'answer') {
+                const value = message.ward === 'picked' ? message.element : message.ward === 'answer' ? message.value : message.tweaks;
+                this.picks.get(message.request)?.(value ?? null);
                 this.picks.delete(message.request);
                 return;
             }
@@ -625,8 +626,8 @@ class DesignCanvas {
         return this.ask(boardId, { ward: 'pick', x, y });
     }
 
-    /** Pergunta algo ao runtime do artboard e espera a resposta (ou null em 800 ms). */
-    ask(boardId, message) {
+    /** Pergunta algo ao runtime do artboard e espera a resposta (ou null depois de timeout ms). */
+    ask(boardId, message, timeout = 800) {
         const entry = this.boards.get(boardId);
         if (!entry || !entry.loaded || !entry.frame.contentWindow) return Promise.resolve(null);
         const request = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -634,7 +635,7 @@ class DesignCanvas {
             this.picks.set(request, resolve);
             setTimeout(() => {
                 if (this.picks.delete(request)) resolve(null);
-            }, 800);
+            }, timeout);
             entry.frame.contentWindow.postMessage({ ...message, request }, this.config.contentOrigin);
         });
     }

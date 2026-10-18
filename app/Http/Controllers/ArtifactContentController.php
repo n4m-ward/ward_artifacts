@@ -23,6 +23,16 @@ class ArtifactContentController extends Controller
 
             abort_unless($board !== null && $board->storage_path !== '' && $disk->fileExists($board->storage_path), 404);
 
+            // Imagens do design: o HTML usa "assets/{nome}", relativo ao artboard.
+            if ($path !== null && str_starts_with($path, 'assets/')) {
+                $name = substr($path, 7);
+                abort_unless((bool) preg_match('/^[a-z0-9-]{1,60}\.(png|jpg|webp|gif|avif|svg)$/', $name), 404);
+                $file = "{$board->artifact->uuid}/assets/{$name}";
+                abort_unless($disk->fileExists($file), 404);
+
+                return $disk->response($file, null, ['Cache-Control' => 'private, max-age=86400'] + $this->headers($gateway, $name));
+            }
+
             return response($this->withRuntime((string) $disk->get($board->storage_path)), 200, $this->headers($gateway, 'index.html', board: true));
         }
 

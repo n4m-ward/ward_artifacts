@@ -162,6 +162,49 @@
     .ward-ed-color input[type="color"] { width: 34px; height: 30px; padding: 2px; border: 1px solid #d4d4d8; border-radius: 6px; background: none; flex: none; }
     .ward-ed-code { font: 12px/1.45 ui-monospace, monospace; }
     .is-list .ward-ed-props, .is-list .ward-ed-element { display: none !important; }
+    /* Mini editor de CSS. */
+    .ward-ed-props.is-wide { width: 460px; }
+    .ward-ed-code-area { display: flex; border: 1px solid #d4d4d8; border-radius: 8px; overflow: hidden; background: #fafafa;
+        font: 12px/18px ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .dark .ward-ed-code-area { border-color: #3f3f46; background: #0f0f10; }
+    .ward-ed-code-area:focus-within { outline: 2px solid #0ea5e9; outline-offset: 0; border-color: transparent; }
+    .ward-ed-code-gutter { flex: none; min-width: 26px; padding: 8px 6px; text-align: right; white-space: pre; color: #a1a1aa; background: rgb(127 127 127 / .08); user-select: none; }
+    .ward-ed-code-body { position: relative; flex: 1; min-width: 0; }
+    .ward-ed-code-hl, .ward-ed-code-input { margin: 0; padding: 8px; font: inherit; white-space: pre-wrap; overflow-wrap: anywhere; tab-size: 2; letter-spacing: 0; }
+    .ward-ed-code-hl { position: absolute; inset: 0; pointer-events: none; color: #27272a; overflow: hidden; }
+    .dark .ward-ed-code-hl { color: #e4e4e7; }
+    .ward-ed-code-input { position: relative; display: block; width: 100%; box-sizing: border-box; min-height: 60px; resize: none; border: 0; outline: 0;
+        background: transparent; color: transparent; caret-color: #0ea5e9; overflow: hidden; }
+    .ward-ed-code-input::placeholder { color: #a1a1aa; }
+    .ward-ed-code-hl .p { color: #0369a1; } .dark .ward-ed-code-hl .p { color: #7dd3fc; }
+    .ward-ed-code-hl .v { color: #b45309; } .dark .ward-ed-code-hl .v { color: #fcd34d; }
+    .ward-ed-code-hl .s { color: #7c3aed; } .dark .ward-ed-code-hl .s { color: #c4b5fd; }
+    .ward-ed-code-hl .c { color: #a1a1aa; font-style: italic; }
+    .ward-ed-rules { display: flex; flex-direction: column; gap: 8px; }
+    .ward-ed-rule { display: flex; flex-direction: column; gap: 4px; }
+    .ward-ed-rule-head { display: flex; align-items: center; gap: 4px; }
+    .ward-ed-rule-head code { color: #71717a; font-size: 11px; }
+    .ward-ed-rule-head h3 { margin: 0; }
+    .ward-ed-btn.is-small { height: 26px; min-width: 0; padding: 0 8px; font-size: 12px; }
+    /* Imagens e exportação. */
+    .ward-viewport.is-dropping { outline: 3px dashed #0ea5e9; outline-offset: -8px; }
+    .ward-ed-menu { position: absolute; z-index: 30; min-width: 240px; display: flex; flex-direction: column; padding: 6px; border-radius: 12px;
+        background: #fff; color: #18181b; border: 1px solid #e4e4e7; box-shadow: 0 12px 36px rgb(0 0 0 / .22); font-size: 13px; }
+    .dark .ward-ed-menu { background: #18181b; color: #f4f4f5; border-color: #3f3f46; }
+    .ward-ed-menu-label { padding: 6px 10px; color: #71717a; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ward-ed-menu-item { min-height: 36px; padding: 0 10px; border: 0; border-radius: 8px; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+    .ward-ed-menu-item:hover:not(:disabled), .ward-ed-menu-item:focus-visible { background: rgb(127 127 127 / .14); outline: none; }
+    .ward-ed-menu-item:disabled { opacity: .4; cursor: default; }
+    .ward-ed-menu-sep { height: 1px; margin: 4px 0; background: rgb(127 127 127 / .25); }
+    .ward-ed-assets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; overflow-y: auto; }
+    .ward-ed-asset-cell { position: relative; }
+    .ward-ed-asset { display: block; width: 100%; aspect-ratio: 1; padding: 0; border: 1px solid rgb(127 127 127 / .3); border-radius: 8px; overflow: hidden;
+        background: repeating-conic-gradient(#e4e4e7 0 25%, #fff 0 50%) 0 0 / 12px 12px; cursor: pointer; }
+    .ward-ed-asset:hover, .ward-ed-asset:focus-visible { border-color: #0ea5e9; outline: none; }
+    .ward-ed-asset img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .ward-ed-btn.ward-ed-asset-remove { position: absolute; top: 4px; right: 4px; min-width: 24px; height: 24px; padding: 0; border-radius: 6px; background: rgb(0 0 0 / .55); color: #fff; opacity: 0; }
+    .ward-ed-asset-cell:hover .ward-ed-asset-remove, .ward-ed-asset-remove:focus-visible { opacity: 1; }
+    .ward-ed-asset-remove svg { width: 14px; height: 14px; }
     /* Modo lista (tela estreita): o canvas liga a classe conforme a largura. */
     .is-list .ward-viewport, .is-list .ward-zoom { display: none !important; }
     .is-list .ward-list { display: flex; flex-direction: column; align-items: center; gap: 24px; position: absolute; inset: 0; overflow-y: auto; padding: 52px 16px 16px; }
