@@ -35,7 +35,7 @@ class OpenDesignTool extends WardTool
             return $design;
         }
 
-        $config = $state->appConfig($design);
+        $config = $state->appConfig($design, $request->user());
         $count = count($config['state']['boards']);
 
         return Response::make(Response::text(

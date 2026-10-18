@@ -113,6 +113,13 @@
     .ward-ed-muted { color: #71717a; font-size: 12px; } .dark .ward-ed-muted { color: #a1a1aa; }
     .ward-ed-badge { padding: 0 6px; border-radius: 999px; background: #ede9fe; color: #5b21b6; font-size: 11px; font-weight: 700; }
     .ward-ed-badge.is-ok { background: #dcfce7; color: #166534; }
+    /* Diálogo do editor no lugar de window.confirm/prompt (o MCP App roda num iframe sem modais). */
+    .ward-ed-dialog-overlay { position: absolute; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgb(0 0 0 / .35); }
+    .ward-ed-dialog { width: 360px; max-width: 100%; display: flex; flex-direction: column; gap: 12px; padding: 16px; border-radius: 12px; border: 1px solid #e4e4e7; background: #fff; color: #18181b; box-shadow: 0 18px 50px rgb(0 0 0 / .25); }
+    .dark .ward-ed-dialog { border-color: #3f3f46; background: #18181b; color: #e4e4e7; }
+    .ward-ed-dialog-text { margin: 0; font-size: 13px; line-height: 1.45; white-space: pre-line; }
+    .ward-ed-dialog .ward-ed-input { min-height: 36px; }
+    .ward-ed-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
     .ward-ed-input { width: 100%; box-sizing: border-box; resize: vertical; min-height: 44px; padding: 8px; border: 1px solid #d4d4d8; border-radius: 8px; font: inherit; color: inherit; background: transparent; }
     .ward-ed-input:focus { outline: 2px solid #0ea5e9; outline-offset: 0; border-color: transparent; }
     .ward-ed-thread-actions { display: flex; align-items: center; gap: 4px; }

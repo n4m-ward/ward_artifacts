@@ -98,6 +98,8 @@ class DesignEditor {
         this.space = false;
         this.editingNote = null;
 
+        // Dentro do MCP App (sem cookie): as chamadas vão pela ferramenta design_app_request.
+        this.inApp = Boolean(config.app);
         canvas.editor = this;
         this.buildUi();
         this.bindKeys();
@@ -200,8 +202,11 @@ class DesignEditor {
             this.componentsButton = button('Componentes de design systems', 'components', () => this.toggleComponents(), { 'aria-pressed': 'false' });
             toolbar.append(this.imagesButton, this.themeButton, this.componentsButton);
         }
-        this.exportButton = button('Exportar', 'download', () => this.toggleExport(), { 'aria-haspopup': 'menu', 'aria-expanded': 'false' });
-        toolbar.append(this.exportButton);
+        // Exportar PNG/PDF baixa arquivos: só na página do design, não no MCP App.
+        if (!this.inApp) {
+            this.exportButton = button('Exportar', 'download', () => this.toggleExport(), { 'aria-haspopup': 'menu', 'aria-expanded': 'false' });
+            toolbar.append(this.exportButton);
+        }
         this.status = el('span', { class: 'ward-ed-status', role: 'status', 'aria-live': 'polite' });
         toolbar.append(this.status);
         root.append(toolbar);
@@ -918,6 +923,61 @@ class DesignEditor {
         this.selection = new Set([...this.selection].map((key) => (key === `b:${oldId}` ? `b:${newId}` : key)));
     }
 
+    /**
+     * fetch da página do design (cookie + CSRF) ou, no MCP App, o transporte do app
+     * (window.wardDesignTransport, que chama a ferramenta design_app_request).
+     */
+    http(url, init = {}) {
+        return (window.wardDesignTransport ?? window.fetch.bind(window))(url, { credentials: 'same-origin', ...init });
+    }
+
+    /** Confirmação dentro do canvas (o MCP App roda num iframe sem window.confirm). */
+    confirmDialog(message, confirmText = 'Confirmar') {
+        return this.dialog({ message, confirmText });
+    }
+
+    /** Texto dentro do canvas no lugar de window.prompt; null quando cancela. */
+    promptDialog(message, value = '') {
+        return this.dialog({ message, value: String(value ?? ''), confirmText: 'OK' });
+    }
+
+    dialog({ message, value, confirmText }) {
+        return new Promise((resolve) => {
+            const withInput = value !== undefined;
+            const input = withInput ? el('input', { class: 'ward-ed-input', type: 'text', value }) : null;
+            const cancelButton = el('button', { type: 'button', class: 'ward-ed-btn is-text', text: 'Cancelar' });
+            const okButton = el('button', { type: 'button', class: 'ward-ed-btn is-primary', text: confirmText });
+            const overlay = el('div', { class: 'ward-ed-dialog-overlay', role: 'presentation' }, [
+                el('div', { class: 'ward-ed-dialog', role: 'dialog', 'aria-modal': 'true' }, [
+                    el('p', { class: 'ward-ed-dialog-text', text: message }),
+                    input,
+                    el('div', { class: 'ward-ed-dialog-actions' }, [cancelButton, okButton]),
+                ]),
+            ]);
+            const close = (result) => {
+                overlay.remove();
+                document.removeEventListener('keydown', onKey, true);
+                resolve(result);
+            };
+            const ok = () => close(withInput ? input.value : true);
+            const cancel = () => close(withInput ? null : false);
+            const onKey = (event) => {
+                if (event.key !== 'Escape' && event.key !== 'Enter') return;
+                event.preventDefault();
+                event.stopPropagation();
+                if (event.key === 'Escape') cancel();
+                else ok();
+            };
+            okButton.addEventListener('click', ok);
+            cancelButton.addEventListener('click', cancel);
+            overlay.addEventListener('pointerdown', (event) => { if (event.target === overlay) cancel(); });
+            document.addEventListener('keydown', onKey, true);
+            this.canvas.root.append(overlay);
+            (input ?? okButton).focus();
+            input?.select();
+        });
+    }
+
     send(ops, label) {
         this.pending++;
         this.canvas.hold = true;
@@ -925,7 +985,7 @@ class DesignEditor {
 
         const run = async () => {
             try {
-                const response = await fetch(this.config.url, {
+                const response = await this.http(this.config.url, {
                     method: 'POST',
                     credentials: 'same-origin',
                     headers: {
@@ -1206,7 +1266,7 @@ Object.assign(DesignEditor.prototype, {
         this.sourceLoads ??= new Map();
         if (this.sourceLoads.has(boardId)) return this.sourceLoads.get(boardId);
         const load = (async () => {
-            const response = await fetch(this.sourceUrl(boardId), { credentials: 'same-origin', headers: { Accept: 'application/json' } });
+            const response = await this.http(this.sourceUrl(boardId), { credentials: 'same-origin', headers: { Accept: 'application/json' } });
             if (!response.ok) throw new Error('source');
             const json = await response.json();
             const source = { revision: json.revision, html: json.html, doc: new DOMParser().parseFromString(json.html, 'text/html') };
@@ -1867,7 +1927,7 @@ Object.assign(DesignEditor.prototype, {
 
     async loadAssets() {
         try {
-            const response = await fetch(this.config.assetsUrl, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
+            const response = await this.http(this.config.assetsUrl, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
             this.assets = (await response.json()).assets ?? [];
         } catch {
             this.assets = [];
@@ -1881,7 +1941,7 @@ Object.assign(DesignEditor.prototype, {
             const form = new FormData();
             form.append('file', file);
             try {
-                const response = await fetch(this.config.assetsUrl, {
+                const response = await this.http(this.config.assetsUrl, {
                     method: 'POST', credentials: 'same-origin', body: form,
                     headers: { Accept: 'application/json', 'X-CSRF-TOKEN': this.config.csrf, 'X-Requested-With': 'XMLHttpRequest' },
                 });
@@ -1919,8 +1979,8 @@ Object.assign(DesignEditor.prototype, {
     },
 
     async removeAsset(asset) {
-        if (!window.confirm(`Apagar ${asset.name}? Artboards que usam a imagem ficam sem ela.`)) return;
-        const response = await fetch(`${this.config.assetsUrl}/${encodeURIComponent(asset.name)}`, {
+        if (!(await this.confirmDialog(`Apagar ${asset.name}? Artboards que usam a imagem ficam sem ela.`, 'Apagar'))) return;
+        const response = await this.http(`${this.config.assetsUrl}/${encodeURIComponent(asset.name)}`, {
             method: 'DELETE', credentials: 'same-origin',
             headers: { Accept: 'application/json', 'X-CSRF-TOKEN': this.config.csrf, 'X-Requested-With': 'XMLHttpRequest' },
         });
@@ -1989,16 +2049,16 @@ Object.assign(DesignEditor.prototype, {
         this.setStatus('Página criada. Clique duplo no nome para renomear.');
     },
 
-    renamePage(key) {
+    async renamePage(key) {
         const page = this.canvas.pages().find((item) => item.key === key);
-        const name = window.prompt('Nome da página', page?.name ?? '');
+        const name = await this.promptDialog('Nome da página', page?.name ?? '');
         if (!name || !name.trim() || name.trim() === page.name) return;
         this.commit([{ op: 'page.upsert', key, name: name.trim() }], [{ op: 'page.upsert', key, name: page.name }], 'Página renomeada');
     },
 
     async deletePage(key) {
         const page = this.canvas.pages().find((item) => item.key === key);
-        if (!page || !window.confirm(`Apagar a página "${page.name}"? Os artboards e notas dela vão para a primeira página.`)) return;
+        if (!page || !(await this.confirmDialog(`Apagar a página "${page.name}"? Os artboards e notas dela vão para a primeira página.`, 'Apagar'))) return;
         const moved = this.canvas.state.boards.filter((board) => board.page === key).map((board) => ({ op: 'board.update', id: board.id, page: key }));
         const notes = this.canvas.state.notes.filter((note) => note.page === key).map((note) => ({ op: 'note.upsert', key: note.key, page: key }));
         const results = await this.send([{ op: 'page.delete', key }], 'Apagando página…');
@@ -2126,7 +2186,7 @@ Object.assign(DesignEditor.prototype, {
     async loadSystems(query = '') {
         const url = `${this.collab.systemsUrl}?q=${encodeURIComponent(query)}&prefer=${encodeURIComponent(this.collab.projectSystem ?? '')}`;
         try {
-            this.systems = (await (await fetch(url, { credentials: 'same-origin', headers: { Accept: 'application/json' } })).json()).design_systems ?? [];
+            this.systems = (await (await this.http(url, { credentials: 'same-origin', headers: { Accept: 'application/json' } })).json()).design_systems ?? [];
         } catch {
             this.systems = [];
         }
@@ -2141,7 +2201,7 @@ Object.assign(DesignEditor.prototype, {
     async loadSystemState() {
         if (!this.activeSystem) return;
         try {
-            this.systemState = await (await fetch(this.activeSystem.live_url, { credentials: 'same-origin', headers: { Accept: 'application/json' } })).json();
+            this.systemState = await (await this.http(this.activeSystem.live_url, { credentials: 'same-origin', headers: { Accept: 'application/json' } })).json();
         } catch {
             this.systemState = null;
         }
@@ -2222,25 +2282,25 @@ Object.assign(DesignEditor.prototype, {
     },
 
     async publishComponent(board) {
-        const systems = (await (await fetch(`${this.collab.systemsUrl}?prefer=${encodeURIComponent(this.collab.projectSystem ?? '')}`, { credentials: 'same-origin', headers: { Accept: 'application/json' } })).json()).design_systems ?? [];
+        const systems = (await (await this.http(`${this.collab.systemsUrl}?prefer=${encodeURIComponent(this.collab.projectSystem ?? '')}`, { credentials: 'same-origin', headers: { Accept: 'application/json' } })).json()).design_systems ?? [];
         const mine = systems.filter((system) => system.owner === this.collab.user?.username);
         if (!mine.length) {
             this.setStatus('Crie um design system para um projeto seu em Design systems.', true);
             return;
         }
         const options = mine.map((system, i) => `${i + 1}. ${system.title} (${system.ref})`).join('\n');
-        const pick = mine.length === 1 ? '1' : window.prompt(`Publicar "${board.name}" em qual design system?\n${options}`, '1');
+        const pick = mine.length === 1 ? '1' : await this.promptDialog(`Publicar "${board.name}" em qual design system?\n${options}`, '1');
         const system = mine[Number(pick) - 1];
         if (!system) return;
-        const description = window.prompt('Descrição do componente (o que é e quando usar):', board.description ?? '') ?? undefined;
+        const description = (await this.promptDialog('Descrição do componente (o que é e quando usar):', board.description ?? '')) ?? undefined;
         const results = await this.send([{ op: 'component.publish', id: board.id, system: system.ref, description }], 'Publicando…');
         if (results) this.setStatus(`"${results[0].name}" publicado em ${results[0].system}`);
     },
 
-    describeComponent(board) {
-        const description = window.prompt('Descrição (o que é e quando usar):', board.description ?? '');
+    async describeComponent(board) {
+        const description = await this.promptDialog('Descrição (o que é e quando usar):', board.description ?? '');
         if (description === null) return;
-        const tags = window.prompt('Tags (separadas por vírgula):', board.tags ?? '');
+        const tags = await this.promptDialog('Tags (separadas por vírgula):', board.tags ?? '');
         if (tags === null) return;
         this.commit(
             [{ op: 'board.describe', id: board.id, description, tags }],
@@ -2473,7 +2533,7 @@ Object.assign(DesignEditor.prototype, {
                 () => this.request('PATCH', `${this.collab.commentsUrl}/${thread.id}`, { resolved: !thread.resolved }),
                 { text: thread.resolved ? 'Reabrir' : 'Resolver', class: 'ward-ed-btn is-text' }));
             actions.push(button('Apagar comentário', 'trash', async () => {
-                if (!window.confirm(`Apagar o comentário #${thread.number} e as respostas?`)) return;
+                if (!(await this.confirmDialog(`Apagar o comentário #${thread.number} e as respostas?`, 'Apagar'))) return;
                 const json = await this.request('DELETE', `${this.collab.commentsUrl}/${thread.id}`);
                 if (json) this.closeThread();
             }, { class: 'ward-ed-btn is-danger' }));
@@ -2576,7 +2636,7 @@ Object.assign(DesignEditor.prototype, {
 
     async request(method, url, body) {
         try {
-            const response = await fetch(url, {
+            const response = await this.http(url, {
                 method,
                 credentials: 'same-origin',
                 headers: {
@@ -2613,7 +2673,7 @@ Object.assign(DesignEditor.prototype, {
             const json = JSON.stringify(payload);
             if (json === this.lastView) return;
             this.lastView = json;
-            fetch(this.collab.viewUrl, {
+            this.http(this.collab.viewUrl, {
                 method: 'POST', credentials: 'same-origin', keepalive: true,
                 headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': this.collab.csrf },
                 body: json,
@@ -2667,6 +2727,8 @@ function rectStyle(r) {
 function intersects(a, b) {
     return Boolean(a) && a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 }
+
+window.WardDesignEditor = DesignEditor;
 
 const start = () => {
     const config = JSON.parse(document.getElementById('ward-design-config')?.textContent || '{}');

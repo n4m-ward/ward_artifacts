@@ -34,7 +34,7 @@ class DesignApp extends AppResource
     {
         $version = substr(md5(implode('|', array_map(
             fn (string $file) => (string) md5_file($file),
-            [resource_path('views/mcp/design-app.blade.php'), resource_path('js/design-canvas.js'), resource_path('views/designs/canvas-styles.blade.php')],
+            [resource_path('views/mcp/design-app.blade.php'), resource_path('js/design-canvas.js'), resource_path('js/design-editor.js'), resource_path('views/designs/canvas-styles.blade.php')],
         ))), 0, 10);
 
         return "ui://ward-artifacts/design-{$version}";
@@ -54,6 +54,8 @@ class DesignApp extends AppResource
     {
         return Response::view('mcp.design-app', [
             'canvasScript' => (string) file_get_contents(resource_path('js/design-canvas.js')),
+            // Editor completo (dono/admin edita; qualquer pessoa logada comenta), sem exportar.
+            'editorScript' => (string) file_get_contents(resource_path('js/design-editor.js')),
         ]);
     }
 

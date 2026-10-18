@@ -42,6 +42,6 @@ class DesignLiveTool extends WardTool
         }
 
         return Response::make(Response::text("Revisão {$design->design_revision}."))
-            ->withStructuredContent(['changed' => true, 'app' => $state->appConfig($design)]);
+            ->withStructuredContent(['changed' => true, 'app' => $state->appConfig($design, $request->user())]);
     }
 }

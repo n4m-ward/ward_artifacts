@@ -4,9 +4,13 @@
         <style>
             :root { color-scheme: light; --wa-bg: #ffffff; --wa-fg: #18181b; --wa-muted: #71717a; --wa-line: rgb(127 127 127 / .25); --wa-chip: #f4f4f5; }
             :root.dark { color-scheme: dark; --wa-bg: #1c1c1c; --wa-fg: #f4f4f5; --wa-muted: #a1a1aa; --wa-line: rgb(255 255 255 / .12); --wa-chip: #27272a; }
+            /* Sem Tailwind no app: painéis do editor com [hidden] continuariam visíveis. */
+            [hidden] { display: none !important; }
             html, body { margin: 0; background: var(--wa-bg); color: var(--wa-fg); font: 14px/1.4 var(--font-sans, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif); }
             html[data-mode="canvas"] body { height: 560px; }
             html[data-display="fullscreen"] body { height: 100vh; }
+            /* Host com altura fixa (containerDimensions.height, ex.: aba App do WardCode): ocupa tudo. */
+            html[data-fill="1"] body { height: 100vh; }
             #ward-app { display: flex; flex-direction: column; height: 100%; min-height: 120px; }
             .wa-bar { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid var(--wa-line); }
             .wa-logo { flex: none; width: 22px; height: 22px; }
@@ -108,6 +112,7 @@
     </div>
 
     <script type="module">{!! $canvasScript !!}</script>
+    <script type="module">{!! $editorScript !!}</script>
     <script type="module">
         const $ = (selector) => document.querySelector(selector);
         const ui = {
@@ -138,6 +143,7 @@
                 if (!context) return;
                 if (context.theme) document.documentElement.classList.toggle('dark', context.theme === 'dark');
                 if (context.toolInfo?.tool?.name) toolName = context.toolInfo.tool.name;
+                if (context.containerDimensions) document.documentElement.dataset.fill = context.containerDimensions.height ? '1' : '';
                 const display = context.displayMode || document.documentElement.dataset.display || 'inline';
                 document.documentElement.dataset.display = display;
                 ui.fullscreen.hidden = !(context.availableDisplayModes || []).includes('fullscreen');
@@ -210,11 +216,54 @@
                         poll,
                         onSelect,
                     });
+                    startEditor();
                 } else {
                     canvas.setState(config.state);
                 }
                 if (focusId !== null) canvas.openFocus(focusId);
                 app.autoResize?.();
+            }
+
+            // ---------- editor (o mesmo da página do design) ----------
+
+            // As chamadas do editor viram a ferramenta design_app_request: o app não tem
+            // cookie nem CSRF, e o servidor usa o login OAuth da pessoa.
+            const MAX_APP_UPLOAD_BYTES = 600 * 1024;
+            const toBase64 = (file) => new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(String(reader.result).split(',')[1] ?? '');
+                reader.onerror = () => reject(reader.error);
+                reader.readAsDataURL(file);
+            });
+            const jsonResponse = (status, data) => new Response(status === 204 || data == null ? null : JSON.stringify(data), {
+                status, headers: { 'Content-Type': 'application/json' },
+            });
+
+            window.wardDesignTransport = async (url, init = {}) => {
+                const target = new URL(url, config?.url ?? location.href);
+                const path = target.pathname.replace(/^\/+/, '') + target.search;
+                let body;
+                if (init.body instanceof FormData) {
+                    const file = init.body.get('file');
+                    if (file && file.size > MAX_APP_UPLOAD_BYTES) {
+                        return jsonResponse(413, { message: `${file.name} passa de 600 KB: envie pela página do design.` });
+                    }
+                    body = file ? { file: { name: file.name, type: file.type, base64: await toBase64(file) } } : {};
+                } else if (typeof init.body === 'string' && init.body) {
+                    body = JSON.parse(init.body);
+                }
+                const result = await app.callServerTool('design_app_request', {
+                    method: (init.method || 'GET').toUpperCase(), path, ...(body ? { body } : {}),
+                });
+                if (result?.isError) return jsonResponse(500, { message: textOf(result) });
+                const { status, body: data } = result?.structuredContent ?? { status: 500, body: null };
+                return jsonResponse(status, data);
+            };
+
+            function startEditor() {
+                if (!config.collab || !window.WardDesignEditor || window.wardDesignEditor) return;
+                window.wardDesign = canvas;
+                window.wardDesignEditor = new window.WardDesignEditor(canvas, config);
             }
 
             function onSelect(board) {
@@ -334,6 +383,10 @@
                         config = content.app;
                         if (!config.issuedAt || Date.now() - config.issuedAt > STALE_MS) config = await loadConfig(config.design);
                         return enterCanvas();
+                    }
+                    if (content.design && content.board && canvas && document.documentElement.dataset.mode === 'canvas') {
+                        // Já no canvas: o ao vivo traz a tela nova; não troca para a prévia.
+                        return;
                     }
                     if (content.design && content.board) {
                         config = await loadConfig(content.design);
