@@ -152,6 +152,41 @@
         else element.setAttribute(name, value);
       }
       if (typeof data.text === 'string') element.textContent = data.text;
+    } else if (data.ward === 'rules') {
+      // Regras CSS das folhas do artboard que se aplicam ao elemento (as de outra origem não são legíveis).
+      const element = byPath(data.path);
+      const rules = [];
+      const walk = (list, media) => {
+        for (const rule of Array.from(list || [])) {
+          if (rules.length >= 40) return;
+          if (rule.cssRules && !rule.selectorText) {
+            walk(rule.cssRules, rule.conditionText || rule.media?.mediaText || media);
+          } else if (rule.selectorText) {
+            let hit = false;
+            try { hit = element.matches(rule.selectorText); } catch { hit = false; }
+            if (hit) rules.push({ selector: rule.selectorText, css: rule.style.cssText, media: media || null });
+          }
+        }
+      };
+      if (element) {
+        for (const sheet of Array.from(document.styleSheets)) {
+          let list = null;
+          try { list = sheet.cssRules; } catch { list = null; }
+          if (list && (!sheet.ownerNode || sheet.ownerNode.tagName === 'STYLE')) walk(list, null);
+        }
+      }
+      post({ ward: 'answer', request: data.request, value: rules });
+    } else if (data.ward === 'rule-preview') {
+      // Prévia ao vivo de uma regra editada.
+      const visit = (list) => {
+        for (const rule of Array.from(list || [])) {
+          if (rule.cssRules && !rule.selectorText) visit(rule.cssRules);
+          else if (rule.selectorText === data.selector) rule.style.cssText = data.css;
+        }
+      };
+      for (const sheet of Array.from(document.styleSheets)) {
+        try { visit(sheet.cssRules); } catch { /* folha de outra origem */ }
+      }
     } else if (data.ward === 'tweak') {
       const tweaks = readTweaks();
       if (tweaks && tweaks[data.key]) applyTweak(data.key, tweaks[data.key], data.value);

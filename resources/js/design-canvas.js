@@ -581,8 +581,9 @@ class DesignCanvas {
                 if (target) this.openFocus(target.id);
                 return;
             }
-            if (message?.ward === 'picked' || message?.ward === 'tweaks-read') {
-                this.picks.get(message.request)?.(message.ward === 'picked' ? (message.element ?? null) : (message.tweaks ?? null));
+            if (message?.ward === 'picked' || message?.ward === 'tweaks-read' || message?.ward === 'answer') {
+                const value = message.ward === 'picked' ? message.element : message.ward === 'answer' ? message.value : message.tweaks;
+                this.picks.get(message.request)?.(value ?? null);
                 this.picks.delete(message.request);
                 return;
             }
