@@ -11,7 +11,6 @@ use Illuminate\Support\Facades\Storage;
  * Onde os arquivos de um design ficam no disco de artifacts:
  *   {uuid}/boards/{board_id}/{revision}.html   HTML atual de cada artboard
  *   {uuid}/snapshots/{numero}.zip              versões congeladas
- *   {uuid}/assets/{nome}                       imagens (no HTML: "assets/{nome}")
  */
 class DesignStorage
 {
@@ -28,11 +27,6 @@ class DesignStorage
     public function snapshotPath(Artifact $design, int $number): string
     {
         return "{$design->uuid}/snapshots/{$number}.zip";
-    }
-
-    public function assetPath(Artifact $design, string $name): string
-    {
-        return "{$design->uuid}/assets/{$name}";
     }
 
     public function html(DesignBoard $board): string

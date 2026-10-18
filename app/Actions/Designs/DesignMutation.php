@@ -29,7 +29,7 @@ abstract class DesignMutation
 
             $design->forceFill([
                 'design_revision' => $design->design_revision + 1,
-                'size_bytes' => (int) $design->boards()->sum('size_bytes') + (int) $design->assets()->sum('size_bytes'),
+                'size_bytes' => (int) $design->boards()->sum('size_bytes'),
             ])->save();
 
             return $result;

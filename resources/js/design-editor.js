@@ -35,8 +35,6 @@ const ICONS = {
     comment: 'M4 5h16v11H9l-5 4z',
     comments: 'M7 9h10M7 13h6M4 5h16v11H9l-5 4z',
     check: 'M5 12l5 5 9-10',
-    download: 'M12 4v11M7 10l5 5 5-5M5 20h14',
-    image: 'M4 5h16v14H4zM4 16l5-5 4 4 3-3 4 4M15 9.5h.01',
     close: 'M6 6l12 12M18 6L6 18',
 };
 
@@ -102,7 +100,6 @@ class DesignEditor {
         this.bindDoubleClick();
         this.initComments();
         if (this.canEdit) this.initInspector();
-        this.initAssets();
         this.afterRender();
     }
 
@@ -192,12 +189,6 @@ class DesignEditor {
         this.commentsCount = el('span', { class: 'ward-ed-count', hidden: true });
         this.commentsButton.append(this.commentsCount);
         toolbar.append(this.commentsButton);
-        if (this.canEdit) {
-            this.imagesButton = button('Imagens do design', 'image', () => this.toggleImages(), { 'aria-pressed': 'false' });
-            toolbar.append(this.imagesButton);
-        }
-        this.exportButton = button('Exportar', 'download', () => this.toggleExport(), { 'aria-haspopup': 'menu', 'aria-expanded': 'false' });
-        toolbar.append(this.exportButton);
         this.status = el('span', { class: 'ward-ed-status', role: 'status', 'aria-live': 'polite' });
         toolbar.append(this.status);
         root.append(toolbar);
@@ -1224,7 +1215,6 @@ Object.assign(DesignEditor.prototype, {
         if (!this.selection.has(`b:${boardId}`) || this.selection.size !== 1) this.setSelection([`b:${boardId}`]);
         this.drawElement();
         this.renderProps();
-        this.renderImages?.();
         this.reportView();
     },
 
@@ -1713,210 +1703,6 @@ Object.assign(DesignEditor.prototype, {
             return;
         }
         this.scheduleHtmlSave(boardId, 'Tweak aplicado');
-    },
-});
-
-// ---------- imagens do design e exportação ----------
-
-Object.assign(DesignEditor.prototype, {
-    initAssets() {
-        this.exportMenu = el('div', { class: 'ward-ed-menu', hidden: true, role: 'menu', 'aria-label': 'Exportar' });
-        this.canvas.root.append(this.exportMenu);
-        document.addEventListener('pointerdown', (event) => {
-            if (!this.exportMenu.hidden && !event.target.closest('.ward-ed-menu') && event.target.closest('button') !== this.exportButton) this.toggleExport(false);
-        }, true);
-        if (!this.canEdit) return;
-
-        this.assets = [];
-        this.images = el('aside', { class: 'ward-ed-panel ward-ed-images', hidden: true, 'aria-label': 'Imagens do design' });
-        this.canvas.root.append(this.images);
-
-        // Arrastar arquivos para o canvas e colar imagens enviam para a biblioteca.
-        const viewport = this.canvas.viewport;
-        viewport.addEventListener('dragover', (event) => {
-            if ([...(event.dataTransfer?.types || [])].includes('Files')) {
-                event.preventDefault();
-                viewport.classList.add('is-dropping');
-            }
-        });
-        viewport.addEventListener('dragleave', () => viewport.classList.remove('is-dropping'));
-        viewport.addEventListener('drop', (event) => {
-            viewport.classList.remove('is-dropping');
-            const files = [...(event.dataTransfer?.files || [])].filter((file) => file.type.startsWith('image/'));
-            if (!files.length) return;
-            event.preventDefault();
-            this.upload(files);
-        });
-        document.addEventListener('paste', (event) => {
-            if (event.target.closest('input, textarea, [contenteditable="true"], [contenteditable="plaintext-only"]')) return;
-            const files = [...(event.clipboardData?.files || [])].filter((file) => file.type.startsWith('image/'));
-            if (!files.length) return;
-            event.preventDefault();
-            this.upload(files);
-        });
-    },
-
-    // ----- exportar -----
-
-    toggleExport(force) {
-        const open = force ?? this.exportMenu.hidden;
-        this.exportMenu.hidden = !open;
-        this.exportButton.setAttribute('aria-expanded', String(open));
-        if (!open) return;
-        const selected = [...this.selection].filter((key) => key.startsWith('b:')).map((key) => Number(key.slice(2)));
-        const single = selected.length === 1 ? this.canvas.boards.get(selected[0])?.data : null;
-        const item = (label, action, disabled = false) => {
-            const node = el('button', { type: 'button', role: 'menuitem', class: 'ward-ed-menu-item', text: label, disabled });
-            node.addEventListener('click', () => {
-                this.toggleExport(false);
-                action();
-            });
-            return node;
-        };
-        const hint = single ? `“${single.title || single.name}”` : 'selecione um artboard';
-        this.exportMenu.replaceChildren(
-            el('div', { class: 'ward-ed-menu-label', text: `Artboard: ${hint}` }),
-            item('PNG', () => this.exportPng(single, 1), !single),
-            item('PNG em alta (2×)', () => this.exportPng(single, 2), !single),
-            item('PDF deste artboard', () => this.exportPdf([single.id]), !single),
-            el('div', { class: 'ward-ed-menu-sep' }),
-            selected.length > 1 ? item(`PDF dos ${selected.length} selecionados`, () => this.exportPdf(selected)) : null,
-            item(`PDF de todos (${this.canvas.state.boards.length})`, () => this.exportPdf([]), !this.canvas.state.boards.length),
-        );
-        const rect = this.exportButton.getBoundingClientRect();
-        const rootRect = this.canvas.root.getBoundingClientRect();
-        Object.assign(this.exportMenu.style, { left: `${rect.left - rootRect.left}px`, bottom: `${rootRect.bottom - rect.top + 8}px` });
-    },
-
-    async exportPng(board, scale) {
-        const entry = this.canvas.boards.get(board.id);
-        if (!entry.loaded) {
-            entry.frame.src = board.url;
-            entry.loaded = true;
-            await new Promise((resolve) => entry.frame.addEventListener('load', resolve, { once: true }));
-        }
-        this.setStatus('Gerando PNG…');
-        const result = await this.canvas.ask(board.id, { ward: 'export-png', scale }, 60000);
-        if (!result?.url) return this.setStatus(result?.error ? `PNG: ${result.error}` : 'Não consegui gerar o PNG.', true);
-        const link = el('a', { href: result.url, download: `${board.name}${scale > 1 ? `@${scale}x` : ''}.png` });
-        document.body.append(link);
-        link.click();
-        link.remove();
-        this.setStatus('PNG baixado');
-    },
-
-    exportPdf(ids) {
-        if (ids.length === 1) {
-            const board = this.canvas.boards.get(ids[0])?.data;
-            if (board) window.open(`${board.url}${board.url.includes('?') ? '&' : '?'}print=1`, '_blank', 'noopener');
-            return;
-        }
-        const url = `${this.collab.printUrl}${ids.length ? `?boards=${ids.join(',')}` : ''}`;
-        window.open(url, '_blank', 'noopener');
-    },
-
-    // ----- imagens -----
-
-    toggleImages(force) {
-        const open = force ?? this.images.hidden;
-        this.images.hidden = !open;
-        this.imagesButton.setAttribute('aria-pressed', String(open));
-        if (open) {
-            this.panel.hidden = true;
-            this.loadAssets();
-        }
-        this.renderImages();
-    },
-
-    async loadAssets() {
-        try {
-            const response = await fetch(this.config.assetsUrl, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
-            this.assets = (await response.json()).assets ?? [];
-        } catch {
-            this.assets = [];
-        }
-        this.renderImages();
-    },
-
-    async upload(files) {
-        for (const file of files) {
-            this.setStatus(`Enviando ${file.name}…`);
-            const form = new FormData();
-            form.append('file', file);
-            try {
-                const response = await fetch(this.config.assetsUrl, {
-                    method: 'POST', credentials: 'same-origin', body: form,
-                    headers: { Accept: 'application/json', 'X-CSRF-TOKEN': this.config.csrf, 'X-Requested-With': 'XMLHttpRequest' },
-                });
-                const json = await response.json().catch(() => ({}));
-                if (!response.ok) {
-                    this.setStatus(json.message || json.errors?.file?.[0] || `Não consegui enviar ${file.name}.`, true);
-                    continue;
-                }
-                this.assets = json.assets ?? this.assets;
-                this.setStatus(`Imagem pronta: ${json.asset.path}`);
-            } catch {
-                this.setStatus('Sem conexão.', true);
-            }
-        }
-        if (this.images.hidden) this.toggleImages(true);
-        else this.renderImages();
-    },
-
-    useAsset(asset) {
-        const element = this.inspect?.element;
-        if (!element) {
-            this.copy(asset.path, `Caminho copiado: ${asset.path}`);
-            return;
-        }
-        if (element.tag === 'img') {
-            this.setAttr('src', asset.path);
-            if (!element.attrs?.alt) this.setAttr('alt', asset.original_name?.replace(/\.[a-z0-9]+$/i, '') ?? '');
-        } else {
-            this.editElement((node) => {
-                node.style.setProperty('background-image', `url(${asset.path})`);
-                node.style.setProperty('background-size', 'cover');
-                node.style.setProperty('background-position', 'center');
-            }, { live: { style: { 'background-image': `url(${asset.path})`, 'background-size': 'cover', 'background-position': 'center' } }, label: 'Imagem de fundo aplicada' });
-        }
-    },
-
-    async removeAsset(asset) {
-        if (!window.confirm(`Apagar ${asset.name}? Artboards que usam a imagem ficam sem ela.`)) return;
-        const response = await fetch(`${this.config.assetsUrl}/${encodeURIComponent(asset.name)}`, {
-            method: 'DELETE', credentials: 'same-origin',
-            headers: { Accept: 'application/json', 'X-CSRF-TOKEN': this.config.csrf, 'X-Requested-With': 'XMLHttpRequest' },
-        });
-        if (response.ok) this.assets = (await response.json()).assets ?? [];
-        this.renderImages();
-    },
-
-    renderImages() {
-        if (!this.images || this.images.hidden) return;
-        const input = el('input', { type: 'file', accept: 'image/png,image/jpeg,image/webp,image/gif,image/avif,image/svg+xml', multiple: true, hidden: true });
-        input.addEventListener('change', () => this.upload([...input.files]));
-        const target = this.inspect?.element;
-        const hint = target
-            ? (target.tag === 'img' ? 'Clique numa imagem para trocar a do <img> selecionado.' : `Clique numa imagem para usar como fundo do <${target.tag}>.`)
-            : 'Arraste arquivos para o canvas ou cole (⌘V). Clique numa imagem para copiar o caminho; com um elemento selecionado, ela é aplicada nele.';
-
-        const grid = this.assets.map((asset) => {
-            const use = el('button', { type: 'button', class: 'ward-ed-asset', title: `${asset.name}${asset.width ? ` · ${asset.width}×${asset.height}` : ''}` }, [
-                el('img', { src: asset.url, alt: asset.original_name || asset.name, loading: 'lazy' }),
-            ]);
-            use.addEventListener('click', () => this.useAsset(asset));
-            const remove = button(`Apagar ${asset.name}`, 'close', () => this.removeAsset(asset), { class: 'ward-ed-btn ward-ed-asset-remove' });
-            return el('div', { class: 'ward-ed-asset-cell' }, [use, remove]);
-        });
-
-        this.images.replaceChildren(
-            el('div', { class: 'ward-ed-panel-head' }, [el('strong', { text: 'Imagens' }), button('Fechar', 'close', () => this.toggleImages(false))]),
-            el('div', { class: 'ward-ed-thread-actions' }, [
-                button('Enviar imagens', null, () => input.click(), { text: 'Enviar imagens', class: 'ward-ed-btn is-primary' }), input,
-            ]),
-            el('p', { class: 'ward-ed-hint', text: hint }),
-            grid.length ? el('div', { class: 'ward-ed-assets' }, grid) : el('p', { class: 'ward-ed-muted ward-ed-empty', text: 'Nenhuma imagem ainda.' }),
-        );
     },
 });
 

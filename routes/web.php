@@ -3,11 +3,9 @@
 use App\Http\Controllers\ArtifactDownloadController;
 use App\Http\Controllers\ArtifactPreviewController;
 use App\Http\Controllers\ArtifactViewerController;
-use App\Http\Controllers\DesignAssetController;
 use App\Http\Controllers\DesignCommentController;
 use App\Http\Controllers\DesignEditController;
 use App\Http\Controllers\DesignLiveController;
-use App\Http\Controllers\DesignPrintController;
 use App\Models\User;
 use Illuminate\Support\Facades\Route;
 use Livewire\Volt\Volt;
@@ -57,15 +55,6 @@ Route::middleware(['auth', 'throttle:600,1'])->where(['artifact' => '[0-9a-f]{32
     Route::patch('d/{artifact}/comments/{comment}', [DesignCommentController::class, 'update'])->name('designs.comments.update');
     Route::delete('d/{artifact}/comments/{comment}', [DesignCommentController::class, 'destroy'])->name('designs.comments.destroy');
     Route::post('d/{artifact}/view', [DesignCommentController::class, 'view'])->name('designs.view');
-
-    // PDF de vários artboards (uma página por artboard).
-    Route::get('d/{artifact}/print', DesignPrintController::class)->name('designs.print');
-
-    // Imagens do design (biblioteca do canvas).
-    Route::get('d/{artifact}/assets', [DesignAssetController::class, 'index'])->name('designs.assets.index');
-    Route::post('d/{artifact}/assets', [DesignAssetController::class, 'store'])->name('designs.assets.store');
-    Route::get('d/{artifact}/assets/{name}', [DesignAssetController::class, 'show'])->where('name', '[a-z0-9.-]+')->name('designs.assets.show');
-    Route::delete('d/{artifact}/assets/{name}', [DesignAssetController::class, 'destroy'])->where('name', '[a-z0-9.-]+')->name('designs.assets.destroy');
 });
 
 Route::get('artifacts/{artifact}/download', ArtifactDownloadController::class)

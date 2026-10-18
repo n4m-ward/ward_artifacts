@@ -45,7 +45,6 @@ class DesignView
                 'edit' => $editable ? [
                     'url' => route('designs.edit', $design->uuid),
                     'sourceUrl' => route('designs.board-source', [$design->uuid, 0]),
-                    'assetsUrl' => route('designs.assets.index', $design->uuid),
                     'csrf' => csrf_token(),
                 ] : null,
                 // Comentários e o relato do que a pessoa vê (qualquer pessoa logada que vê o design).
@@ -53,7 +52,6 @@ class DesignView
                     'user' => ['id' => auth()->id(), 'name' => auth()->user()->name],
                     'commentsUrl' => route('designs.comments.store', $design->uuid),
                     'viewUrl' => route('designs.view', $design->uuid),
-                    'printUrl' => route('designs.print', $design->uuid),
                     'csrf' => csrf_token(),
                 ] : null,
             ],

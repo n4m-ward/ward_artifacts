@@ -626,8 +626,8 @@ class DesignCanvas {
         return this.ask(boardId, { ward: 'pick', x, y });
     }
 
-    /** Pergunta algo ao runtime do artboard e espera a resposta (ou null depois de timeout ms). */
-    ask(boardId, message, timeout = 800) {
+    /** Pergunta algo ao runtime do artboard e espera a resposta (ou null em 800 ms). */
+    ask(boardId, message) {
         const entry = this.boards.get(boardId);
         if (!entry || !entry.loaded || !entry.frame.contentWindow) return Promise.resolve(null);
         const request = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -635,7 +635,7 @@ class DesignCanvas {
             this.picks.set(request, resolve);
             setTimeout(() => {
                 if (this.picks.delete(request)) resolve(null);
-            }, timeout);
+            }, 800);
             entry.frame.contentWindow.postMessage({ ...message, request }, this.config.contentOrigin);
         });
     }
