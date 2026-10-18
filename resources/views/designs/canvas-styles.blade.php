@@ -36,6 +36,58 @@
     .ward-list-box { position: relative; overflow: hidden; border-radius: 8px; background: #fff; cursor: pointer;
         box-shadow: 0 0 0 1px rgb(127 127 127 / .25); }
     .ward-list-box iframe { position: absolute; left: 0; top: 0; border: 0; transform-origin: 0 0; pointer-events: none; }
+    /* Notas: tamanhos e negrito. */
+    .ward-note-sticky.is-size-s { font-size: 14px; } .ward-note-sticky.is-size-l { font-size: 24px; } .ward-note-sticky.is-size-xl { font-size: 32px; }
+    .ward-note-title.is-size-s { font-size: 40px; } .ward-note-title.is-size-m { font-size: 56px; } .ward-note-title.is-size-xl { font-size: 96px; }
+    .ward-note-sticky.is-bold { font-weight: 700; } .ward-note-title:not(.is-bold) { font-weight: 700; }
+    .ward-note-sticky.is-editing, .ward-note-title.is-editing { outline: calc(2px * var(--inv)) solid #38bdf8; outline-offset: 2px; cursor: text; user-select: text; }
+
+    /* Editor (só para quem pode editar). */
+    .ward-viewport[data-tool="select"] { cursor: default; }
+    .ward-viewport[data-tool="hand"], .ward-viewport[data-space] { cursor: grab; }
+    .ward-viewport[data-tool="note"], .ward-viewport[data-tool="title"] { cursor: crosshair; }
+    .ward-viewport.is-moving { cursor: move; }
+    .ward-viewport[data-tool] .ward-board-name { cursor: default; }
+    .ward-viewport[data-tool] .ward-board-name:hover { color: inherit; text-decoration: none; }
+    .ward-viewport[data-tool] .ward-note-sticky, .ward-viewport[data-tool] .ward-note-title { user-select: none; }
+    .ward-ed-overlay { position: absolute; left: 0; top: 0; pointer-events: none; }
+    .ward-ed-sel { position: absolute; box-shadow: 0 0 0 calc(2px * var(--inv)) #38bdf8; pointer-events: none; }
+    .ward-ed-group { position: absolute; outline: calc(1px * var(--inv)) dashed #38bdf8; outline-offset: calc(6px * var(--inv)); pointer-events: none; }
+    .ward-ed-handle { position: absolute; width: calc(10px * var(--inv)); height: calc(10px * var(--inv)); margin: calc(-5px * var(--inv)) 0 0 calc(-5px * var(--inv));
+        background: #fff; border: calc(1.5px * var(--inv)) solid #0ea5e9; border-radius: 2px; pointer-events: auto; box-sizing: border-box; }
+    .ward-ed-handle.is-nw { left: 0; top: 0; cursor: nwse-resize; } .ward-ed-handle.is-n { left: 50%; top: 0; cursor: ns-resize; }
+    .ward-ed-handle.is-ne { left: 100%; top: 0; cursor: nesw-resize; } .ward-ed-handle.is-e { left: 100%; top: 50%; cursor: ew-resize; }
+    .ward-ed-handle.is-se { left: 100%; top: 100%; cursor: nwse-resize; } .ward-ed-handle.is-s { left: 50%; top: 100%; cursor: ns-resize; }
+    .ward-ed-handle.is-sw { left: 0; top: 100%; cursor: nesw-resize; } .ward-ed-handle.is-w { left: 0; top: 50%; cursor: ew-resize; }
+    .ward-ed-marquee { position: absolute; border: 1px solid #38bdf8; background: rgb(56 189 248 / .12); pointer-events: none; }
+    .ward-ed-toolbar, .ward-ed-bar { position: absolute; z-index: 20; display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: 12px;
+        background: rgb(255 255 255 / .97); border: 1px solid #e4e4e7; box-shadow: 0 6px 24px rgb(0 0 0 / .14); color: #27272a; font-size: 13px; }
+    .dark .ward-ed-toolbar, .dark .ward-ed-bar { background: rgb(24 24 27 / .97); border-color: #3f3f46; color: #e4e4e7; }
+    .ward-ed-toolbar { left: 50%; bottom: 16px; transform: translateX(-50%); }
+    .ward-ed-bar { transform: translateX(-50%); max-width: calc(100% - 16px); flex-wrap: wrap; justify-content: center; }
+    .ward-ed-btn { display: inline-grid; place-items: center; min-width: 36px; height: 36px; padding: 0 8px; border: 0; border-radius: 8px;
+        background: none; color: inherit; font: inherit; font-weight: 600; cursor: pointer; }
+    .ward-ed-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .ward-ed-btn:hover { background: rgb(127 127 127 / .14); }
+    .ward-ed-btn:focus-visible { outline: 2px solid #0ea5e9; outline-offset: 1px; }
+    .ward-ed-btn[aria-pressed="true"] { background: #e0f2fe; color: #0369a1; }
+    .dark .ward-ed-btn[aria-pressed="true"] { background: rgb(14 165 233 / .22); color: #7dd3fc; }
+    .ward-ed-btn:disabled { opacity: .35; cursor: default; background: none; }
+    .ward-ed-btn.is-danger:hover { background: #fee2e2; color: #b91c1c; }
+    .dark .ward-ed-btn.is-danger:hover { background: rgb(239 68 68 / .2); color: #fca5a5; }
+    .ward-ed-btn.is-bold { font-weight: 800; }
+    .ward-ed-btn.is-text { padding: 0 10px; font-weight: 500; }
+    .ward-ed-sep { width: 1px; height: 22px; margin: 0 4px; background: rgb(127 127 127 / .3); }
+    .ward-ed-label { padding: 0 8px; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #52525b; }
+    .dark .ward-ed-label { color: #a1a1aa; }
+    .ward-ed-status { min-width: 0; max-width: 280px; padding: 0 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #71717a; }
+    .ward-ed-status:empty { display: none; }
+    .ward-ed-status.is-error { color: #b91c1c; } .dark .ward-ed-status.is-error { color: #fca5a5; }
+    .ward-ed-swatches { display: flex; gap: 4px; padding: 0 4px; }
+    .ward-ed-swatch { width: 24px; min-width: 24px; height: 24px; padding: 0; border-radius: 999px; box-shadow: inset 0 0 0 1px rgb(0 0 0 / .15); }
+    .ward-ed-swatch[aria-pressed="true"] { box-shadow: 0 0 0 2px #0ea5e9; background-clip: padding-box; }
+    .ward-ed-rename { font: inherit; font-weight: 600; padding: 0 4px; border: 1px solid #38bdf8; border-radius: 4px; background: #fff; color: #18181b; min-width: 120px; }
+    .is-list .ward-ed-toolbar, .is-list .ward-ed-bar { display: none !important; }
     /* Modo lista (tela estreita): o canvas liga a classe conforme a largura. */
     .is-list .ward-viewport, .is-list .ward-zoom { display: none !important; }
     .is-list .ward-list { display: flex; flex-direction: column; align-items: center; gap: 24px; position: absolute; inset: 0; overflow-y: auto; padding: 52px 16px 16px; }

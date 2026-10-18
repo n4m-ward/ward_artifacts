@@ -27,6 +27,7 @@ class DesignView
         }
 
         $state = $this->state->toArray($design, $ttl);
+        $editable = ! $preview && auth()->user()?->can('update', $design);
 
         return response()->view('artifacts.design', [
             'artifact' => $design,
@@ -39,7 +40,14 @@ class DesignView
                 'contentOrigin' => $this->gateway->origin(),
                 'sandbox' => $this->gateway->sandbox(),
                 'allow' => self::ALLOW,
+                // Edição à mão (resources/js/design-editor.js): só dono ou admin.
+                'edit' => $editable ? [
+                    'url' => route('designs.edit', $design->uuid),
+                    'sourceUrl' => route('designs.board-source', [$design->uuid, 0]),
+                    'csrf' => csrf_token(),
+                ] : null,
             ],
+            'editable' => $editable,
         ]);
     }
 }

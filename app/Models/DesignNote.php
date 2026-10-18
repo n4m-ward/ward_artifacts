@@ -12,9 +12,11 @@ class DesignNote extends Model
 {
     public const KINDS = ['title', 'sticky'];
 
-    public const COLORS = ['gray', 'yellow', 'blue', 'green', 'pink', 'purple'];
+    public const COLORS = ['gray', 'yellow', 'orange', 'red', 'green', 'teal', 'blue', 'purple', 'pink'];
 
-    protected $fillable = ['artifact_id', 'key', 'kind', 'x', 'y', 'w', 'text', 'color'];
+    public const SIZES = ['s', 'm', 'l', 'xl'];
+
+    protected $fillable = ['artifact_id', 'key', 'kind', 'x', 'y', 'w', 'text', 'color', 'size', 'bold'];
 
     protected function casts(): array
     {
@@ -22,6 +24,27 @@ class DesignNote extends Model
             'x' => 'integer',
             'y' => 'integer',
             'w' => 'integer',
+            'bold' => 'boolean',
+        ];
+    }
+
+    /**
+     * Como a nota aparece no estado do canvas, no canvas.json e para a IA.
+     *
+     * @return array<string, mixed>
+     */
+    public function toCanvas(): array
+    {
+        return [
+            'key' => $this->key,
+            'kind' => $this->kind,
+            'x' => $this->x,
+            'y' => $this->y,
+            'w' => $this->w,
+            'text' => $this->text,
+            'color' => $this->color,
+            'size' => $this->size,
+            'bold' => $this->bold,
         ];
     }
 

@@ -6,7 +6,7 @@
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="dark">
     <head>
         @include('partials.head', ['title' => $artifact->title.' · '.config('app.name')])
-        @vite('resources/js/design-canvas.js')
+        @vite($editable ? ['resources/js/design-canvas.js', 'resources/js/design-editor.js'] : ['resources/js/design-canvas.js'])
         <meta name="robots" content="noindex, nofollow">
         <meta name="description" content="Design &quot;{{ $artifact->title }}&quot; de {{ '@'.$owner->username }} com {{ $boardCount }} artboard(s).">
         @foreach ($boards as $board)

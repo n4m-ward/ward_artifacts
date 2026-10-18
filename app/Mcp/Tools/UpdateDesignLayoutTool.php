@@ -38,6 +38,8 @@ class UpdateDesignLayoutTool extends WardTool
                 'y' => $schema->integer(),
                 'w' => $schema->integer()->description('Largura (sticky) ou largura máxima (title).'),
                 'color' => $schema->string()->enum(DesignNote::COLORS),
+                'size' => $schema->string()->enum(DesignNote::SIZES)->description('Tamanho do texto (padrão: m na adesiva; o título é sempre grande).'),
+                'bold' => $schema->boolean(),
                 'delete' => $schema->boolean()->description('true para apagar a nota.'),
             ]))->description('Notas a criar, mudar ou apagar.'),
         ];

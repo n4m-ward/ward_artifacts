@@ -27,15 +27,7 @@ class DesignCanvas
             'title' => $design->title,
             'revision' => $design->design_revision,
             'boards' => $boards->map(fn (DesignBoard $board) => $this->board($board))->values()->all(),
-            'notes' => $design->notes()->orderBy('id')->get()->map(fn (DesignNote $note) => [
-                'key' => $note->key,
-                'kind' => $note->kind,
-                'x' => $note->x,
-                'y' => $note->y,
-                'w' => $note->w,
-                'text' => $note->text,
-                'color' => $note->color,
-            ])->values()->all(),
+            'notes' => $design->notes()->orderBy('id')->get()->map(fn (DesignNote $note) => $note->toCanvas())->values()->all(),
         ];
     }
 

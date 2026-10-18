@@ -3,6 +3,7 @@
 use App\Http\Controllers\ArtifactDownloadController;
 use App\Http\Controllers\ArtifactPreviewController;
 use App\Http\Controllers\ArtifactViewerController;
+use App\Http\Controllers\DesignEditController;
 use App\Http\Controllers\DesignLiveController;
 use App\Models\User;
 use Illuminate\Support\Facades\Route;
@@ -42,6 +43,12 @@ Route::get('d/{artifact}/live', DesignLiveController::class)
     ->where('artifact', '[0-9a-f]{32}')
     ->middleware('throttle:240,1')
     ->name('designs.live');
+
+// Edição à mão no canvas web (dono do design ou admin).
+Route::middleware(['auth', 'throttle:600,1'])->where(['artifact' => '[0-9a-f]{32}', 'board' => '[0-9]+'])->group(function () {
+    Route::post('d/{artifact}/edit', [DesignEditController::class, 'ops'])->name('designs.edit');
+    Route::get('d/{artifact}/boards/{board}/source', [DesignEditController::class, 'source'])->name('designs.board-source');
+});
 
 Route::get('artifacts/{artifact}/download', ArtifactDownloadController::class)
     ->name('artifacts.download');
