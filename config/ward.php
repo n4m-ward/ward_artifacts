@@ -32,13 +32,14 @@ return [
         'keep_snapshots' => 10,
         // Espaço entre artboards posicionados automaticamente.
         'gap' => 80,
-        // Onde os artboards podem ser embutidos além do próprio app: o MCP App
-        // roda dentro do Claude (claude.ai e o app desktop), num domínio
-        // *.claudemcpcontent.com. Vai no frame-ancestors do conteúdo.
-        'embed_ancestors' => array_filter(explode(' ', (string) env(
-            'WARD_DESIGN_EMBED_ANCESTORS',
-            'https://claude.ai https://*.claude.ai https://*.claudemcpcontent.com',
-        ))),
+        // Onde os artboards podem ser embutidos além do próprio app (vai no
+        // frame-ancestors do conteúdo). O padrão "*" tira o frame-ancestors dos
+        // artboards: hosts de MCP App como o Ward Code desenham o app num iframe
+        // srcdoc sem allow-same-origin (origem opaca), que nunca casa com uma
+        // lista. O artboard continua protegido: link assinado que expira, domínio
+        // isolado e CSP sandbox. Artifacts não mudam (só o próprio app).
+        // Ex. para restringir: "https://claude.ai https://*.claudemcpcontent.com".
+        'embed_ancestors' => array_filter(explode(' ', (string) env('WARD_DESIGN_EMBED_ANCESTORS', '*'))),
         // Por quanto tempo get_design conta o que a pessoa está olhando no app.
         'viewing_ttl_minutes' => 30,
     ],
