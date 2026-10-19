@@ -81,7 +81,7 @@ class DesignState
     {
         return $design->comments()->whereNull('parent_id')
             ->when($openOnly, fn ($query) => $query->whereNull('resolved_at'))
-            ->with(['user', 'board', 'resolver', 'replies.user'])
+            ->with(['user', 'board', 'resolver', 'images', 'replies.user', 'replies.images', 'artifact'])
             ->orderByDesc('number')->limit(200)->get()
             ->map(fn (DesignComment $comment) => $comment->toThread())->values()->all();
     }
@@ -161,6 +161,7 @@ class DesignState
                 'projectSystem' => $projectSystem ? $systems->ref($projectSystem) : null,
                 'isSystem' => $design->isDesignSystem(),
                 'commentsUrl' => route('designs.comments.store', $design->uuid),
+                'commentImagesUrl' => route('designs.comment-images.store', $design->uuid),
                 'viewUrl' => route('designs.view', $design->uuid),
                 'printUrl' => $csrf ? route('designs.print', $design->uuid) : null,
                 'csrf' => $csrf,

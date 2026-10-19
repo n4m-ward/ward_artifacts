@@ -13,6 +13,7 @@ use App\Mcp\Tools\DesignRenderPreviewTool;
 use App\Mcp\Tools\DesignReportViewTool;
 use App\Mcp\Tools\GetArtboardSourceTool;
 use App\Mcp\Tools\GetArtifactSourceTool;
+use App\Mcp\Tools\GetCommentImageTool;
 use App\Mcp\Tools\GetDesignGuideTool;
 use App\Mcp\Tools\GetDesignSystemTool;
 use App\Mcp\Tools\GetDesignTool;
@@ -89,7 +90,8 @@ Ward Design (canvas com vários artboards, para mockups, telas de app, landing p
 - save_design_version para guardar um ponto. get_design mostra o canvas, o que a pessoa está vendo
   (artboard e elemento selecionados, erros de script), os comentários abertos e devolve preview_url.
 - Comentários do canvas são pedidos da pessoa: aplique a mudança no artboard/elemento indicado e
-  responda com resolve_comment (uma frase do que mudou).
+  responda com resolve_comment (uma frase do que mudou). Comentário com imagem anexada: veja-a com
+  get_comment_image antes de mexer.
 TXT)]
 class WardServer extends Server
 {
@@ -111,6 +113,7 @@ class WardServer extends Server
         GetDesignTool::class,
         GetArtboardSourceTool::class,
         ResolveCommentTool::class,
+        GetCommentImageTool::class,
         AddDesignAssetTool::class,
         SetDesignTokensTool::class,
         ListDesignSystemsTool::class,

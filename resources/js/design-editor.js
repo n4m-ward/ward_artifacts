@@ -2462,12 +2462,15 @@ Object.assign(DesignEditor.prototype, {
             : 'canvas';
         const textarea = el('textarea', { class: 'ward-ed-input', rows: '3', placeholder: 'Escreva um comentário (a IA também lê)', 'aria-label': 'Comentário', maxlength: '4000' });
         const submit = button('Comentar', null, () => send(), { text: 'Comentar', class: 'ward-ed-btn is-primary' });
+        const attachments = this.commentAttachments(textarea, this.threadBox);
         const send = async () => {
             const body = textarea.value.trim();
-            if (!body) return textarea.focus();
+            if (!body && !attachments.count()) return textarea.focus();
+            if (attachments.busy()) return this.setStatus('Espere as imagens terminarem de enviar.');
             submit.disabled = true;
             const json = await this.request('POST', this.collab.commentsUrl, {
                 body,
+                images: attachments.ids(),
                 board: board?.id ?? null,
                 anchor: board ? { ...(element ?? {}), ...point } : null,
                 x: board ? null : this.thread.world.x,
@@ -2490,8 +2493,12 @@ Object.assign(DesignEditor.prototype, {
                 el('strong', { text: 'Novo comentário' }), el('span', { class: 'ward-ed-muted', text: where }),
                 button('Fechar', 'close', () => this.closeThread()),
             ]),
+            attachments.strip,
             textarea,
-            el('div', { class: 'ward-ed-thread-actions' }, [button('Cancelar', null, () => this.closeThread(), { text: 'Cancelar', class: 'ward-ed-btn is-text' }), submit]),
+            el('div', { class: 'ward-ed-thread-actions' }, [
+                ...attachments.controls, el('span', { class: 'ward-ed-spacer' }),
+                button('Cancelar', null, () => this.closeThread(), { text: 'Cancelar', class: 'ward-ed-btn is-text' }), submit,
+            ]),
         );
         this.threadBox.hidden = false;
         this.renderPins();
@@ -2563,7 +2570,8 @@ Object.assign(DesignEditor.prototype, {
             return;
         }
         if (!force && this.threadBox.dataset.thread === String(thread.id)
-            && this.threadBox.contains(document.activeElement) && document.activeElement.tagName === 'TEXTAREA' && document.activeElement.value) {
+            && ((this.threadBox.contains(document.activeElement) && document.activeElement.tagName === 'TEXTAREA' && document.activeElement.value)
+                || this.threadBox.querySelector('.ward-ed-attachments:not([hidden])'))) {
             return; // não atrapalha quem está digitando uma resposta
         }
 
@@ -2580,15 +2588,20 @@ Object.assign(DesignEditor.prototype, {
                 message.source === 'ai' ? el('span', { class: 'ward-ed-badge', text: 'IA' }) : null,
                 el('span', { class: 'ward-ed-muted', text: relativeTime(message.at) }),
             ]),
-            el('p', { text: message.body }),
+            message.body ? el('p', { text: message.body }) : null,
+            this.commentImages(message.images),
         ]));
 
         const textarea = el('textarea', { class: 'ward-ed-input', rows: '2', placeholder: 'Responder', 'aria-label': 'Responder', maxlength: '4000' });
+        const attachments = this.commentAttachments(textarea, this.threadBox);
         const reply = async () => {
             const body = textarea.value.trim();
-            if (!body) return;
+            if (!body && !attachments.count()) return;
+            if (attachments.busy()) return this.setStatus('Espere as imagens terminarem de enviar.');
+            const images = attachments.ids();
             textarea.value = '';
-            await this.request('POST', this.collab.commentsUrl, { body, parent: thread.id });
+            attachments.clear();
+            await this.request('POST', this.collab.commentsUrl, { body, images, parent: thread.id });
         };
         textarea.addEventListener('keydown', (event) => {
             event.stopPropagation();
@@ -2615,9 +2628,10 @@ Object.assign(DesignEditor.prototype, {
                 button('Fechar', 'close', () => this.closeThread()),
             ]),
             el('div', { class: 'ward-ed-messages' }, messages),
+            attachments.strip,
             textarea,
             el('div', { class: 'ward-ed-thread-actions' }, [
-                ...actions, el('span', { class: 'ward-ed-spacer' }),
+                ...attachments.controls, ...actions, el('span', { class: 'ward-ed-spacer' }),
                 button('Responder', null, () => reply(), { text: 'Responder', class: 'ward-ed-btn is-primary' }),
             ]),
         );
@@ -2676,7 +2690,10 @@ Object.assign(DesignEditor.prototype, {
                     el('strong', { text: `#${thread.number}` }),
                     ` ${thread.board_name || 'canvas'} · ${first?.author ?? ''} · ${relativeTime(first?.at)}`,
                 ]),
-                el('span', { class: 'ward-ed-panel-body', text: first?.body ?? '' }),
+                el('span', { class: 'ward-ed-panel-body', text: first?.body || (first?.images?.length ? '(imagem)' : '') }),
+                thread.messages.some((message) => message.images?.length)
+                    ? el('span', { class: 'ward-ed-muted', text: `📎 ${thread.messages.reduce((n, message) => n + (message.images?.length ?? 0), 0)} imagem(ns)` })
+                    : null,
                 thread.messages.length > 1 ? el('span', { class: 'ward-ed-muted', text: `${thread.messages.length - 1} resposta(s)` }) : null,
             ]);
             item.addEventListener('click', () => this.goToThread(thread));
@@ -2796,6 +2813,181 @@ function rectStyle(r) {
 function intersects(a, b) {
     return Boolean(a) && a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 }
+
+// ---------- imagens nos comentários ----------
+
+const COMMENT_IMAGE_MAX = 4;
+const COMMENT_IMAGE_TARGET_BYTES = 550 * 1024; // cabe também no envio pelo MCP App
+const COMMENT_IMAGE_MAX_SIDE = 2000;
+const COMMENT_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
+
+/**
+ * Reduz a imagem no navegador antes de enviar (prints grandes, fotos do celular). Imagem pequena
+ * vai como está (texto de print continua nítido); GIF pequeno mantém a animação.
+ */
+async function shrinkCommentImage(file) {
+    const bitmap = await createImageBitmap(file).catch(() => null);
+    if (!bitmap) return file;
+    const largest = Math.max(bitmap.width, bitmap.height);
+    if (file.size <= COMMENT_IMAGE_TARGET_BYTES && largest <= COMMENT_IMAGE_MAX_SIDE) {
+        bitmap.close?.();
+        return file;
+    }
+    let side = Math.min(largest, COMMENT_IMAGE_MAX_SIDE);
+    let quality = 0.86;
+    for (let attempt = 0; attempt < 6; attempt++) {
+        const scale = side / largest;
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+        canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+        canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+        const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/webp', quality));
+        if (blob && (blob.size <= COMMENT_IMAGE_TARGET_BYTES || attempt === 5)) {
+            bitmap.close?.();
+            return new File([blob], `${(file.name || 'imagem').replace(/\.[a-z0-9]+$/i, '')}.webp`, { type: 'image/webp' });
+        }
+        quality = Math.max(0.6, quality - 0.1);
+        side = Math.round(side * 0.8);
+    }
+    bitmap.close?.();
+    return file;
+}
+
+/** Imagens que vieram num colar (Ctrl/Cmd+V) ou num arrastar. */
+function imageFilesFrom(transfer) {
+    return [...(transfer?.files ?? [])].filter((file) => COMMENT_IMAGE_TYPES.includes(file.type));
+}
+
+Object.assign(DesignEditor.prototype, {
+    /**
+     * Anexos de um comentário: botão, colar no campo e arrastar para a caixa. As imagens sobem na
+     * hora (ficam "enviadas, não publicadas") e vão junto quando o comentário é publicado.
+     */
+    commentAttachments(textarea, dropZone) {
+        const items = []; // { id?, url, uploading, node }
+        const strip = el('div', { class: 'ward-ed-attachments', hidden: true });
+        const input = el('input', { type: 'file', accept: COMMENT_IMAGE_TYPES.join(','), multiple: true, hidden: true });
+        const pick = button('Anexar imagem (ou cole com Ctrl+V)', null, () => input.click(), { text: '📎', class: 'ward-ed-btn is-text ward-ed-attach' });
+
+        const render = () => {
+            strip.replaceChildren(...items.map((item) => item.node));
+            strip.hidden = items.length === 0;
+        };
+        const remove = (item) => {
+            items.splice(items.indexOf(item), 1);
+            if (item.url?.startsWith('blob:')) URL.revokeObjectURL(item.url);
+            if (item.id) this.request('DELETE', `${this.collab.commentImagesUrl}/${item.id}`);
+            render();
+        };
+        const add = async (files) => {
+            for (const original of files) {
+                if (items.length >= COMMENT_IMAGE_MAX) {
+                    this.setStatus(`No máximo ${COMMENT_IMAGE_MAX} imagens por comentário.`, true);
+                    break;
+                }
+                const item = { url: URL.createObjectURL(original), uploading: true };
+                const close = button('Tirar imagem', 'close', () => remove(item), { class: 'ward-ed-attachment-remove' });
+                item.node = el('div', { class: 'ward-ed-attachment is-uploading' }, [el('img', { src: item.url, alt: '' }), close]);
+                items.push(item);
+                render();
+                const file = await shrinkCommentImage(original);
+                const form = new FormData();
+                form.append('file', file);
+                try {
+                    const response = await this.http(this.collab.commentImagesUrl, {
+                        method: 'POST', credentials: 'same-origin', body: form,
+                        headers: { Accept: 'application/json', 'X-CSRF-TOKEN': this.collab.csrf, 'X-Requested-With': 'XMLHttpRequest' },
+                    });
+                    const json = await response.json().catch(() => ({}));
+                    if (!response.ok || !json.image) throw new Error(json.message || json.errors?.file?.[0] || 'Não consegui enviar a imagem.');
+                    if (!items.includes(item)) {
+                        this.request('DELETE', `${this.collab.commentImagesUrl}/${json.image.id}`);
+                        continue;
+                    }
+                    item.id = json.image.id;
+                    item.uploading = false;
+                    item.node.classList.remove('is-uploading');
+                } catch (error) {
+                    this.setStatus(error.message || 'Não consegui enviar a imagem.', true);
+                    if (items.includes(item)) remove(item);
+                }
+                onChange?.();
+            }
+        };
+        let onChange = null;
+
+        input.addEventListener('change', () => {
+            add(imageFilesFrom({ files: input.files }));
+            input.value = '';
+        });
+        textarea.addEventListener('paste', (event) => {
+            const files = imageFilesFrom(event.clipboardData);
+            if (!files.length) return;
+            // Só imagem (um print): não cola o nome do arquivo no texto.
+            if (!event.clipboardData.getData('text/plain')) event.preventDefault();
+            add(files);
+        });
+        // A caixa do tópico é a mesma a cada render: só o compositor atual ouve o arrastar.
+        this.attachmentsAbort?.abort();
+        this.attachmentsAbort = new AbortController();
+        const { signal } = this.attachmentsAbort;
+        dropZone.addEventListener('dragover', (event) => {
+            if ([...(event.dataTransfer?.types ?? [])].includes('Files')) {
+                event.preventDefault();
+                dropZone.classList.add('is-dropping');
+            }
+        }, { signal });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('is-dropping'), { signal });
+        dropZone.addEventListener('drop', (event) => {
+            const files = imageFilesFrom(event.dataTransfer);
+            dropZone.classList.remove('is-dropping');
+            if (!files.length) return;
+            event.preventDefault();
+            add(files);
+        }, { signal });
+
+        return {
+            strip,
+            controls: [input, pick],
+            ids: () => items.filter((item) => item.id).map((item) => item.id),
+            busy: () => items.some((item) => item.uploading),
+            count: () => items.length,
+            onChange: (callback) => { onChange = callback; },
+            clear: () => {
+                for (const item of items) if (item.url?.startsWith('blob:')) URL.revokeObjectURL(item.url);
+                items.splice(0, items.length);
+                render();
+            },
+        };
+    },
+
+    /** Miniaturas das imagens de uma mensagem; clique abre grande. */
+    commentImages(images) {
+        if (!images?.length) return null;
+        return el('div', { class: 'ward-ed-message-images' }, images.map((image) => {
+            const open = el('button', { type: 'button', class: 'ward-ed-message-image', 'aria-label': 'Abrir imagem' }, [
+                el('img', { src: image.url, alt: 'Imagem anexada', loading: 'lazy', decoding: 'async' }),
+            ]);
+            open.addEventListener('click', () => this.showImage(image.url));
+            return open;
+        }));
+    },
+
+    showImage(url) {
+        const close = () => overlay.remove();
+        const overlay = el('div', { class: 'ward-ed-lightbox', role: 'dialog', 'aria-label': 'Imagem anexada' }, [
+            el('img', { src: url, alt: 'Imagem anexada' }),
+        ]);
+        overlay.addEventListener('click', close);
+        const onKey = (event) => {
+            if (event.key !== 'Escape') return;
+            close();
+            document.removeEventListener('keydown', onKey, true);
+        };
+        document.addEventListener('keydown', onKey, true);
+        document.body.append(overlay);
+    },
+});
 
 window.WardDesignEditor = DesignEditor;
 

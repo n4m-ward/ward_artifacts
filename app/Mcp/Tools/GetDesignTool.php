@@ -118,7 +118,12 @@ class GetDesignTool extends WardTool
 
             foreach ($thread['messages'] as $message) {
                 $who = $message['source'] === 'ai' ? "{$message['author']} (IA)" : $message['author'];
-                $text .= "  {$who}: {$message['body']}\n";
+                $images = count($message['images'] ?? []);
+                $text .= "  {$who}: {$message['body']}".($images ? " [{$images} imagem(ns) anexada(s)]" : '')."\n";
+            }
+            $total = collect($thread['messages'])->sum(fn ($message) => count($message['images'] ?? []));
+            if ($total > 0) {
+                $text .= "  → Veja as imagens com get_comment_image(design, {$thread['number']}, 1…{$total}) antes de aplicar.\n";
             }
         }
 

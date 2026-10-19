@@ -204,6 +204,9 @@ Regras:
   num elemento ou artboard. Para cada um: aplique a mudança, confira o print e responda com
   `resolve_comment(design, comment, message)` em uma frase. Pergunta ou dúvida: responda com
   `resolve: false`. Erro de script listado: corrija o artboard e confira de novo.
+- Comentário com **imagem anexada** (print, referência, foto) aparece no `get_design` como
+  "[N imagem(ns) anexada(s)]": abra cada uma com `get_comment_image(design, número, n)` **antes** de
+  mexer. A imagem é o pedido: compare o resultado com ela no print.
 - Antes de editar, garanta que o canvas está aberto para o usuário (seção 1).
 - Mudar uma tela: `get_artboard_source(design, name)` → editar → `upsert_artboard` com o **mesmo
   name** (só o `html`, ou só `x`/`y`/`w`/`h`) → print no navegador e avaliação, como na seção 3. Nunca crie um design novo para alterar um

@@ -16,14 +16,16 @@ class DesignComments extends DesignMutation
 {
     public const MAX_BODY = 4000;
 
+    public function __construct(private DesignCommentImages $images) {}
+
     /**
      * Abre um tópico. Âncora: board (+ anchor do elemento) ou x/y livres no canvas.
      *
-     * @param  array{body: string, board?: ?int, anchor?: ?array<string, mixed>, x?: ?int, y?: ?int}  $data
+     * @param  array{body: string, board?: ?int, anchor?: ?array<string, mixed>, x?: ?int, y?: ?int, images?: list<int>}  $data
      */
     public function open(Artifact $design, User $user, array $data, string $source = 'web'): DesignComment
     {
-        $body = $this->body($data['body'] ?? '');
+        $body = $this->body($data['body'] ?? '', ! empty($data['images']));
         $board = isset($data['board']) ? $design->boards()->find($data['board']) : null;
 
         if (isset($data['board']) && $board === null) {
@@ -34,7 +36,7 @@ class DesignComments extends DesignMutation
             throw new InvalidDesign('Um comentário precisa de um artboard ou de um ponto no canvas.');
         }
 
-        return $this->mutate($design, fn () => $design->comments()->create([
+        return $this->mutate($design, fn () => tap($design->comments()->create([
             'number' => (int) $design->comments()->max('number') + 1,
             'user_id' => $user->id,
             'board_id' => $board?->id,
@@ -44,19 +46,22 @@ class DesignComments extends DesignMutation
             'y' => $board ? null : (int) $data['y'],
             'body' => $body,
             'source' => $source,
-        ]));
+        ]), fn (DesignComment $comment) => $this->images->attach($design, $user, $comment, $data['images'] ?? [])));
     }
 
-    public function reply(DesignComment $thread, User $user, string $body, string $source = 'web'): DesignComment
+    /**
+     * @param  list<int>  $images  imagens enviadas antes (DesignCommentImages::upload)
+     */
+    public function reply(DesignComment $thread, User $user, string $body, string $source = 'web', array $images = []): DesignComment
     {
-        $body = $this->body($body);
+        $body = $this->body($body, $images !== []);
 
-        return $this->mutate($thread->artifact, fn () => $thread->artifact->comments()->create([
+        return $this->mutate($thread->artifact, fn () => tap($thread->artifact->comments()->create([
             'parent_id' => $thread->id,
             'user_id' => $user->id,
             'body' => $body,
             'source' => $source,
-        ]));
+        ]), fn (DesignComment $comment) => $this->images->attach($thread->artifact, $user, $comment, $images)));
     }
 
     public function resolve(DesignComment $thread, User $user, bool $resolved = true): void
@@ -69,7 +74,10 @@ class DesignComments extends DesignMutation
 
     public function remove(DesignComment $comment): void
     {
-        $this->mutate($comment->artifact, fn () => $comment->delete());
+        $this->mutate($comment->artifact, function () use ($comment) {
+            $this->images->deleteFiles($comment);
+            $comment->delete();
+        });
     }
 
     /**
@@ -82,11 +90,12 @@ class DesignComments extends DesignMutation
         return $design->comments()->whereNull('parent_id')->where('number', $number)->first();
     }
 
-    private function body(string $body): string
+    private function body(string $body, bool $hasImages = false): string
     {
         $body = trim($body);
 
-        if ($body === '') {
+        // Só imagem também vale (um print colado já diz o que é).
+        if ($body === '' && ! $hasImages) {
             throw new InvalidDesign('O comentário está vazio.');
         }
 
