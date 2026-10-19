@@ -49,6 +49,33 @@ class BoardRenderer
     }
 
     /**
+     * Injeta o runtime do Ward Design (resources/design/runtime.js) logo no começo do <head>,
+     * para pegar também os erros dos scripts do próprio artboard.
+     */
+    public static function withRuntime(string $html): string
+    {
+        return static::withHeadMarkup($html, '<script>'.file_get_contents(resource_path('design/runtime.js')).'</script>');
+    }
+
+    /**
+     * Coloca markup no começo do <head> (sem <head>: depois do doctype, que vira o head implícito).
+     */
+    public static function withHeadMarkup(string $html, string $markup): string
+    {
+        if (preg_match('/<head(\s[^>]*)?>/i', $html, $match, PREG_OFFSET_CAPTURE)) {
+            $position = $match[0][1] + strlen($match[0][0]);
+
+            return substr($html, 0, $position).$markup.substr($html, $position);
+        }
+
+        if (preg_match('/^\s*<!doctype[^>]*>/i', $html, $match)) {
+            return $match[0].$markup.substr($html, strlen($match[0]));
+        }
+
+        return $markup.$html;
+    }
+
+    /**
      * Versão para o canvas: muda quando o artboard, um componente que ele usa ou os tokens mudam.
      *
      * @param  Collection<string, DesignBoard>|null  $byName

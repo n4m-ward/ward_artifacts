@@ -30,6 +30,8 @@ function el(tag, attrs = {}, children = []) {
 }
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+/** O iframe já tem o artboard (URL ou HTML por dentro), não o about:blank inicial. */
+const hasContent = (frame) => Boolean(frame.getAttribute('src') || frame.hasAttribute('srcdoc'));
 
 function storage(key, value) {
     try {
@@ -363,10 +365,14 @@ class DesignCanvas {
         this.clearErrors(entry);
         const next = entry.frame.cloneNode(false);
         next.removeAttribute('src');
+        next.removeAttribute('srcdoc');
         delete next.dataset.loaded;
         next.classList.add('is-loading');
         entry.nextFrame = next;
-        next.addEventListener('load', () => {
+        const onLoad = () => {
+            // Artboard por dentro: o HTML chega depois; o about:blank inicial não conta.
+            if (!hasContent(next)) return;
+            next.removeEventListener('load', onLoad);
             next.dataset.loaded = '1';
             next.classList.remove('is-loading');
             entry.frame.remove();
@@ -374,8 +380,9 @@ class DesignCanvas {
             entry.nextFrame = null;
             this.editor?.frameSwapped(entry.data.id);
             this.queryLinks(entry);
-        }, { once: true });
-        next.src = url;
+        };
+        next.addEventListener('load', onLoad);
+        this.loadFrame(next, entry.data, url);
         entry.frame.after(next);
     }
 
@@ -425,7 +432,7 @@ class DesignCanvas {
         });
         const version = String(data.version ?? data.revision);
         if (entry.listFrame.dataset.revision !== version) {
-            entry.listFrame.src = data.url;
+            this.loadFrame(entry.listFrame, data);
             entry.listFrame.dataset.revision = version;
         }
     }
@@ -636,7 +643,7 @@ class DesignCanvas {
         const stage = this.focus.querySelector('[data-focus-stage]');
         const data = this.boardById(boardId);
         if (!data) return null;
-        const frames = [...stage.querySelectorAll('iframe')].filter((frame) => frame.getAttribute('src') === data.url);
+        const frames = [...stage.querySelectorAll('iframe')].filter((frame) => frame.dataset.board === String(data.id));
         return frames[frames.length - 1] ?? null;
     }
 
@@ -861,6 +868,76 @@ class DesignCanvas {
         }
     }
 
+    // ---------- carga dos artboards: iframe do host de conteúdo, ou HTML por dentro ----------
+    // Alguns hosts de MCP App (o chat do Claude) bloqueiam iframes de outra origem: o artboard
+    // fica branco. Quando um artboard não dá sinal de vida, o canvas passa a buscar o HTML pela
+    // conexão do app (options.loadBoardHtml) e desenhá-lo por dentro (srcdoc), sem allow-same-origin
+    // (o HTML do artboard nunca enxerga a página do app).
+
+    loadFrame(frame, data, url = data.url) {
+        frame.dataset.board = String(data.id);
+        if (!this.inlineMode) {
+            delete frame.dataset.inline;
+            frame.removeAttribute('srcdoc');
+            frame.src = url;
+            return;
+        }
+        frame.dataset.inline = '1';
+        frame.removeAttribute('src');
+        frame.setAttribute('sandbox', this.inlineSandbox());
+        const version = String(data.version ?? data.revision);
+        this.boardHtml(data).then((html) => {
+            if (frame.dataset.board !== String(data.id)) return;
+            frame.dataset.version = version;
+            frame.srcdoc = html ?? '<!doctype html><meta charset="utf-8"><p style="font:14px system-ui;padding:16px">Não foi possível carregar este artboard.</p>';
+        });
+    }
+
+    inlineSandbox() {
+        return String(this.config.sandbox || 'allow-scripts').split(/\s+/).filter((flag) => flag && flag !== 'allow-same-origin').join(' ');
+    }
+
+    boardHtml(data) {
+        this.boardHtmlCache ??= new Map();
+        const key = `${data.id}:${data.version ?? data.revision}`;
+        if (!this.boardHtmlCache.has(key)) {
+            const pending = Promise.resolve(this.options.loadBoardHtml(data)).catch(() => null);
+            this.boardHtmlCache.set(key, pending);
+            pending.then((html) => { if (!html) this.boardHtmlCache.delete(key); });
+        }
+        return this.boardHtmlCache.get(key);
+    }
+
+    /** Passa a desenhar todos os artboards por dentro. Devolve false se não dá (sem fonte de HTML). */
+    switchToInline() {
+        if (this.inlineMode) return false;
+        if (!this.options.loadBoardHtml) return false;
+        this.inlineMode = true;
+        for (const entry of this.boards.values()) {
+            if (entry.loaded) {
+                if (entry.errors.length) this.clearErrors(entry);
+                entry.alive = false;
+                delete entry.frame.dataset.loaded;
+                this.loadFrame(entry.frame, entry.data);
+            }
+            if (entry.listFrame?.getAttribute('src')) this.loadFrame(entry.listFrame, entry.data);
+        }
+        if (this.play) this.renderFocus();
+        return true;
+    }
+
+    frameOrigin(frame) {
+        return frame?.dataset.inline ? '*' : this.config.contentOrigin;
+    }
+
+    isInlineSource(source) {
+        if (!source) return false;
+        for (const frame of document.querySelectorAll('iframe[data-inline]')) {
+            if (frame.contentWindow === source) return true;
+        }
+        return false;
+    }
+
     // ---------- pan / zoom ----------
 
     applyView() {
@@ -948,22 +1025,30 @@ class DesignCanvas {
             const visible = left < rect.width + VISIBLE_MARGIN && left + data.w * scale > -VISIBLE_MARGIN
                 && top < rect.height + VISIBLE_MARGIN && top + data.h * scale > -VISIBLE_MARGIN;
             if (visible) {
-                entry.frame.addEventListener('load', () => {
-                    entry.frame.dataset.loaded = '1';
+                const frame = entry.frame;
+                const onLoad = () => {
+                    if (!hasContent(frame)) return;
+                    frame.removeEventListener('load', onLoad);
+                    frame.dataset.loaded = '1';
                     this.queryLinks(entry);
                     // MCP App: o artboard que não dá sinal de vida foi bloqueado pelo host (a tela fica branca).
                     if (this.options.diagnose) {
+                        const loadedInline = Boolean(frame.dataset.inline);
                         setTimeout(() => {
                             if (entry.alive || entry.errors.length) return;
+                            // Host bloqueou o iframe do conteúdo: passa a desenhar os artboards por dentro
+                            // (se outro artboard já fez a troca, este já foi recarregado por dentro).
+                            if (!loadedInline && (this.inlineMode || this.switchToInline())) return;
                             entry.errors = ['O artboard não carregou dentro do app (o host do chat pode ter bloqueado o iframe do conteúdo).'];
                             entry.error.hidden = false;
                             entry.error.textContent = 'Não carregou';
                             entry.error.title = entry.errors[0];
                             this.editor?.afterErrors();
-                        }, 8000);
+                        }, 6000);
                     }
-                }, { once: true });
-                entry.frame.src = data.url;
+                };
+                frame.addEventListener('load', onLoad);
+                this.loadFrame(entry.frame, data);
                 entry.loaded = true;
             }
         }
@@ -1205,17 +1290,18 @@ class DesignCanvas {
 
     playFrame(data) {
         const frame = el('iframe', {
-            src: data.url,
             title: data.title || data.name,
             sandbox: this.config.sandbox,
             allow: this.config.allow,
             referrerpolicy: 'no-referrer',
         });
         frame.addEventListener('load', () => {
+            if (!hasContent(frame)) return;
             frame.dataset.loaded = '1';
-            frame.contentWindow?.postMessage({ ward: 'play' }, this.config.contentOrigin);
-            if (this.play?.hotspots) frame.contentWindow?.postMessage({ ward: 'hotspots', on: true }, this.config.contentOrigin);
+            frame.contentWindow?.postMessage({ ward: 'play' }, this.frameOrigin(frame));
+            if (this.play?.hotspots) frame.contentWindow?.postMessage({ ward: 'hotspots', on: true }, this.frameOrigin(frame));
         });
+        this.loadFrame(frame, data);
         return frame;
     }
 
@@ -1349,7 +1435,7 @@ class DesignCanvas {
         if (!this.play) return;
         this.play.hotspots = on;
         for (const frame of this.focus.querySelectorAll('[data-focus-stage] iframe')) {
-            frame.contentWindow?.postMessage({ ward: 'hotspots', on }, this.config.contentOrigin);
+            frame.contentWindow?.postMessage({ ward: 'hotspots', on }, this.frameOrigin(frame));
         }
         this.renderPlayBar(this.boardById(this.play.current));
     }
@@ -1397,7 +1483,8 @@ class DesignCanvas {
     bindMessages() {
         this.picks = new Map();
         window.addEventListener('message', (event) => {
-            if (event.origin !== this.config.contentOrigin) return;
+            // Artboard desenhado por dentro (srcdoc, sem allow-same-origin) tem origem "null".
+            if (event.origin !== this.config.contentOrigin && !(event.origin === 'null' && this.isInlineSource(event.source))) return;
             const message = event.data;
             if (message?.ward === 'key' && message.key === 'Escape' && this.play) {
                 if (this.play.overlays.length) this.playCloseOverlay();
@@ -1485,14 +1572,14 @@ class DesignCanvas {
             setTimeout(() => {
                 if (this.picks.delete(request)) resolve(null);
             }, timeout);
-            frame.contentWindow.postMessage({ ...message, request }, this.config.contentOrigin);
+            frame.contentWindow.postMessage({ ...message, request }, this.frameOrigin(frame));
         });
     }
 
     /** Manda uma mensagem ao runtime do artboard, sem esperar resposta. */
     tell(boardId, message) {
         const entry = this.boards.get(boardId);
-        entry?.frame.contentWindow?.postMessage(message, this.config.contentOrigin);
+        entry?.frame.contentWindow?.postMessage(message, this.frameOrigin(entry.frame));
     }
 
     /** Artboards que aparecem na tela agora. */

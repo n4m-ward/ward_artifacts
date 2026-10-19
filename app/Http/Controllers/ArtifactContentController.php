@@ -36,7 +36,7 @@ class ArtifactContentController extends Controller
 
             $html = app(BoardRenderer::class)->render($board->artifact, $board, (string) $disk->get($board->storage_path));
 
-            return response($this->withRuntime($html), 200, $this->headers($gateway, 'index.html', board: true));
+            return response(BoardRenderer::withRuntime($html), 200, $this->headers($gateway, 'index.html', board: true));
         }
 
         $version = $gateway->resolve($token);
@@ -49,28 +49,6 @@ class ArtifactContentController extends Controller
         abort_unless($disk->fileExists($file), 404);
 
         return $disk->response($file, null, $this->headers($gateway, $path));
-    }
-
-    /**
-     * Injeta o runtime do Ward Design logo no começo do <head>, para pegar
-     * também os erros dos scripts do próprio artboard.
-     */
-    private function withRuntime(string $html): string
-    {
-        $script = '<script>'.file_get_contents(resource_path('design/runtime.js')).'</script>';
-
-        if (preg_match('/<head(\s[^>]*)?>/i', $html, $match, PREG_OFFSET_CAPTURE)) {
-            $position = $match[0][1] + strlen($match[0][0]);
-
-            return substr($html, 0, $position).$script.substr($html, $position);
-        }
-
-        // Sem <head>: depois do doctype (o script entra no head implícito).
-        if (preg_match('/^\s*<!doctype[^>]*>/i', $html, $match)) {
-            return $match[0].$script.substr($html, strlen($match[0]));
-        }
-
-        return $script.$html;
     }
 
     /**

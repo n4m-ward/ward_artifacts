@@ -238,6 +238,11 @@
                         poll,
                         reportPresence,
                         diagnose: true,
+                        // Host bloqueou o iframe do conteúdo: o HTML vem pela conexão do app.
+                        loadBoardHtml: async (board) => {
+                            const result = await app.callServerTool('design_board_html', { design: config.design, board: board.name });
+                            return result?.isError ? null : (result?.structuredContent?.html ?? null);
+                        },
                         onSelect,
                     });
                     startEditor();

@@ -7,6 +7,7 @@ use App\Actions\Designs\UpsertArtboard;
 use App\Designs\DesignPresence;
 use App\Designs\DesignState;
 use App\Mcp\Servers\WardServer;
+use App\Mcp\Tools\DesignBoardHtmlTool;
 use App\Mcp\Tools\DesignRenderPreviewTool;
 use App\Mcp\Tools\DesignReportViewTool;
 use App\Mcp\Tools\ShowInCanvasTool;
@@ -116,5 +117,22 @@ class DesignPresenceTest extends TestCase
         ])->assertStructuredContent(fn (AssertableJson $json) => $json
             ->where('html', fn ($html) => str_contains($html, '--paper: #101010;') && str_contains($html, 'Menu do app') && str_contains($html, '<base href="'))
             ->etc());
+    }
+
+    public function test_board_html_for_hosts_that_block_the_content_iframe(): void
+    {
+        $this->design->forceFill(['design_tokens' => '--ink: #222;'])->save();
+
+        WardServer::actingAs($this->user)->tool(DesignBoardHtmlTool::class, ['design' => $this->design->uuid, 'board' => 'Home'])
+            ->assertStructuredContent(fn (AssertableJson $json) => $json
+                ->where('board', 'Home')
+                ->where('html', fn ($html) => str_contains($html, '--ink: #222;')
+                    && str_contains($html, "ward: 'navigate'")
+                    && str_contains($html, '<base href="')
+                    && str_contains($html, 'Comprar agora'))
+                ->etc());
+
+        WardServer::actingAs($this->user)->tool(DesignBoardHtmlTool::class, ['design' => $this->design->uuid, 'board' => 'Nada'])
+            ->assertHasErrors(['Artboard não encontrado']);
     }
 }
