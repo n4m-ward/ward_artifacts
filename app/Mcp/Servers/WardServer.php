@@ -67,7 +67,8 @@ Fluxo:
 
 Ward Design (canvas com vários artboards, para mockups, telas de app, landing pages e posts):
 - create_design → abra o canvas antes da primeira tela, para a pessoa ver você trabalhando:
-  open_design se o cliente mostra MCP Apps (chat do Claude, aba App do WardCode); senão abra o
+  open_design UMA vez se o cliente mostra MCP Apps (chat do Claude, aba App do WardCode; ele segue
+  você e mostra cada tela nova, não chame de novo a cada tela); senão abra o
   preview_url no seu navegador (ex.: Claude Code) → get_design_guide → defina a direção (fontes, paleta) → um
   upsert_artboard por tela → print da tela no seu navegador e correção até ficar sem defeitos (nenhuma
   tela está pronta sem você olhar) → update_layout → print do canvas inteiro.
