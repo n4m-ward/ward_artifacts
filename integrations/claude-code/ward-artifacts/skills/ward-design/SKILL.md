@@ -23,7 +23,9 @@ O usuário quer **ver você desenhando**: o canvas fica aberto desde o início e
      `get_design`. A aba Code do app desktop **não** mostra MCP Apps, então não conte com o
      `open_design` ali.
    - **Chat do claude.ai ou do app desktop (MCP Apps)**: `open_design(design)` mostra o canvas no
-     próprio chat.
+     próprio chat. Chame **uma vez** por conversa: esse canvas segue você (câmera e cursor) e as telas
+     novas aparecem nele sozinhas. Não chame `open_design` de novo a cada tela (polui o chat); só se a
+     pessoa pedir ou se o canvas anterior tiver ficado muito para trás na conversa.
    - Sem navegador nenhum: passe a `url` ao usuário e diga que ela atualiza sozinha.
 3. Diga ao usuário que o canvas está aberto e que as telas vão aparecendo ali.
 

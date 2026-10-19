@@ -79,7 +79,8 @@ class DesignAppTest extends TestCase
 
         $this->assertStringStartsWith('ui://ward-artifacts/design-', $uri);
         $this->assertSame(['resourceUri' => $uri, 'visibility' => ['model', 'app']], $tools['open_design']['_meta']['ui']);
-        $this->assertSame($uri, $tools['upsert_artboard']['_meta']['ui']['resourceUri']);
+        // Só o open_design abre o canvas: upsert_artboard não cria um widget novo a cada tela.
+        $this->assertArrayNotHasKey('ui', $tools['upsert_artboard']['_meta'] ?? []);
         // Ferramentas só do app: o modelo não as vê.
         $this->assertSame(['app'], $tools['design_live']['_meta']['ui']['visibility']);
         $this->assertSame(['app'], $tools['design_report_view']['_meta']['ui']['visibility']);

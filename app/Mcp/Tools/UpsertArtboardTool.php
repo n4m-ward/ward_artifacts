@@ -8,18 +8,15 @@ use App\Designs\DesignCanvas;
 use App\Designs\DesignLayoutCheck;
 use App\Designs\DesignPresence;
 use App\Designs\InvalidDesign;
-use App\Mcp\Apps\DesignApp;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\ResponseFactory;
 use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Attributes\Name;
-use Laravel\Mcp\Server\Attributes\RendersApp;
 
 #[Name('upsert_artboard')]
 #[Description('Cria ou atualiza um artboard de um design, pelo nome. Artboard novo: mande html, kind, w e h (x/y opcionais: sem eles entra à direita do último). Artboard existente: mande só o que muda (ex.: só html, ou só x/y). O HTML é uma página autocontida; regras em get_design_guide.')]
-#[RendersApp(DesignApp::class)]
 class UpsertArtboardTool extends WardTool
 {
     public function schema(JsonSchema $schema): array

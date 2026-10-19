@@ -61,6 +61,7 @@
                 <span data-sub>Carregando…</span>
             </div>
             <button type="button" class="wa-btn" data-action="canvas" hidden>Ver canvas</button>
+            <button type="button" class="wa-btn" data-action="pip" hidden title="Deixa o canvas fixo na tela enquanto a conversa rola">Fixar</button>
             <button type="button" class="wa-btn" data-action="fullscreen" hidden>Tela cheia</button>
             <button type="button" class="wa-btn" data-action="open" hidden>Abrir ↗</button>
         </header>
@@ -118,7 +119,7 @@
         const ui = {
             title: $('[data-title]'), sub: $('[data-sub]'), stream: $('[data-stream]'), stage: $('[data-stream-stage]'),
             canvas: $('[data-design-canvas]'), ask: $('[data-ask]'), askInput: $('[data-ask-input]'), askStatus: $('[data-ask-status]'),
-            error: $('[data-error]'), toCanvas: $('[data-action="canvas"]'), fullscreen: $('[data-action="fullscreen"]'), open: $('[data-action="open"]'),
+            error: $('[data-error]'), toCanvas: $('[data-action="canvas"]'), fullscreen: $('[data-action="fullscreen"]'), pip: $('[data-action="pip"]'), open: $('[data-action="open"]'),
         };
         const STALE_MS = 10 * 60 * 1000; // estado mais velho que isso (chat reaberto) é buscado de novo
         const STREAM_MAX_H = 520;
@@ -146,8 +147,13 @@
                 if (context.containerDimensions) document.documentElement.dataset.fill = context.containerDimensions.height ? '1' : '';
                 const display = context.displayMode || document.documentElement.dataset.display || 'inline';
                 document.documentElement.dataset.display = display;
-                ui.fullscreen.hidden = !(context.availableDisplayModes || []).includes('fullscreen');
+                if (context.availableDisplayModes) {
+                    ui.fullscreen.hidden = !context.availableDisplayModes.includes('fullscreen');
+                    // Fixar (picture-in-picture): o canvas fica visível enquanto a conversa rola.
+                    ui.pip.hidden = !context.availableDisplayModes.includes('pip');
+                }
                 ui.fullscreen.textContent = display === 'fullscreen' ? 'Sair da tela cheia' : 'Tela cheia';
+                ui.pip.textContent = display === 'pip' ? 'Soltar' : 'Fixar';
                 if (canvas) requestAnimationFrame(() => canvas.fit());
             }
 
@@ -431,11 +437,20 @@
 
             ui.toCanvas.addEventListener('click', () => enterCanvas());
             ui.open.addEventListener('click', () => config && app.openLink({ url: config.url }));
+            ui.pip.addEventListener('click', async () => {
+                const next = document.documentElement.dataset.display === 'pip' ? 'inline' : 'pip';
+                try {
+                    const result = await app.requestDisplayMode({ mode: next });
+                    applyContext({ displayMode: result?.mode ?? next });
+                } catch {
+                    // o host recusou: continua como está
+                }
+            });
             ui.fullscreen.addEventListener('click', async () => {
                 const next = document.documentElement.dataset.display === 'fullscreen' ? 'inline' : 'fullscreen';
                 try {
                     const result = await app.requestDisplayMode({ mode: next });
-                    applyContext({ displayMode: result?.mode ?? next, availableDisplayModes: ['inline', 'fullscreen'] });
+                    applyContext({ displayMode: result?.mode ?? next });
                 } catch {
                     // o host recusou: continua como está
                 }
