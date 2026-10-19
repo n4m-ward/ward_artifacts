@@ -7,6 +7,11 @@
 const MIN_SCALE = 0.05;
 const MAX_SCALE = 4;
 const VISIBLE_MARGIN = 600; // px de tela além da borda em que o iframe já carrega
+const LOAD_PARALLEL = 6; // artboards pedidos ao mesmo tempo (a hospedagem recusa rajadas maiores)
+const LOAD_RETRIES = 4; // novas tentativas de um artboard que veio como página de erro
+const LOAD_RETRY_WAIT = 800; // ms antes da 1ª nova tentativa; dobra a cada uma
+const LOAD_ALIVE_TIMEOUT = 15000; // ms até o iframe terminar de carregar (rede lenta)
+const LOAD_ALIVE_GRACE = 1500; // ms depois do load do iframe para o artboard dar sinal de vida
 const POLL_VISIBLE = 1500;
 const POLL_HIDDEN = 10000;
 const MOBILE_BREAKPOINT = 640;
@@ -64,7 +69,9 @@ class DesignCanvas {
         };
         this.state = config.state;
         this.view = { x: 0, y: 0, scale: 1 };
-        this.boards = new Map(); // id -> { data, node, frame, loaded }
+        this.boards = new Map(); // id -> { data, node, frame, loaded, queued }
+        this.loadQueue = []; // artboards visíveis esperando a vez de carregar (ver loadVisible)
+        this.activeLoads = 0;
         this.selected = null;
         this.focusIndex = null;
         this.viewKey = `ward-design-view:${config.design}`;
@@ -319,7 +326,7 @@ class DesignCanvas {
         });
 
         this.boardsLayer.append(node);
-        const entry = { data, node, frame, label, meta, flash, error, errors: [], loaded: false };
+        const entry = { data, node, frame, label, meta, flash, error, errors: [], loaded: false, queued: false };
         this.boards.set(data.id, entry);
         this.updateBoard(entry, data, true);
 
@@ -1013,45 +1020,130 @@ class DesignCanvas {
         if (row.length) this.fit(row);
     }
 
+    /**
+     * Enfileira os artboards que entraram na tela. Quem de fato pede o conteúdo é pumpLoads, em
+     * poucos por vez: com dezenas de iframes abrindo juntos a hospedagem compartilhada recusa os
+     * pedidos que passam do limite (erro 500, que o iframe mostra como se fosse o artboard).
+     */
     loadVisible() {
         if (this.isMobile()) return;
         const rect = this.viewport.getBoundingClientRect();
         const { x, y, scale } = this.view;
         for (const entry of this.boards.values()) {
-            if (entry.loaded || !this.inPage(entry.data)) continue;
+            if (entry.loaded || entry.queued || !this.inPage(entry.data)) continue;
             const { data } = entry;
             const left = data.x * scale + x;
             const top = data.y * scale + y;
             const visible = left < rect.width + VISIBLE_MARGIN && left + data.w * scale > -VISIBLE_MARGIN
                 && top < rect.height + VISIBLE_MARGIN && top + data.h * scale > -VISIBLE_MARGIN;
             if (visible) {
-                const frame = entry.frame;
-                const onLoad = () => {
-                    if (!hasContent(frame)) return;
-                    frame.removeEventListener('load', onLoad);
-                    frame.dataset.loaded = '1';
-                    this.queryLinks(entry);
-                    // MCP App: o artboard que não dá sinal de vida foi bloqueado pelo host (a tela fica branca).
-                    if (this.options.diagnose) {
-                        const loadedInline = Boolean(frame.dataset.inline);
-                        setTimeout(() => {
-                            if (entry.alive || entry.errors.length) return;
-                            // Host bloqueou o iframe do conteúdo: passa a desenhar os artboards por dentro
-                            // (se outro artboard já fez a troca, este já foi recarregado por dentro).
-                            if (!loadedInline && (this.inlineMode || this.switchToInline())) return;
-                            entry.errors = ['O artboard não carregou dentro do app (o host do chat pode ter bloqueado o iframe do conteúdo).'];
-                            entry.error.hidden = false;
-                            entry.error.textContent = 'Não carregou';
-                            entry.error.title = entry.errors[0];
-                            this.editor?.afterErrors();
-                        }, 6000);
-                    }
-                };
-                frame.addEventListener('load', onLoad);
-                this.loadFrame(entry.frame, data);
-                entry.loaded = true;
+                entry.queued = true;
+                this.loadQueue.push(entry);
             }
         }
+        this.pumpLoads();
+    }
+
+    /** Distância do centro do artboard ao centro da tela: os mais perto carregam primeiro. */
+    loadDistance(entry) {
+        const rect = this.viewport.getBoundingClientRect();
+        const { x, y, scale } = this.view;
+        const { data } = entry;
+        const dx = (data.x + data.w / 2) * scale + x - rect.width / 2;
+        const dy = (data.y + data.h / 2) * scale + y - rect.height / 2;
+        return dx * dx + dy * dy;
+    }
+
+    pumpLoads() {
+        this.loadQueue = this.loadQueue.filter((entry) => {
+            const keep = this.boards.get(entry.data.id) === entry && !entry.loaded && this.inPage(entry.data);
+            if (!keep) entry.queued = false;
+            return keep;
+        });
+        this.loadQueue.sort((a, b) => this.loadDistance(a) - this.loadDistance(b));
+        while (this.activeLoads < LOAD_PARALLEL && this.loadQueue.length) {
+            const entry = this.loadQueue.shift();
+            entry.queued = false;
+            this.loadBoard(entry);
+        }
+    }
+
+    /**
+     * Carrega um artboard e segura a vaga da fila até ele dar sinal de vida (o runtime do artboard avisa
+     * ao terminar de carregar). Sem sinal dentro do prazo e sem erro de script, a resposta foi uma página de
+     * erro do servidor: pede de novo, com espera crescente. No MCP App o diagnose faz o próprio tratamento.
+     */
+    async loadBoard(entry) {
+        this.activeLoads += 1;
+        entry.loaded = true;
+        const retries = this.options.diagnose ? 0 : LOAD_RETRIES;
+        try {
+            for (let attempt = 0; attempt <= retries; attempt++) {
+                if (attempt) await wait(LOAD_RETRY_WAIT * 2 ** (attempt - 1) + Math.random() * 400);
+                if (!entry.node.isConnected || this.boards.get(entry.data.id) !== entry) return;
+                if (await this.tryBoard(entry)) return;
+            }
+        } finally {
+            this.activeLoads -= 1;
+            this.pumpLoads();
+        }
+    }
+
+    /**
+     * Uma tentativa: true se o artboard deu sinal de vida (ou reportou erro de script, que pedir de novo
+     * não resolve); false se não deu. O runtime avisa no load da própria página; se o load do iframe já
+     * passou e o aviso não chegou, o que carregou foi a página de erro do servidor.
+     */
+    tryBoard(entry) {
+        return new Promise((resolve) => {
+            let graceTimer = null;
+            const finish = (ok) => {
+                clearTimeout(totalTimer);
+                clearTimeout(graceTimer);
+                entry.settle = null;
+                entry.frameLoaded = null;
+                resolve(ok);
+            };
+            const totalTimer = setTimeout(() => finish(false), LOAD_ALIVE_TIMEOUT);
+            entry.alive = false;
+            entry.settle = () => finish(true);
+            entry.frameLoaded = () => { graceTimer = setTimeout(() => finish(Boolean(entry.alive || entry.errors.length)), LOAD_ALIVE_GRACE); };
+            this.startFrame(entry);
+        });
+    }
+
+    markAlive(entry) {
+        entry.alive = true;
+        entry.settle?.();
+    }
+
+    startFrame(entry) {
+        const frame = entry.frame;
+        delete frame.dataset.loaded;
+        const onLoad = () => {
+            if (!hasContent(frame)) return;
+            frame.removeEventListener('load', onLoad);
+            frame.dataset.loaded = '1';
+            entry.frameLoaded?.();
+            this.queryLinks(entry);
+            // MCP App: o artboard que não dá sinal de vida foi bloqueado pelo host (a tela fica branca).
+            if (this.options.diagnose) {
+                const loadedInline = Boolean(frame.dataset.inline);
+                setTimeout(() => {
+                    if (entry.alive || entry.errors.length) return;
+                    // Host bloqueou o iframe do conteúdo: passa a desenhar os artboards por dentro
+                    // (se outro artboard já fez a troca, este já foi recarregado por dentro).
+                    if (!loadedInline && (this.inlineMode || this.switchToInline())) return;
+                    entry.errors = ['O artboard não carregou dentro do app (o host do chat pode ter bloqueado o iframe do conteúdo).'];
+                    entry.error.hidden = false;
+                    entry.error.textContent = 'Não carregou';
+                    entry.error.title = entry.errors[0];
+                    this.editor?.afterErrors();
+                }, 6000);
+            }
+        };
+        frame.addEventListener('load', onLoad);
+        this.loadFrame(frame, entry.data);
     }
 
     bindCanvas() {
@@ -1512,7 +1604,7 @@ class DesignCanvas {
                 const entry = [...this.boards.values()].find((item) => item.frame.contentWindow === event.source
                     || item.nextFrame?.contentWindow === event.source);
                 if (!entry) return;
-                entry.alive = true;
+                this.markAlive(entry);
                 entry.painted = Boolean(message.painted);
                 entry.node.classList.toggle('is-transparent', Boolean(entry.data.transparent) || !entry.painted);
                 return;
@@ -1531,6 +1623,7 @@ class DesignCanvas {
                 entry.error.hidden = false;
                 entry.error.title = entry.errors[entry.errors.length - 1];
                 entry.node.classList.add('has-error');
+                entry.settle?.();
                 this.editor?.afterErrors();
             }
         });
