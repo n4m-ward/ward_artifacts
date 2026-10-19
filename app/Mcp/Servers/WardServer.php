@@ -7,6 +7,7 @@ use App\Mcp\Tools\AddDesignAssetTool;
 use App\Mcp\Tools\CreateDesignTool;
 use App\Mcp\Tools\DeleteArtboardTool;
 use App\Mcp\Tools\DesignAppRequestTool;
+use App\Mcp\Tools\DesignBoardHtmlTool;
 use App\Mcp\Tools\DesignLiveTool;
 use App\Mcp\Tools\DesignRenderPreviewTool;
 use App\Mcp\Tools\DesignReportViewTool;
@@ -121,6 +122,7 @@ class WardServer extends Server
         SaveDesignVersionTool::class,
         OpenDesignTool::class,
         DesignLiveTool::class,
+        DesignBoardHtmlTool::class,
         DesignRenderPreviewTool::class,
         DesignReportViewTool::class,
         DesignAppRequestTool::class,

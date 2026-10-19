@@ -60,7 +60,7 @@ class DesignRenderPreviewTool extends WardTool
         $any = $board->exists ? $board : $design->boards()->first();
         if ($any) {
             $base = preg_replace('#/[^/]*$#', '/', $gateway->boardUrl($any, 30));
-            $rendered = preg_replace('/<head(\s[^>]*)?>/i', '$0<base href="'.e($base).'">', $rendered, 1) ?? $rendered;
+            $rendered = BoardRenderer::withHeadMarkup($rendered, '<base href="'.e($base).'">');
         }
 
         return Response::make(Response::text('Prévia montada.'))->withStructuredContent(['html' => $rendered]);
