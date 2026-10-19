@@ -2,6 +2,7 @@
 
 namespace App\Mcp\Tools;
 
+use App\Designs\DesignPresence;
 use App\Designs\DesignState;
 use App\Mcp\Apps\DesignApp;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
@@ -25,20 +26,27 @@ class DesignLiveTool extends WardTool
         return [
             'design' => $schema->string()->description('Id (32 caracteres) ou URL do design.')->required(),
             'rev' => $schema->integer()->description('Revisão que o app já mostra.'),
+            'p' => $schema->integer()->description('Presença da IA que o app já mostra (seq).'),
         ];
     }
 
-    public function handle(Request $request, DesignState $state): Response|ResponseFactory
+    public function handle(Request $request, DesignState $state, DesignPresence $presence): Response|ResponseFactory
     {
-        $request->validate(['design' => ['required', 'string'], 'rev' => ['nullable', 'integer']]);
+        $request->validate(['design' => ['required', 'string'], 'rev' => ['nullable', 'integer'], 'p' => ['nullable', 'integer']]);
 
         $design = $this->findDesign($request, $request->get('design'));
         if ($design instanceof Response) {
             return $design;
         }
 
+        $presence->touchViewer($design);
+        $current = $presence->current($design);
+
         if ($request->get('rev') !== null && (int) $request->get('rev') === $design->design_revision) {
-            return Response::make(Response::text('Sem mudanças.'))->withStructuredContent(['changed' => false]);
+            return Response::make(Response::text('Sem mudanças.'))->withStructuredContent(array_filter([
+                'changed' => false,
+                'presence' => $request->get('p') !== null && (int) $request->get('p') !== (int) ($current['seq'] ?? 0) ? $current : null,
+            ], fn ($value) => $value !== null));
         }
 
         return Response::make(Response::text("Revisão {$design->design_revision}."))

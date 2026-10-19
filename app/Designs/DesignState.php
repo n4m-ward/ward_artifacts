@@ -96,6 +96,14 @@ class DesignState
     }
 
     /**
+     * Onde o canvas devolve o resultado de uma ação da IA (show_in_canvas). Assinada como o ao vivo.
+     */
+    public function presenceUrl(Artifact $design, DateTimeInterface $expires): string
+    {
+        return URL::temporarySignedRoute('designs.presence', $expires, ['artifact' => $design->uuid]);
+    }
+
+    /**
      * Tudo que o MCP App precisa para desenhar e acompanhar o canvas.
      *
      * @return array<string, mixed>
@@ -112,6 +120,9 @@ class DesignState
             'url' => $design->url(),
             'state' => $this->toArray($design, comments: true),
             'liveUrl' => $this->liveUrl($design, now()->addMinutes((int) config('ward.artifacts.preview_session_minutes'))),
+            'presenceUrl' => $this->presenceUrl($design, now()->addMinutes((int) config('ward.artifacts.preview_session_minutes'))),
+            // Onde a IA está agora (o canvas abre seguindo-a).
+            'presence' => app(DesignPresence::class)->current($design),
             'contentOrigin' => $this->gateway->origin(),
             'sandbox' => $this->gateway->sandbox(),
             'allow' => DesignView::ALLOW,

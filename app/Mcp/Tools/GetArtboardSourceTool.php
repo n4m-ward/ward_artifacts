@@ -2,6 +2,7 @@
 
 namespace App\Mcp\Tools;
 
+use App\Designs\DesignPresence;
 use App\Designs\DesignStorage;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Mcp\Request;
@@ -38,6 +39,10 @@ class GetArtboardSourceTool extends WardTool
         if (! $board) {
             return Response::error("Artboard não encontrado: \"{$request->get('name')}\".");
         }
+
+        app(DesignPresence::class)->push($design, DesignPresence::actorFor($this->user($request)), [
+            'action' => 'reading', 'board' => $board->name, 'message' => "Lendo {$board->name}",
+        ]);
 
         return Response::make([
             Response::text("HTML do artboard \"{$board->name}\" ({$board->kind->value}, {$board->w}×{$board->h}, revisão {$board->revision}):"),

@@ -29,6 +29,8 @@ function el(tag, attrs = {}, children = []) {
     return node;
 }
 
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 function storage(key, value) {
     try {
         if (value === undefined) return JSON.parse(localStorage.getItem(key));
@@ -84,6 +86,7 @@ class DesignCanvas {
         this.buildTopBar();
         this.linksToggle.setAttribute('aria-pressed', String(this.showLinks));
 
+        this.initPresence();
         this.renderAll();
         this.bindCanvas();
         this.bindFocus();
@@ -97,8 +100,10 @@ class DesignCanvas {
             this.view = saved;
             this.applyView();
         } else {
-            this.fit();
+            this.fitInitial();
         }
+        // Abre seguindo a IA, se ela estiver trabalhando neste design agora.
+        if (config.presence) requestAnimationFrame(() => this.applyPresence(config.presence, { initial: true }));
 
         this.schedulePoll();
         window.addEventListener('resize', () => this.applyView());
@@ -358,9 +363,11 @@ class DesignCanvas {
         this.clearErrors(entry);
         const next = entry.frame.cloneNode(false);
         next.removeAttribute('src');
+        delete next.dataset.loaded;
         next.classList.add('is-loading');
         entry.nextFrame = next;
         next.addEventListener('load', () => {
+            next.dataset.loaded = '1';
             next.classList.remove('is-loading');
             entry.frame.remove();
             entry.frame = next;
@@ -427,6 +434,343 @@ class DesignCanvas {
         const mobile = window.innerWidth < this.options.mobileBreakpoint;
         this.root.classList.toggle('is-list', mobile);
         return mobile;
+    }
+
+    // ---------- presença da IA (show_in_canvas) ----------
+    // A IA diz o que mostrar (foco numa tela, Play, clique) e o canvas segue: a câmera voa até lá e
+    // um cursor com o nome dela desliza até o ponto (nunca teleporta). Quem mexe no canvas pausa o
+    // "seguir"; o botão volta a seguir. Num clique de teste, este canvas executa e devolve o resultado.
+
+    initPresence() {
+        this.follow = true;
+        this.lastPresenceSeq = 0;
+        this.cursor = el('div', { class: 'ward-ai-cursor', hidden: true, 'aria-hidden': 'true' }, [
+            el('span', { class: 'ward-ai-arrow' }),
+            el('span', { class: 'ward-ai-label' }),
+        ]);
+        document.body.append(this.cursor);
+        this.cursorPos = null;
+        this.cursorAnchor = null;
+        this.followBar = el('div', { class: 'ward-follow', hidden: true, role: 'status' });
+        this.followText = el('span');
+        this.followButton = el('button', { type: 'button' });
+        this.followButton.addEventListener('click', () => (this.follow ? this.pauseFollow() : this.resumeFollow()));
+        this.followBar.append(el('span', { class: 'ward-follow-dot' }), this.followText, this.followButton);
+        this.root.append(this.followBar);
+        this.playErrors = [];
+        // A presença some depois de um tempo parada.
+        setInterval(() => this.refreshPresenceAge(), 5000);
+    }
+
+    presenceActive() {
+        return Boolean(this.presence && Date.now() - this.presenceReceived < 120000);
+    }
+
+    refreshPresenceAge() {
+        if (!this.presence) return;
+        const active = this.presenceActive();
+        if (!active) this.hideCursor();
+        this.renderFollowBar();
+    }
+
+    renderFollowBar() {
+        const active = this.presenceActive();
+        this.followBar.hidden = !active;
+        if (!active) return;
+        const actor = this.presence.actor || 'IA';
+        this.followBar.classList.toggle('is-paused', !this.follow);
+        this.followText.textContent = this.follow ? `Seguindo ${actor}` : `${actor} está trabalhando`;
+        this.followButton.textContent = this.follow ? 'Parar de seguir' : `Seguir ${actor}`;
+    }
+
+    /** A pessoa mexeu no canvas: para de seguir (só se há uma IA para seguir). */
+    userInteracted() {
+        if (this.autoMoving || !this.presenceActive() || !this.follow) return;
+        this.pauseFollow();
+    }
+
+    pauseFollow() {
+        this.follow = false;
+        this.renderFollowBar();
+    }
+
+    resumeFollow() {
+        this.follow = true;
+        this.renderFollowBar();
+        if (this.presence) this.runPresence(this.presence, { replay: true });
+    }
+
+    /** Presença nova vinda do ao vivo (ou da configuração inicial). */
+    applyPresence(presence, { initial = false } = {}) {
+        if (!presence || typeof presence.seq !== 'number' || presence.seq <= this.lastPresenceSeq) return;
+        this.lastPresenceSeq = presence.seq;
+        // Na abertura, presença velha (mais de 10 min pelo relógio do servidor) só fica registrada.
+        if (initial && typeof presence.at === 'number' && Math.abs(Date.now() - presence.at) > 600000) return;
+        this.presence = presence;
+        this.presenceReceived = Date.now();
+        this.renderFollowBar();
+        this.runPresence(presence, { replay: initial });
+    }
+
+    async runPresence(presence, { replay = false } = {}) {
+        const label = [presence.actor || 'IA', presence.message].filter(Boolean).join(' · ');
+        this.cursor.querySelector('.ward-ai-label').textContent = label;
+        const board = presence.board ? this.state.boards.find((item) => item.name === presence.board) : null;
+        const action = presence.action;
+        const camera = ['focus', 'fit', 'point', 'editing', 'reading', 'layout'].includes(action);
+
+        if (!this.follow) {
+            // Sem seguir: o cursor ainda mostra onde a IA está (se a tela estiver no canvas visível).
+            if (board && !this.play) this.setCursorWorld(board.x + board.w / 2, board.y + Math.min(board.h / 2, 160));
+            return;
+        }
+
+        if (camera) {
+            if (this.play) this.closeFocus();
+            if (action === 'fit' || action === 'layout') {
+                const listed = (presence.boards ?? []).map((name) => this.state.boards.find((item) => item.name === name)).filter(Boolean);
+                const targets = listed.length ? listed.filter((item) => this.inPage(item)) : null;
+                await this.flyTo(targets?.length ? targets : null);
+                const box = this.bounds(targets?.length ? targets : null);
+                if (box) this.setCursorWorld((box[0] + box[2]) / 2, (box[1] + box[3]) / 2);
+                return;
+            }
+            if (!board) return;
+            if (!this.inPage(board)) this.setPage(this.pageOf(board));
+            await this.flyTo([board], { focus: true });
+            if (action === 'point') return this.pointAt(presence, board);
+            this.setCursorWorld(board.x + Math.min(board.w * 0.5, 240), board.y + Math.min(board.h * 0.3, 140));
+            return;
+        }
+
+        // Ações do Play: numa reabertura (replay), não repete cliques antigos.
+        if (replay && action !== 'play') return;
+        if (action === 'close') {
+            this.closeFocus();
+            this.hideCursor();
+            return this.reportPresence(presence, { found: true });
+        }
+        if (action === 'back') {
+            if (this.play) this.playBack();
+            await wait(700);
+            return this.reportPresence(presence, this.playSnapshot({ found: true }));
+        }
+        if (!board) return;
+        if (action === 'play') {
+            if (this.play?.current !== board.id || this.play.overlays.length) this.openFocus(board.id);
+            await this.playReady();
+            this.setCursorPlay(null);
+            return this.reportPresence(presence, this.playSnapshot({ found: true }));
+        }
+        if (action === 'click') return this.clickInPlay(presence, board);
+    }
+
+    /** Aponta um elemento de um artboard no canvas. */
+    async pointAt(presence, board) {
+        const entry = this.boards.get(board.id);
+        for (let i = 0; i < 30 && !(entry?.loaded && entry.frame.dataset.loaded); i++) await wait(100);
+        const answer = entry ? await this.locateIn(entry.frame, presence.element) : null;
+        if (answer?.found) {
+            const r = answer.rect;
+            this.setCursorWorld(board.x + r.x + Math.min(r.w / 2, 24), board.y + r.y + Math.min(r.h / 2, 18));
+            this.pulseCursor();
+        } else {
+            this.setCursorWorld(board.x + board.w / 2, board.y + Math.min(board.h / 2, 160));
+        }
+        this.reportPresence(presence, { found: Boolean(answer?.found), element: answer?.found ? { tag: answer.tag, text: answer.text } : null });
+    }
+
+    /** Clique de teste: abre o Play na tela (se preciso), leva o cursor até o elemento e clica. */
+    async clickInPlay(presence, board) {
+        const showing = this.play && (this.play.current === board.id || this.play.overlays.includes(board.id));
+        if (!showing) {
+            this.openFocus(board.id);
+        }
+        await this.playReady();
+        const frame = this.playFrameOf(board.id);
+        const before = this.playSnapshot();
+        const located = frame ? await this.locateIn(frame, presence.element) : null;
+        if (!located?.found) {
+            return this.reportPresence(presence, this.playSnapshot({ found: false }));
+        }
+        this.setCursorPlay(frame, located.rect);
+        await wait(520); // o cursor chega antes do clique
+        this.pulseCursor();
+        this.playErrors = [];
+        const clicked = await this.askFrame(frame, { ward: 'click', query: presence.element }, 1500);
+        await wait(900); // transição e carga da tela nova
+        await this.playReady();
+        const after = this.playSnapshot({ found: Boolean(clicked?.found), element: clicked?.found ? { tag: clicked.tag, text: clicked.text } : null });
+        after.navigated = after.screen !== before.screen || JSON.stringify(after.overlays) !== JSON.stringify(before.overlays);
+        if (!after.navigated) after.note = 'A tela do Play não mudou depois do clique.';
+        this.reportPresence(presence, after);
+    }
+
+    /**
+     * Acha o elemento numa tela. Um iframe recém-aberto ainda pode não ter sido medido pelo navegador
+     * (tudo vem com tamanho zero): força a medida e tenta de novo.
+     */
+    async locateIn(frame, query) {
+        for (let attempt = 0; attempt < 4; attempt++) {
+            frame.getBoundingClientRect();
+            await new Promise((resolve) => requestAnimationFrame(() => resolve()));
+            const answer = await this.askFrame(frame, { ward: 'locate', query, scroll: true }, 1500);
+            if (!answer?.found || answer.rect.w > 0 || answer.rect.h > 0) return answer;
+            await wait(150);
+        }
+        return this.askFrame(frame, { ward: 'locate', query, scroll: true }, 1500);
+    }
+
+    playSnapshot(extra = {}) {
+        const name = (id) => this.boardById(id)?.name ?? null;
+        return {
+            screen: this.play ? name(this.play.current) : null,
+            overlays: this.play ? this.play.overlays.map(name).filter(Boolean) : [],
+            errors: [...this.playErrors],
+            ...extra,
+        };
+    }
+
+    /** O iframe do Play que mostra este artboard (o de cima, se estiver por cima). */
+    playFrameOf(boardId) {
+        const stage = this.focus.querySelector('[data-focus-stage]');
+        const data = this.boardById(boardId);
+        if (!data) return null;
+        const frames = [...stage.querySelectorAll('iframe')].filter((frame) => frame.getAttribute('src') === data.url);
+        return frames[frames.length - 1] ?? null;
+    }
+
+    /** Espera o Play terminar de carregar a tela (até ~2 s). */
+    async playReady() {
+        for (let i = 0; i < 20; i++) {
+            const stage = this.focus.querySelector('[data-focus-stage]');
+            const pending = [...stage.querySelectorAll('iframe')].some((frame) => !frame.dataset.loaded);
+            if (!pending && !stage.querySelector('.ward-play-layer.is-entering')) return;
+            await wait(100);
+        }
+    }
+
+    async reportPresence(presence, result) {
+        try {
+            if (this.options.reportPresence) return await this.options.reportPresence(presence.seq, result);
+            if (!this.config.presenceUrl) return;
+            await fetch(this.config.presenceUrl, {
+                method: 'POST', credentials: 'omit', headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify({ seq: presence.seq, result }),
+            });
+        } catch {
+            // sem retorno: a ferramenta responde pelo que o HTML diz
+        }
+    }
+
+    // ----- câmera animada -----
+
+    /** Leva a câmera até os artboards (todos da página sem lista) em ~0,5 s. */
+    flyTo(boards = null, { focus = false } = {}) {
+        if (this.isMobile()) return Promise.resolve();
+        const box = this.bounds(boards);
+        const rect = this.viewport.getBoundingClientRect();
+        if (!box || !rect.width) return Promise.resolve();
+        const pad = focus ? 48 : 64;
+        const w = box[2] - box[0];
+        const h = box[3] - box[1];
+        let scale = Math.min(1, Math.max(MIN_SCALE, Math.min((rect.width - pad * 2) / w, (rect.height - pad * 2) / h)));
+        // Uma tela alta (página) no foco: mostra o topo legível, sem encolher demais.
+        if (focus && h * scale > rect.height - pad * 2 && scale < 0.35) scale = Math.min(1, (rect.width - pad * 2) / w);
+        const target = {
+            scale,
+            x: (rect.width - w * scale) / 2 - box[0] * scale,
+            y: h * scale > rect.height - pad * 2 ? pad - box[1] * scale : (rect.height - h * scale) / 2 - box[1] * scale,
+        };
+        return this.animateView(target);
+    }
+
+    animateView(target, duration = 520) {
+        const start = { ...this.view };
+        const began = performance.now();
+        cancelAnimationFrame(this.flyFrame);
+        this.autoMoving = true;
+        return new Promise((resolve) => {
+            const step = (now) => {
+                const t = Math.min(1, (now - began) / duration);
+                const k = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+                // Zoom em escala logarítmica: a velocidade parece constante.
+                const scale = Math.exp(Math.log(start.scale) + (Math.log(target.scale) - Math.log(start.scale)) * k);
+                this.view = { scale, x: start.x + (target.x - start.x) * k, y: start.y + (target.y - start.y) * k };
+                this.applyView();
+                if (t < 1) {
+                    this.flyFrame = requestAnimationFrame(step);
+                } else {
+                    this.autoMoving = false;
+                    resolve();
+                }
+            };
+            this.flyFrame = requestAnimationFrame(step);
+        });
+    }
+
+    // ----- cursor -----
+
+    setCursorWorld(x, y) {
+        this.cursorAnchor = { space: 'world', x, y };
+        this.showCursor();
+    }
+
+    /** No Play: rect em px da tela (dentro do iframe); sem rect, o centro da tela. */
+    setCursorPlay(frame, rect = null) {
+        this.cursorAnchor = { space: 'play', frame, rect };
+        this.showCursor();
+    }
+
+    cursorTarget() {
+        const anchor = this.cursorAnchor;
+        if (!anchor) return null;
+        if (anchor.space === 'world') {
+            const box = this.viewport.getBoundingClientRect();
+            return { x: box.left + this.view.x + anchor.x * this.view.scale, y: box.top + this.view.y + anchor.y * this.view.scale };
+        }
+        const frame = anchor.frame?.isConnected ? anchor.frame : this.focus.querySelector('[data-focus-stage] .ward-play-layer:last-of-type iframe');
+        if (!frame) return null;
+        const box = frame.getBoundingClientRect();
+        // O Play reduz a tela com zoom: a razão entre o tamanho visto e o tamanho CSS do iframe.
+        const ratio = box.width / (parseFloat(frame.style.width) || box.width || 1);
+        if (!anchor.rect) return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+        return {
+            x: box.left + (anchor.rect.x + Math.min(anchor.rect.w / 2, 28)) * ratio,
+            y: box.top + (anchor.rect.y + Math.min(anchor.rect.h / 2, 20)) * ratio,
+        };
+    }
+
+    showCursor() {
+        this.cursor.hidden = false;
+        if (!this.cursorLoop) {
+            const tick = () => {
+                const target = this.cursorTarget();
+                if (target) {
+                    // Sempre desliza do ponto atual até o alvo (que pode estar se movendo com a câmera).
+                    if (!this.cursorPos) {
+                        const bounds = this.root.getBoundingClientRect();
+                        this.cursorPos = { x: bounds.left + bounds.width / 2, y: bounds.bottom - 40 };
+                    }
+                    this.cursorPos.x += (target.x - this.cursorPos.x) * 0.2;
+                    this.cursorPos.y += (target.y - this.cursorPos.y) * 0.2;
+                    this.cursor.style.transform = `translate(${this.cursorPos.x}px, ${this.cursorPos.y}px)`;
+                }
+                this.cursorLoop = this.cursor.hidden ? null : requestAnimationFrame(tick);
+            };
+            this.cursorLoop = requestAnimationFrame(tick);
+        }
+    }
+
+    hideCursor() {
+        this.cursor.hidden = true;
+        this.cursorAnchor = null;
+    }
+
+    pulseCursor() {
+        this.cursor.classList.remove('is-click');
+        void this.cursor.offsetWidth;
+        this.cursor.classList.add('is-click');
     }
 
     // ---------- setas das ligações ----------
@@ -582,6 +926,16 @@ class DesignCanvas {
         this.applyView();
     }
 
+    /** Primeira vista: tudo, a não ser que fique pequeno demais; aí a primeira fileira. */
+    fitInitial() {
+        this.fit();
+        const boards = this.pageBoards();
+        if (this.view.scale >= 0.22 || boards.length < 4) return;
+        const top = Math.min(...boards.map((board) => board.y));
+        const row = boards.filter((board) => board.y < top + 200).sort((a, b) => a.x - b.x).slice(0, 4);
+        if (row.length) this.fit(row);
+    }
+
     loadVisible() {
         if (this.isMobile()) return;
         const rect = this.viewport.getBoundingClientRect();
@@ -594,7 +948,21 @@ class DesignCanvas {
             const visible = left < rect.width + VISIBLE_MARGIN && left + data.w * scale > -VISIBLE_MARGIN
                 && top < rect.height + VISIBLE_MARGIN && top + data.h * scale > -VISIBLE_MARGIN;
             if (visible) {
-                entry.frame.addEventListener('load', () => this.queryLinks(entry), { once: true });
+                entry.frame.addEventListener('load', () => {
+                    entry.frame.dataset.loaded = '1';
+                    this.queryLinks(entry);
+                    // MCP App: o artboard que não dá sinal de vida foi bloqueado pelo host (a tela fica branca).
+                    if (this.options.diagnose) {
+                        setTimeout(() => {
+                            if (entry.alive || entry.errors.length) return;
+                            entry.errors = ['O artboard não carregou dentro do app (o host do chat pode ter bloqueado o iframe do conteúdo).'];
+                            entry.error.hidden = false;
+                            entry.error.textContent = 'Não carregou';
+                            entry.error.title = entry.errors[0];
+                            this.editor?.afterErrors();
+                        }, 8000);
+                    }
+                }, { once: true });
                 entry.frame.src = data.url;
                 entry.loaded = true;
             }
@@ -627,6 +995,7 @@ class DesignCanvas {
                 const [a, b] = [...pointers.values()];
                 const distance = Math.hypot(a.x - b.x, a.y - b.y);
                 this.zoomAt((pinch.scale * distance / pinch.distance) / this.view.scale, (a.x + b.x) / 2, (a.y + b.y) / 2);
+                this.userInteracted();
                 return;
             }
             if (!drag) return;
@@ -635,6 +1004,7 @@ class DesignCanvas {
             if (!drag.moved && Math.hypot(dx, dy) < 4) return;
             drag.moved = true;
             this.userMoved = true;
+            this.userInteracted();
             this.viewport.classList.add('is-panning');
             this.view.x = drag.vx + dx;
             this.view.y = drag.vy + dy;
@@ -665,6 +1035,7 @@ class DesignCanvas {
         this.viewport.addEventListener('wheel', (event) => {
             event.preventDefault();
             this.userMoved = true;
+            this.userInteracted();
             if (event.ctrlKey || event.metaKey) {
                 this.zoomAt(Math.exp(-event.deltaY * 0.01), event.clientX, event.clientY);
             } else {
@@ -677,6 +1048,7 @@ class DesignCanvas {
         this.root.querySelector('[data-zoom-toolbar]')?.addEventListener('click', (event) => {
             const action = event.target.closest('[data-zoom]')?.dataset.zoom;
             if (action) this.userMoved = action !== 'fit';
+            if (action) this.userInteracted();
             if (action === 'in') this.zoomAt(1.25);
             if (action === 'out') this.zoomAt(0.8);
             if (action === 'reset') this.setScale(1);
@@ -840,6 +1212,7 @@ class DesignCanvas {
             referrerpolicy: 'no-referrer',
         });
         frame.addEventListener('load', () => {
+            frame.dataset.loaded = '1';
             frame.contentWindow?.postMessage({ ward: 'play' }, this.config.contentOrigin);
             if (this.play?.hotspots) frame.contentWindow?.postMessage({ ward: 'hotspots', on: true }, this.config.contentOrigin);
         });
@@ -1052,8 +1425,14 @@ class DesignCanvas {
                 const entry = [...this.boards.values()].find((item) => item.frame.contentWindow === event.source
                     || item.nextFrame?.contentWindow === event.source);
                 if (!entry) return;
+                entry.alive = true;
                 entry.painted = Boolean(message.painted);
                 entry.node.classList.toggle('is-transparent', Boolean(entry.data.transparent) || !entry.painted);
+                return;
+            }
+            if (message?.ward === 'error' && typeof message.message === 'string' && this.play
+                && [...this.focus.querySelectorAll('[data-focus-stage] iframe')].some((frame) => frame.contentWindow === event.source)) {
+                this.playErrors = [...this.playErrors, message.message.slice(0, 200)].slice(-5);
                 return;
             }
             if (message?.ward === 'error' && typeof message.message === 'string') {
@@ -1093,14 +1472,20 @@ class DesignCanvas {
     /** Pergunta algo ao runtime do artboard e espera a resposta (ou null depois de timeout ms). */
     ask(boardId, message, timeout = 800) {
         const entry = this.boards.get(boardId);
-        if (!entry || !entry.loaded || !entry.frame.contentWindow) return Promise.resolve(null);
+        if (!entry || !entry.loaded) return Promise.resolve(null);
+        return this.askFrame(entry.frame, message, timeout);
+    }
+
+    /** Pergunta ao runtime de um iframe qualquer (do canvas ou do Play). */
+    askFrame(frame, message, timeout = 800) {
+        if (!frame?.contentWindow) return Promise.resolve(null);
         const request = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
         return new Promise((resolve) => {
             this.picks.set(request, resolve);
             setTimeout(() => {
                 if (this.picks.delete(request)) resolve(null);
             }, timeout);
-            entry.frame.contentWindow.postMessage({ ...message, request }, this.config.contentOrigin);
+            frame.contentWindow.postMessage({ ...message, request }, this.config.contentOrigin);
         });
     }
 
@@ -1170,9 +1555,13 @@ class DesignCanvas {
         if (this.destroyed) return;
         if (this.options.poll) {
             try {
-                const state = await this.options.poll(this.state.revision);
+                const state = await this.options.poll(this.state.revision, this.lastPresenceSeq);
                 // Durante um arraste ou um envio do editor, o estado do servidor espera.
-                if (state && !this.hold) this.setState(state);
+                if (state?.unchanged) this.applyPresence(state.presence);
+                else if (state && !this.hold) {
+                    this.setState(state);
+                    this.applyPresence(state.presence);
+                }
             } catch {
                 // a fonte decide se tenta de novo; aqui só segue o ciclo
             }
@@ -1180,7 +1569,7 @@ class DesignCanvas {
         }
         try {
             const separator = this.config.liveUrl.includes('?') ? '&' : '?';
-            const response = await fetch(`${this.config.liveUrl}${separator}rev=${this.state.revision}`, {
+            const response = await fetch(`${this.config.liveUrl}${separator}rev=${this.state.revision}&p=${this.lastPresenceSeq}`, {
                 credentials: 'same-origin',
                 headers: { Accept: 'application/json' },
                 cache: 'no-store',
@@ -1190,9 +1579,14 @@ class DesignCanvas {
                 return;
             }
             // Durante um arraste ou um envio do editor, o estado do servidor espera.
-            if (response.status === 200 && !this.hold) {
-                this.state = await response.json();
-                this.renderAll();
+            if (response.status === 200) {
+                const data = await response.json();
+                if (data.unchanged) this.applyPresence(data.presence);
+                else if (!this.hold) {
+                    this.state = data;
+                    this.renderAll();
+                    this.applyPresence(data.presence);
+                }
             }
         } catch {
             // rede instável: tenta de novo no próximo ciclo

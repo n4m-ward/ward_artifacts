@@ -8,6 +8,7 @@ use App\Mcp\Tools\CreateDesignTool;
 use App\Mcp\Tools\DeleteArtboardTool;
 use App\Mcp\Tools\DesignAppRequestTool;
 use App\Mcp\Tools\DesignLiveTool;
+use App\Mcp\Tools\DesignRenderPreviewTool;
 use App\Mcp\Tools\DesignReportViewTool;
 use App\Mcp\Tools\GetArtboardSourceTool;
 use App\Mcp\Tools\GetArtifactSourceTool;
@@ -28,6 +29,7 @@ use App\Mcp\Tools\ResolveCommentTool;
 use App\Mcp\Tools\SaveDesignSystemTool;
 use App\Mcp\Tools\SaveDesignVersionTool;
 use App\Mcp\Tools\SetDesignTokensTool;
+use App\Mcp\Tools\ShowInCanvasTool;
 use App\Mcp\Tools\UpdateArtifactTool;
 use App\Mcp\Tools\UpdateDesignLayoutTool;
 use App\Mcp\Tools\UpsertArtboardTool;
@@ -79,6 +81,8 @@ Ward Design (canvas com vários artboards, para mockups, telas de app, landing p
   name="X">. Crie/documente com save_design_system; promova peças com publish_component.
 - Imagens do design: add_design_asset envia (base64) e devolve "assets/{nome}" para usar no HTML;
   get_design lista as que existem, inclusive as que a pessoa enviou no canvas.
+- Quem vê o canvas segue você (câmera e cursor com o seu nome). Conduza com show_in_canvas (focus,
+  point, fit) e TESTE protótipos com show_in_canvas click: a resposta diz em que tela o Play ficou.
 - Para mudar uma tela: get_artboard_source → editar → upsert_artboard com o mesmo name.
 - save_design_version para guardar um ponto. get_design mostra o canvas, o que a pessoa está vendo
   (artboard e elemento selecionados, erros de script), os comentários abertos e devolve preview_url.
@@ -100,6 +104,7 @@ class WardServer extends Server
         CreateDesignTool::class,
         GetDesignGuideTool::class,
         UpsertArtboardTool::class,
+        ShowInCanvasTool::class,
         UpdateDesignLayoutTool::class,
         GetDesignTool::class,
         GetArtboardSourceTool::class,
@@ -115,6 +120,7 @@ class WardServer extends Server
         SaveDesignVersionTool::class,
         OpenDesignTool::class,
         DesignLiveTool::class,
+        DesignRenderPreviewTool::class,
         DesignReportViewTool::class,
         DesignAppRequestTool::class,
     ];

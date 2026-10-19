@@ -32,6 +32,8 @@ return [
         'keep_snapshots' => 10,
         // Espaço entre artboards posicionados automaticamente.
         'gap' => 80,
+        // show_in_canvas espera o canvas aberto devolver o resultado de um clique (ele busca o ao vivo a cada 1,5–2 s).
+        'presence_wait_seconds' => (float) env('WARD_DESIGN_PRESENCE_WAIT', 8),
         // Onde os artboards podem ser embutidos além do próprio app (vai no
         // frame-ancestors do conteúdo). O padrão "*" tira o frame-ancestors dos
         // artboards: hosts de MCP App como o Ward Code desenham o app num iframe

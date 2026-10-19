@@ -37,6 +37,8 @@ class DesignView
                 'design' => $design->uuid,
                 'state' => $state,
                 'liveUrl' => $this->state->liveUrl($design, $liveUntil),
+                'presenceUrl' => $this->state->presenceUrl($design, $liveUntil),
+                'presence' => app(DesignPresence::class)->current($design),
                 'contentOrigin' => $this->gateway->origin(),
                 'sandbox' => $this->gateway->sandbox(),
                 'allow' => self::ALLOW,

@@ -47,7 +47,7 @@ class DesignApp extends AppResource
             ->csp(Csp::make()
                 ->frameDomains([$this->gateway->origin()])
                 ->connectDomains([$this->origin((string) config('app.url'))])
-                ->resourceDomains(['https://fonts.googleapis.com', 'https://fonts.gstatic.com']));
+                ->resourceDomains([$this->gateway->origin(), 'https://fonts.googleapis.com', 'https://fonts.gstatic.com', 'https://images.unsplash.com']));
     }
 
     public function handle(Request $request): Response
