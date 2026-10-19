@@ -188,6 +188,26 @@
     .ward-ed-dialog-text { margin: 0; font-size: 13px; line-height: 1.45; white-space: pre-line; }
     .ward-ed-dialog .ward-ed-input { min-height: 36px; }
     .ward-ed-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
+    /* Imagens nos comentários. */
+    .ward-ed-attachments { display: flex; flex-wrap: wrap; gap: 6px; }
+    .ward-ed-attachments[hidden] { display: none; }
+    .ward-ed-attachment { position: relative; width: 64px; height: 64px; border-radius: 8px; overflow: hidden; border: 1px solid rgb(127 127 127 / .3); background: rgb(127 127 127 / .1); }
+    .ward-ed-attachment img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .ward-ed-attachment.is-uploading img { opacity: .45; }
+    .ward-ed-attachment.is-uploading::after { content: ''; position: absolute; inset: 0; margin: auto; width: 18px; height: 18px; border-radius: 999px;
+        border: 2px solid #0ea5e9; border-top-color: transparent; animation: ward-ed-spin .8s linear infinite; }
+    @keyframes ward-ed-spin { to { transform: rotate(360deg); } }
+    .ward-ed-attachment-remove { position: absolute; top: 2px; right: 2px; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 999px;
+        background: rgb(0 0 0 / .65); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+    .ward-ed-attachment-remove svg { width: 12px; height: 12px; }
+    .ward-ed-attach { font-size: 15px; }
+    .ward-ed-thread.is-dropping { outline: 2px dashed #0ea5e9; outline-offset: -4px; }
+    .ward-ed-message-images { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+    .ward-ed-message-image { width: 88px; height: 66px; padding: 0; border: 1px solid rgb(127 127 127 / .3); border-radius: 8px; overflow: hidden; cursor: zoom-in; background: rgb(127 127 127 / .1); }
+    .ward-ed-message-image img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .ward-ed-lightbox { position: fixed; inset: 0; z-index: 90; display: flex; align-items: center; justify-content: center; padding: 24px;
+        background: rgb(0 0 0 / .8); cursor: zoom-out; }
+    .ward-ed-lightbox img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; box-shadow: 0 20px 60px rgb(0 0 0 / .5); }
     .ward-ed-input { width: 100%; box-sizing: border-box; resize: vertical; min-height: 44px; padding: 8px; border: 1px solid #d4d4d8; border-radius: 8px; font: inherit; color: inherit; background: transparent; }
     .ward-ed-input:focus { outline: 2px solid #0ea5e9; outline-offset: 0; border-color: transparent; }
     .ward-ed-thread-actions { display: flex; align-items: center; gap: 4px; }

@@ -49,6 +49,12 @@ class DesignComment extends Model
         return $this->hasMany(self::class, 'parent_id')->orderBy('id');
     }
 
+    /** Imagens anexadas a esta mensagem. */
+    public function images(): HasMany
+    {
+        return $this->hasMany(DesignCommentImage::class, 'comment_id')->orderBy('sort')->orderBy('id');
+    }
+
     public function resolver(): BelongsTo
     {
         return $this->belongsTo(User::class, 'resolved_by');
@@ -76,6 +82,7 @@ class DesignComment extends Model
                 'author' => $message->user?->name ?? 'Usuário removido',
                 'user_id' => $message->user_id,
                 'body' => $message->body,
+                'images' => $message->images->map(fn (DesignCommentImage $image) => $image->toCanvas($this->artifact))->values()->all(),
                 'source' => $message->source,
                 'at' => $message->created_at?->toIso8601String(),
             ])->values()->all(),

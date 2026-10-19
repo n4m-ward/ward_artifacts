@@ -124,6 +124,12 @@ class Artifact extends Model
         return $this->boards()->orderBy('sort')->orderBy('id');
     }
 
+    /** Imagens anexadas aos comentários do canvas (à parte das imagens do design). */
+    public function commentImages(): HasMany
+    {
+        return $this->hasMany(DesignCommentImage::class);
+    }
+
     public function notes(): HasMany
     {
         return $this->hasMany(DesignNote::class);

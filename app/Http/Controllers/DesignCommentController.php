@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\Designs\DesignCommentImages;
 use App\Actions\Designs\DesignComments;
 use App\Designs\DesignState;
 use App\Designs\InvalidDesign;
@@ -26,21 +27,25 @@ class DesignCommentController extends Controller
         Gate::authorize('view', $design);
 
         $data = $request->validate([
-            'body' => ['required', 'string', 'max:'.DesignComments::MAX_BODY],
+            'body' => ['nullable', 'string', 'max:'.DesignComments::MAX_BODY],
             'parent' => ['nullable', 'integer'],
             'board' => ['nullable', 'integer'],
             'anchor' => ['nullable', 'array'],
             'x' => ['nullable', 'numeric'],
             'y' => ['nullable', 'numeric'],
+            // Imagens já enviadas (DesignCommentImageController::store) para anexar.
+            'images' => ['nullable', 'array', 'max:'.DesignCommentImages::MAX_PER_MESSAGE],
+            'images.*' => ['integer'],
         ]);
 
         try {
             if (isset($data['parent'])) {
                 $thread = $design->comments()->whereNull('parent_id')->findOrFail($data['parent']);
-                $this->comments->reply($thread, $request->user(), $data['body']);
+                $this->comments->reply($thread, $request->user(), (string) ($data['body'] ?? ''), 'web', $data['images'] ?? []);
             } else {
                 $thread = $this->comments->open($design, $request->user(), [
-                    'body' => $data['body'],
+                    'body' => (string) ($data['body'] ?? ''),
+                    'images' => $data['images'] ?? [],
                     'board' => $data['board'] ?? null,
                     'anchor' => $data['anchor'] ?? null,
                     'x' => isset($data['x']) ? (int) round($data['x']) : null,

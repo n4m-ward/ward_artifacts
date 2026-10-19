@@ -4,6 +4,7 @@ namespace App\Designs;
 
 use App\Http\Controllers\DesignAssetController;
 use App\Http\Controllers\DesignCommentController;
+use App\Http\Controllers\DesignCommentImageController;
 use App\Http\Controllers\DesignEditController;
 use App\Http\Controllers\DesignLiveController;
 use App\Http\Controllers\DesignSystemController;
@@ -39,6 +40,8 @@ class DesignAppRequests
         ['PATCH', '#^d/'.self::UUID.'/comments/([0-9]+)$#', DesignCommentController::class, 'update', ['artifact', 'comment']],
         ['DELETE', '#^d/'.self::UUID.'/comments/([0-9]+)$#', DesignCommentController::class, 'destroy', ['artifact', 'comment']],
         ['POST', '#^d/'.self::UUID.'/view$#', DesignCommentController::class, 'view', ['artifact']],
+        ['POST', '#^d/'.self::UUID.'/comment-images$#', DesignCommentImageController::class, 'store', ['artifact']],
+        ['DELETE', '#^d/'.self::UUID.'/comment-images/([0-9]+)$#', DesignCommentImageController::class, 'destroy', ['artifact', 'image']],
         ['GET', '#^d/'.self::UUID.'/assets$#', DesignAssetController::class, 'index', ['artifact']],
         ['POST', '#^d/'.self::UUID.'/assets$#', DesignAssetController::class, 'store', ['artifact']],
         ['DELETE', '#^d/'.self::UUID.'/assets/([a-z0-9.-]+)$#', DesignAssetController::class, 'destroy', ['artifact', 'name']],

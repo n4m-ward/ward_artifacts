@@ -5,6 +5,7 @@ use App\Http\Controllers\ArtifactPreviewController;
 use App\Http\Controllers\ArtifactViewerController;
 use App\Http\Controllers\DesignAssetController;
 use App\Http\Controllers\DesignCommentController;
+use App\Http\Controllers\DesignCommentImageController;
 use App\Http\Controllers\DesignEditController;
 use App\Http\Controllers\DesignLiveController;
 use App\Http\Controllers\DesignPresenceController;
@@ -55,6 +56,12 @@ Route::get('d/{artifact}/live', DesignLiveController::class)
     ->middleware('throttle:240,1')
     ->name('designs.live');
 
+// Imagem de um comentário do canvas: link assinado (o canvas e o MCP App mostram sem sessão).
+Route::get('d/{artifact}/comment-images/{name}', [DesignCommentImageController::class, 'show'])
+    ->where(['artifact' => '[0-9a-f]{32}', 'name' => '[a-z0-9]{24}\.(png|jpg|webp|gif)'])
+    ->middleware('throttle:600,1')
+    ->name('designs.comment-images.show');
+
 // O canvas devolve o resultado de uma ação da IA (show_in_canvas). Assinada; sem sessão nem CSRF.
 Route::post('d/{artifact}/presence', DesignPresenceController::class)
     ->where('artifact', '[0-9a-f]{32}')
@@ -72,6 +79,8 @@ Route::middleware(['auth', 'throttle:600,1'])->where(['artifact' => '[0-9a-f]{32
     Route::patch('d/{artifact}/comments/{comment}', [DesignCommentController::class, 'update'])->name('designs.comments.update');
     Route::delete('d/{artifact}/comments/{comment}', [DesignCommentController::class, 'destroy'])->name('designs.comments.destroy');
     Route::post('d/{artifact}/view', [DesignCommentController::class, 'view'])->name('designs.view');
+    Route::post('d/{artifact}/comment-images', [DesignCommentImageController::class, 'store'])->name('designs.comment-images.store');
+    Route::delete('d/{artifact}/comment-images/{image}', [DesignCommentImageController::class, 'destroy'])->where('image', '[0-9]+')->name('designs.comment-images.destroy');
 
     // PDF de vários artboards (uma página por artboard).
     Route::get('d/{artifact}/print', DesignPrintController::class)->name('designs.print');
