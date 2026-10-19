@@ -3,6 +3,7 @@
 namespace App\Mcp\Tools;
 
 use App\Designs\DesignCanvas;
+use App\Designs\DesignLayoutCheck;
 use App\Designs\DesignState;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Mcp\Request;
@@ -13,7 +14,7 @@ use Laravel\Mcp\Server\Attributes\Name;
 use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
 
 #[Name('get_design')]
-#[Description('Mostra o canvas de um design: artboards (nome, tipo, posição, tamanho, revisão), notas, comentários abertos (com o elemento a que se referem), o que a pessoa está vendo agora (artboard e elemento selecionados, artboards visíveis, erros de script) e a URL. Não traz o HTML: use get_artboard_source. Também devolve preview_url (uso único, sem login) para conferir no seu navegador.')]
+#[Description('Mostra o canvas de um design: artboards (nome, tipo, posição, tamanho, revisão, ligações do protótipo), artboards sobrepostos e ligações quebradas, notas, comentários abertos (com o elemento a que se referem), o que a pessoa está vendo agora (artboard e elemento selecionados, artboards visíveis, erros de script) e a URL. Não traz o HTML: use get_artboard_source. Também devolve preview_url (uso único, sem login) para conferir no seu navegador.')]
 #[IsReadOnly]
 class GetDesignTool extends WardTool
 {
@@ -43,7 +44,9 @@ class GetDesignTool extends WardTool
         $lines = collect($data['boards'])->map(fn ($b) => "- {$b['name']} ({$b['kind']}, {$b['w']}×{$b['h']} em {$b['x']},{$b['y']}, rev {$b['revision']})"
             .($b['interactive'] ? ' interativo' : '')
             .($pageNames->isNotEmpty() ? ', página "'.($pageNames[$b['page']] ?? $pageNames->first()).'"' : '')
-            .($b['includes'] ? ', usa '.implode(', ', $b['includes']) : ''));
+            .($b['includes'] ? ', usa '.implode(', ', $b['includes']) : '')
+            .($b['links'] ? ', liga a '.collect($b['links'])->map(fn ($l) => $l['overlay'] ? "{$l['to']} (por cima)" : $l['to'])->implode(', ') : ''));
+        $check = app(DesignLayoutCheck::class)->check($design);
 
         return Response::make(Response::text(
             "\"{$design->title}\": ".count($data['boards'])." artboard(s), revisão {$data['revision']}. {$design->url()}\n".
@@ -51,11 +54,13 @@ class GetDesignTool extends WardTool
             ($pageNames->isNotEmpty() ? 'Páginas: '.$pageNames->map(fn ($name, $key) => "{$name} ({$key})")->implode(', ').".\n" : '').
             ($data['tokens'] ? "Tokens do design (:root de todos os artboards): {$data['tokens']}\n" : 'Sem tokens: defina cores e fontes compartilhadas com set_design_tokens.'."\n").
             ($assets ? 'Imagens do design (use no HTML como "assets/{nome}"): '.collect($assets)->map(fn ($a) => $a['name'].($a['width'] ? " {$a['width']}×{$a['height']}" : ''))->implode(', ').".\n" : '').
+            DesignLayoutCheck::describe($check).
             $this->describeViewing($viewing).
             $this->describeComments($comments)."\n".
             $this->previewHint($preview)
         ))->withStructuredContent($this->artifactData($design) + [
             'canvas' => $data,
+            ...$check,
             'viewing' => $viewing,
             'comments' => $comments,
             'assets' => $assets,

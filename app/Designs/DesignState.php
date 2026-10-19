@@ -50,7 +50,10 @@ class DesignState
                 'y' => $board->y,
                 'w' => $board->w,
                 'h' => $board->h,
-                'interactive' => $board->interactive,
+                // Com ligações do protótipo, a tela é interativa mesmo sem a marca.
+                'interactive' => $board->interactive || ! empty($board->links),
+                // Ligações do protótipo (setas no canvas, navegação no Play).
+                'links' => $board->links ?? [],
                 'revision' => $board->revision,
                 'url' => $this->gateway->boardUrl($board, $contentTtlMinutes, $version),
             ])->values()->all(),

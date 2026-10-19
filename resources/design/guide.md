@@ -91,8 +91,33 @@ post 1080×1080 · story 1080×1920 · banner 1200×628 · A4 794×1123.
 4. Acessível: `<button>`, `<a href>`, `<label>` reais; contraste ≥ 4.5:1; alvos de toque ≥ 44 px em telas
    de app; `alt` nas imagens.
 5. Nada sensível no HTML (o dono pode tornar o design público depois).
-6. **Links entre artboards** (protótipo): `<a href="board:NomeDoArtboard">` e marque os artboards com
-   `interactive: true`.
+6. **Ligações entre telas** (protótipo): veja a seção "Protótipo (Play)".
+
+## Protótipo (Play)
+
+No canvas, o botão **▶ Play** abre a tela no tamanho dela (moldura de celular, tablet ou navegador,
+conforme `w`×`h` e `kind`) e a pessoa navega clicando, como no aparelho. Ligue as telas no próprio HTML:
+
+| No elemento clicável | O que acontece no Play |
+| --- | --- |
+| `<a href="board:Checkout">` ou `data-ward-to="Checkout"` | vai para a tela (entra no histórico) |
+| `data-ward-overlay="Filtro"` | abre a tela por cima: modal (centralizada) ou folha (largura da tela, sobe de baixo) |
+| `data-ward-back` | volta à tela anterior (ou fecha a de cima) |
+| `data-ward-close` | fecha a tela de cima |
+| `data-ward-transition="slide"`, `"slide-up"`, `"fade"` ou `"none"` | como a troca acontece (padrão: deslizar) |
+
+- Use em `<button>` e `<a>` reais. O valor é o `name` exato do artboard de destino.
+- **Toda ação principal leva a algum lugar**: botão de comprar → tela de pagamento; ícone de voltar →
+  `data-ward-back`; item da barra de abas → a tela da aba. Crie as telas de destino que faltarem
+  (sucesso, erro, vazio, modal de confirmação) em vez de deixar o botão morto.
+- Tela que abre por cima (modal, folha, menu) é um artboard próprio do tamanho do painel (ex.: 390×420
+  para uma folha num celular de 390), sem fundo escurecido: o Play escurece a tela de baixo.
+- Mudança dentro da mesma tela (abas, acordeão, toggle, contador, campo com validação) é JS inline no
+  artboard; ele roda no Play.
+- As respostas de `upsert_artboard`, `update_layout` e `get_design` listam ligações para telas que não
+  existem: corrija antes de entregar.
+- Para conferir, abra o Play (botão ▶ na legenda do artboard, ou Enter com ele selecionado) e clique o
+  fluxo inteiro. "Áreas clicáveis" (tecla H) destaca o que tem ligação.
 
 ## Tokens, componentes e páginas
 
@@ -134,7 +159,13 @@ Antes de mudar uma tela, leia o HTML atual com `get_artboard_source`: ele pode t
 ## Organização no canvas
 
 - Coordenadas em px no canvas. Deixe **80 px** entre artboards de uma fileira e **160 px** entre fileiras.
-- Sem `x`/`y`, um artboard novo entra à direita do último da primeira fileira.
+- Sem `x`/`y`, um artboard novo entra à direita do último da primeira fileira da página (ou numa fileira
+  nova abaixo, se ali já houver outro).
+- **Nunca deixe um artboard em cima de outro** (nem de uma nota): um esconde o outro. As respostas de
+  `upsert_artboard`, `update_layout` e `get_design` avisam artboards sobrepostos; corrija com
+  `update_layout` na hora. Ao passar `x`/`y` ou mudar `w`/`h`, confira o espaço livre.
+- Fluxo de protótipo: telas na ordem do caminho, da esquerda para a direita; a pessoa liga "Ligações" no
+  canvas para ver as setas entre elas.
 - Use notas `kind: "title"` acima de uma fileira (ex.: `y` = topo da fileira − 220) para nomear grupos,
   e `kind: "sticky"` para observações curtas.
 - Nomes de artboard curtos, estáveis e só ASCII (`Home`, `Cardapio`, `Checkout`); o rótulo com acento vai
@@ -149,7 +180,9 @@ Antes de mudar uma tela, leia o HTML atual com `get_artboard_source`: ele pode t
    ao usuário. O canvas atualiza sozinho a cada mudança, então a pessoa acompanha você trabalhando.
 2. Direção (seção 1), depois para cada tela: `upsert_artboard` → print no navegador → corrigir até
    ficar sem defeitos (seção 3).
-3. `update_layout` para organizar fileiras, títulos e notas, e um print do canvas inteiro.
-4. Para mudar uma tela: `get_artboard_source` → editar → `upsert_artboard` com o mesmo `name`.
-5. `save_design_version` quando chegar num ponto que valha guardar.
-6. Entregue ao usuário a `url` do design. O `preview_url` (uso único, sem login) é para você.
+3. `update_layout` para organizar fileiras, títulos e notas, e um print do canvas inteiro: nada
+   sobreposto, nada cortado, títulos sem cobrir telas.
+4. Protótipo: ligações completas (seção "Protótipo (Play)") e um teste no Play clicando o fluxo.
+5. Para mudar uma tela: `get_artboard_source` → editar → `upsert_artboard` com o mesmo `name`.
+6. `save_design_version` quando chegar num ponto que valha guardar.
+7. Entregue ao usuário a `url` do design. O `preview_url` (uso único, sem login) é para você.

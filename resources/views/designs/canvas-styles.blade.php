@@ -25,9 +25,56 @@
     .dark .ward-note-title { color: #f4f4f5; }
     .ward-note-sticky { position: absolute; padding: 16px; border-radius: 8px; font-size: 18px; line-height: 1.35; color: #18181b;
         white-space: pre-line; box-shadow: 0 1px 2px rgb(0 0 0 / .12); }
-    .ward-focus-box { position: relative; overflow: hidden; background: #fff; box-shadow: 0 10px 40px rgb(0 0 0 / .4); }
-    .ward-focus-box iframe { display: block; border: 0; }
-    .ward-focus-page { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #fff; }
+    /* Play: a tela no tamanho dela, numa moldura de aparelho, com histórico e telas por cima. */
+    .ward-board-play { flex: none; align-self: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 999px; background: #18181b; color: #fff;
+        font-size: 9px; line-height: 22px; text-align: center; cursor: pointer; opacity: .55; }
+    .dark .ward-board-play { background: #f4f4f5; color: #18181b; }
+    .ward-board:hover .ward-board-play, .ward-board.is-selected .ward-board-play, .ward-board-play:focus-visible { opacity: 1; }
+    .ward-board-play:hover { background: #0284c7; color: #fff; }
+    .ward-play-start, .ward-links-toggle { height: 34px; padding: 0 12px; border-radius: 9px; border: 1px solid #e4e4e7; background: rgb(255 255 255 / .95); color: #18181b;
+        font: 600 13px system-ui, sans-serif; cursor: pointer; white-space: nowrap; }
+    .ward-play-start { border-color: #18181b; background: #18181b; color: #fff; }
+    .dark .ward-links-toggle { border-color: #3f3f46; background: rgb(24 24 27 / .95); color: #f4f4f5; }
+    .dark .ward-play-start { border-color: #f4f4f5; background: #f4f4f5; color: #18181b; }
+    .ward-links-toggle[aria-pressed="true"] { border-color: #2563eb; background: #2563eb; color: #fff; }
+    .ward-play-btn { display: inline-flex; align-items: center; min-height: 30px; padding: 0 10px; border-radius: 8px; border: 1px solid rgb(255 255 255 / .15);
+        background: transparent; color: #f4f4f5; font: 500 13px system-ui, sans-serif; cursor: pointer; white-space: nowrap; }
+    .ward-play-btn:hover:not(:disabled) { background: rgb(255 255 255 / .08); }
+    .ward-play-btn:disabled { opacity: .4; cursor: default; }
+    .ward-play-btn[aria-pressed="true"] { border-color: #60a5fa; background: rgb(37 99 235 / .35); }
+    @media (max-width: 760px) { .ward-play-btn[title^="Mostrar a moldura"], .ward-play-btn[title^="Tamanho real"] { display: none; } }
+    [data-focus-stage].is-real { display: block !important; overflow: auto !important; }
+    [data-focus-stage].is-real .ward-device { margin: 32px auto; }
+    .ward-device { position: relative; flex: none; width: max-content; box-sizing: content-box; }
+    .ward-device.is-phone { padding: 12px; border-radius: 52px; background: #0a0a0a; box-shadow: 0 0 0 2px #3f3f46, 0 30px 80px rgb(0 0 0 / .55); }
+    .ward-device.is-phone .ward-play-screen { border-radius: 40px; }
+    .ward-device.is-tablet { padding: 16px; border-radius: 36px; background: #0a0a0a; box-shadow: 0 0 0 2px #3f3f46, 0 30px 80px rgb(0 0 0 / .55); }
+    .ward-device.is-tablet .ward-play-screen { border-radius: 20px; }
+    .ward-device.is-browser { border-radius: 10px; overflow: hidden; background: #27272a; box-shadow: 0 0 0 1px #3f3f46, 0 30px 80px rgb(0 0 0 / .55); }
+    .ward-device-bar { display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; font: 12px system-ui, sans-serif; color: #a1a1aa; }
+    .ward-device-bar span { width: 11px; height: 11px; border-radius: 999px; background: #52525b; }
+    .ward-device-bar em { flex: 1; overflow: hidden; margin: 0 40px 0 12px; padding: 4px 10px; border-radius: 6px; background: #18181b; font-style: normal;
+        text-align: center; white-space: nowrap; text-overflow: ellipsis; }
+    .ward-device.is-none { box-shadow: 0 10px 40px rgb(0 0 0 / .4); }
+    .ward-play-screen { position: relative; overflow: hidden; background: #fff; }
+    .ward-play-screen.is-transparent { background: transparent; outline: 1px dashed rgb(255 255 255 / .35); }
+    .ward-play-layer { position: absolute; inset: 0; background: inherit; }
+    .ward-play-layer.is-entering { visibility: hidden; }
+    .ward-play-layer iframe, .ward-play-panel iframe { display: block; border: 0; background: #fff; color-scheme: normal; }
+    .ward-play-screen.is-transparent iframe { background: transparent; }
+    .ward-play-overlay { position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center; background: rgb(0 0 0 / .45); }
+    .ward-play-panel { position: relative; overflow: hidden; border-radius: 16px; box-shadow: 0 20px 60px rgb(0 0 0 / .4); }
+    .ward-play-overlay:has(.is-sheet) { align-items: flex-end; }
+    .ward-play-panel.is-sheet { border-radius: 20px 20px 0 0; }
+    .ward-play-toast { position: absolute; left: 50%; bottom: 20px; z-index: 5; transform: translateX(-50%); margin: 0; padding: 8px 14px; border-radius: 999px;
+        background: #f4f4f5; color: #18181b; font: 500 13px system-ui, sans-serif; box-shadow: 0 6px 20px rgb(0 0 0 / .4); }
+    .ward-play-toast[hidden] { display: none; }
+    /* Setas das ligações do protótipo no canvas. */
+    .ward-links { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: visible; pointer-events: none; }
+    .ward-links path { fill: none; stroke: #2563eb; stroke-linecap: round; }
+    .ward-links path.is-overlay { stroke-dasharray: 6 5; }
+    .ward-links .ward-link-head { fill: #2563eb; stroke: none; }
+    .ward-links rect { fill: rgb(37 99 235 / .12); stroke: #2563eb; }
     .ward-list { display: none; }
     .ward-list-item { display: flex; flex-direction: column; gap: 8px; }
     .ward-list-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 14px; }
@@ -159,6 +206,7 @@
     .ward-ed-section h3 { margin: 0; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #71717a; }
     .ward-ed-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     .ward-ed-field { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+    .ward-ed-field[hidden] { display: none; }
     .ward-ed-field > span:first-child { color: #71717a; }
     .ward-ed-field input[type="text"], .ward-ed-field select { width: 100%; box-sizing: border-box; height: 30px; padding: 0 8px; border: 1px solid #d4d4d8; border-radius: 6px;
         background: transparent; color: inherit; font: inherit; }
@@ -256,12 +304,10 @@
     @media (max-width: 1100px) { .ward-ed-toolbar { left: 12px; transform: none; max-width: calc(100% - 200px); overflow-x: auto; } }
     /* Artboard sem fundo próprio (componente de design system): transparente, com contorno tracejado. */
     /* color-scheme igual ao do artboard: senão o Chrome pinta o fundo do iframe (página escura x artboard claro). */
-    .ward-board iframe, .ward-list-box iframe, .ward-focus-box iframe, .ward-ed-cmp-preview iframe { color-scheme: normal; }
+    .ward-board iframe, .ward-list-box iframe, .ward-ed-cmp-preview iframe { color-scheme: normal; }
     .ward-board.is-transparent iframe, .ward-list-box.is-transparent, .ward-list-box.is-transparent iframe { background: transparent; }
     .ward-board.is-transparent iframe { box-shadow: none; outline: calc(1px * var(--inv)) dashed rgb(127 127 127 / .55); outline-offset: 0; }
     .ward-board.is-transparent.is-selected iframe { outline: calc(2px * var(--inv)) solid #38bdf8; }
-    .ward-focus-box.is-transparent { background: transparent; box-shadow: none; outline: 1px dashed rgb(255 255 255 / .35); }
-    .ward-focus-box.is-transparent iframe { background: transparent; }
     /* Modo lista (tela estreita): o canvas liga a classe conforme a largura. */
     .is-list .ward-viewport, .is-list .ward-zoom { display: none !important; }
     .is-list .ward-list { display: flex; flex-direction: column; align-items: center; gap: 24px; position: absolute; inset: 0; overflow-y: auto; padding: 52px 16px 16px; }

@@ -2,6 +2,7 @@
 
 namespace App\Actions\Designs;
 
+use App\Designs\DesignLayoutCheck;
 use App\Designs\DesignStorage;
 use App\Designs\InvalidDesign;
 use App\Enums\BoardKind;
@@ -63,7 +64,7 @@ class UpsertArtboard extends DesignMutation
 
         return $this->mutate($design, function () use ($design, $author, $data, $name, $board, $html, $kind, $page) {
             if ($board === null) {
-                [$x, $y] = $this->nextPosition($design);
+                [$x, $y] = $this->nextPosition($design, $page === false ? null : $page, (int) $data['w'], (int) $data['h']);
 
                 $board = $design->boards()->create([
                     'name' => $name,
@@ -120,6 +121,7 @@ class UpsertArtboard extends DesignMutation
             'storage_path' => $path,
             'size_bytes' => strlen($html),
             'includes' => DesignBoard::includesIn($html) ?: null,
+            'links' => DesignBoard::linksIn($html) ?: null,
         ]);
 
         if ($previous !== '' && $previous !== $path) {
@@ -152,14 +154,25 @@ class UpsertArtboard extends DesignMutation
     }
 
     /**
-     * À direita do artboard mais à direita da primeira fileira (y = 0).
+     * À direita do artboard mais à direita da primeira fileira (y = 0) da página.
+     * Se ali cruzar com outro artboard, vai para uma fileira nova abaixo de tudo.
      *
      * @return array{0: int, 1: int}
      */
-    private function nextPosition(Artifact $design): array
+    private function nextPosition(Artifact $design, ?string $page, int $w, int $h): array
     {
-        $right = $design->boards()->where('y', 0)->get()->map(fn (DesignBoard $b) => $b->x + $b->w)->max();
+        $pages = $design->pages()->orderBy('sort')->orderBy('id')->pluck('key');
+        $target = $pages->contains($page) ? $page : $pages->first();
+        $boards = $design->boards()->get()->filter(fn (DesignBoard $b) => ($pages->contains($b->page) ? $b->page : $pages->first()) === $target);
+        $gap = (int) config('ward.designs.gap');
 
-        return [$right === null ? 0 : $right + (int) config('ward.designs.gap'), 0];
+        $right = $boards->where('y', 0)->map(fn (DesignBoard $b) => $b->x + $b->w)->max();
+        $spot = ['x' => $right === null ? 0 : $right + $gap, 'y' => 0, 'w' => $w, 'h' => $h];
+
+        if ($boards->contains(fn (DesignBoard $b) => DesignLayoutCheck::intersects($b, $spot))) {
+            return [0, (int) $boards->map(fn (DesignBoard $b) => $b->y + $b->h)->max() + $gap * 2];
+        }
+
+        return [$spot['x'], 0];
     }
 }

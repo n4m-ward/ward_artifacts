@@ -3,6 +3,7 @@
 namespace App\Mcp\Tools;
 
 use App\Actions\Designs\UpdateDesignLayout;
+use App\Designs\DesignLayoutCheck;
 use App\Designs\InvalidDesign;
 use App\Models\DesignNote;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
@@ -81,8 +82,9 @@ class UpdateDesignLayoutTool extends WardTool
         }
 
         $design->refresh();
+        $check = app(DesignLayoutCheck::class)->check($design);
 
-        return Response::make(Response::text("Layout atualizado (revisão {$design->design_revision}). Design: {$design->url()}"))
-            ->withStructuredContent(['design' => $design->uuid, 'design_revision' => $design->design_revision]);
+        return Response::make(Response::text("Layout atualizado (revisão {$design->design_revision}). Design: {$design->url()}\n".DesignLayoutCheck::describe($check)))
+            ->withStructuredContent(['design' => $design->uuid, 'design_revision' => $design->design_revision] + $check);
     }
 }
