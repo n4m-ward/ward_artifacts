@@ -1,6 +1,6 @@
 ---
 name: ward-design
-description: Design screens and visuals on a Ward Design canvas (artifacts.wardtecnology.com) through the ward-artifacts MCP server. Use when the user wants mockups, app screens, UI flows, landing page or website layouts, social posts, banners, posters, or several visual variations side by side — "design", "mockup", "tela", "protótipo", "post", "layout", "variações", "Ward Design" — rather than a single standalone page. Covers opening the live canvas before editing so the user watches the work, setting a design direction, high-fidelity craft, reviewing a screenshot of every artboard in the embedded browser before calling it done, clickable prototypes tested in Play mode (links between screens, overlays, back, transitions), keeping artboards from overlapping on the canvas, editing an artboard, and saving versions.
+description: Design screens and visuals on a Ward Design canvas (artifacts.wardtecnology.com) through the ward-artifacts MCP server. Use when the user wants mockups, app screens, UI flows, landing page or website layouts, social posts, banners, posters, or several visual variations side by side — "design", "mockup", "tela", "protótipo", "post", "layout", "variações", "Ward Design" — rather than a single standalone page. Covers opening the live canvas before editing so the user watches the work, setting a design direction, high-fidelity craft, reviewing a screenshot of every artboard for both defects and design sense (purpose, hierarchy, typography, color, UX and usability) in the embedded browser before calling it done, clickable prototypes tested in Play mode (links between screens, overlays, back, transitions), keeping artboards from overlapping on the canvas, editing an artboard, and saving versions.
 ---
 
 # Ward Design
@@ -69,14 +69,63 @@ Nenhuma tela está pronta sem você olhar a imagem dela. O ciclo de cada tela é
 4. Na imagem, procure: artboards, títulos ou notas cobrindo uns aos outros, conteúdo cortado ou atrás de barras fixas, texto quebrando ou vazando, fotos que
    não carregaram, fonte de fallback, alinhamento e espaçamento irregulares, contraste fraco, hierarquia
    confusa, inconsistência com as outras telas, áreas vazias com cara de inacabado.
-5. Achou algo: corrija com `upsert_artboard` do mesmo `name` e tire o print de novo. Repita até a tela
-   estar sem defeitos; só então siga para a próxima.
-6. Com todas as telas prontas: `update_layout` para organizar (fileiras com 80 px entre artboards, 160 px
+5. Faça a **revisão de design** (seção abaixo): proposta, hierarquia, tipografia, cor e usabilidade.
+   Sem defeito técnico não basta: a tela tem que fazer sentido.
+6. Achou algo: corrija com `upsert_artboard` do mesmo `name` e tire o print de novo. Repita até a tela
+   estar sem defeitos e passar na revisão; só então siga para a próxima.
+7. Com todas as telas prontas: `update_layout` para organizar (fileiras com 80 px entre artboards, 160 px
    entre fileiras, títulos `kind: "title"` e notas adesivas) e um print do canvas inteiro para avaliar o
    conjunto: nada sobreposto, títulos sem cobrir telas. `get_design` também lista sobreposições.
-7. Fluxo com várias telas: ligações completas e teste no Play (seção 4).
-8. No fim, passe ao usuário a **URL do design** (`url`), nunca o `preview_url`. Diga que avaliou os
-   prints e o que corrigiu. Se não teve como ver as telas, diga isso.
+8. Fluxo com várias telas: ligações completas e teste no Play (seção 4).
+9. No fim, passe ao usuário a **URL do design** (`url`), nunca o `preview_url`. Diga que avaliou os
+   prints, o que validou na revisão de design e o que corrigiu. Se não teve como ver as telas, diga isso.
+
+## Revisão de design: fazer sentido, não só estar pronto
+
+Uma tela sem defeito técnico ainda pode estar errada. A cada print, **olhe a imagem como diretor de arte
+e como pessoa usuária** e responda por escrito, para você mesmo, antes de seguir:
+
+**Proposta**
+- Qual é o objetivo desta tela e quem a usa? Em 3 segundos dá para saber onde se está e o que fazer?
+- A tela segue a direção que você definiu (adjetivo, referência, paleta, fontes)? Combina com as
+  outras telas, como se fosse o mesmo produto?
+
+**Hierarquia e composição**
+- Há **um** ponto focal e uma ação principal evidente (uma só por tela, as outras visivelmente
+  secundárias). O olho percorre na ordem certa: título → conteúdo → ação.
+- Tudo alinhado a uma grade; espaçamento numa escala só (4/8 px) e consistente; o que é relacionado
+  fica junto e o que é diferente fica separado (proximidade). Respiro suficiente, sem tela apertada
+  nem vazia demais.
+- Equilíbrio de peso visual: nada gritando sem motivo, nada importante sumindo.
+
+**Tipografia**
+- No máximo 2 famílias, com papéis claros (título e texto). Escala com contraste real entre níveis
+  (ex.: razão 1.25–1.333), poucos tamanhos e pesos, usados de forma consistente.
+- Texto corrido com 45–75 caracteres por linha e altura de linha 1.4–1.6; títulos 1.1–1.25. Sem
+  palavra sozinha na última linha de um título, sem caixa-alta em blocos longos.
+
+**Cor**
+- Uma cor de destaque reservada para ação e estado; neutros fazendo o resto (algo como 60/30/10).
+  Cores com significado (sucesso, erro, aviso) sempre iguais em todas as telas.
+- Contraste: texto ≥ 4.5:1 (≥ 3:1 em texto grande e em bordas de controles). Informação nunca só pela cor.
+
+**UX e usabilidade**
+- Linguagem da pessoa, não do sistema; rótulos de botão dizem a ação ("Pagar R$ 48,90", não "OK").
+- Estado visível: onde estou (navegação marcada), o que está carregando, o que deu certo ou errado.
+- Controle e saída: voltar, cancelar e fechar sempre à mão; ação destrutiva pede confirmação.
+- Consistência: o mesmo componente tem a mesma aparência e o mesmo lugar em todas as telas.
+- Reconhecer em vez de lembrar: opções visíveis, campos com `label`, exemplos e valores padrão.
+- Estados que existiriam de verdade: vazio, carregando, erro, desabilitado, selecionado.
+- Toque e alcance: alvos ≥ 44 px com espaço entre eles; no celular, a ação principal ao alcance do
+  polegar; nada importante escondido atrás de barras fixas.
+
+**Decida e corrija**
+- Anote o que funciona e o que não funciona. Se algo está só "ok", melhore: a meta é a tela que um bom
+  designer de produto entregaria, não a primeira versão que renderizou.
+- Corrija com `upsert_artboard`, tire o print de novo e repita a revisão. Só siga quando as respostas
+  forem todas sim.
+- Na entrega, diga ao usuário em poucas linhas o que validou (proposta, hierarquia, tipografia, cor,
+  usabilidade) e o que mudou por causa disso.
 
 ## 4. Protótipo (Play)
 
