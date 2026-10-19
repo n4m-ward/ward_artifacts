@@ -1,4 +1,4 @@
-// Ward Design: canvas ao vivo (pan/zoom, foco, Play, atualização por consulta curta).
+// Ward Design: canvas ao vivo (pan/zoom, Play do protótipo, setas das ligações, atualização por consulta curta).
 // Na página do design, lê o estado inicial de <script id="ward-design-config" type="application/json">.
 // O MCP App (resources/views/mcp/design-app.blade.php) embute este mesmo arquivo e cria o
 // canvas com window.WardDesignCanvas, trocando a fonte do ao vivo e reagindo à seleção.
@@ -80,7 +80,9 @@ class DesignCanvas {
         this.pageKey = `ward-design-page:${config.design}`;
         this.page = storage(this.pageKey) ?? null;
         this.filter = '';
+        this.showLinks = Boolean(storage(`ward-design-links:${config.design}`));
         this.buildTopBar();
+        this.linksToggle.setAttribute('aria-pressed', String(this.showLinks));
 
         this.renderAll();
         this.bindCanvas();
@@ -162,7 +164,14 @@ class DesignCanvas {
         });
         this.filterInput = search;
         this.filterCount = el('span', { class: 'ward-filter-count', hidden: true });
-        this.root.append(this.pagesBar, el('div', { class: 'ward-filter-box' }, [search, this.filterCount]));
+        const play = el('button', { type: 'button', class: 'ward-play-start', title: 'Play: navegar pelas telas como no aparelho (começa pela selecionada)', text: '▶ Play' });
+        play.addEventListener('click', () => {
+            const id = this.selected ?? this.ordered()[0]?.id;
+            if (id) this.openFocus(id);
+        });
+        this.linksToggle = el('button', { type: 'button', class: 'ward-links-toggle', 'aria-pressed': 'false', title: 'Mostrar as ligações do protótipo entre as telas', text: 'Ligações' });
+        this.linksToggle.addEventListener('click', () => this.toggleLinks());
+        this.root.append(this.pagesBar, el('div', { class: 'ward-filter-box' }, [play, this.linksToggle, search, this.filterCount]));
     }
 
     renderPages() {
@@ -228,6 +237,7 @@ class DesignCanvas {
 
         if (this.empty) this.empty.hidden = this.state.boards.length > 0;
         this.loadVisible();
+        this.renderLinks();
         this.editor?.afterRender();
     }
 
@@ -283,7 +293,13 @@ class DesignCanvas {
         const caption = el('div', { class: 'ward-board-caption' }, [label, meta]);
         const flash = el('span', { class: 'ward-board-flash', text: 'atualizado agora', hidden: true });
         const error = el('button', { type: 'button', class: 'ward-board-error', text: 'Erro no script', hidden: true });
+        const play = el('button', { type: 'button', class: 'ward-board-play', title: 'Play: ver esta tela funcionando (Enter)', 'aria-label': `Play em ${data.title || data.name}`, text: '▶' });
+        caption.prepend(play);
         caption.append(error);
+        play.addEventListener('click', (event) => {
+            event.stopPropagation();
+            this.openFocus(data.id);
+        });
         const node = el('div', { class: 'ward-board', 'data-board': data.id }, [caption, frame, flash]);
         error.addEventListener('click', (event) => {
             event.stopPropagation();
@@ -350,6 +366,7 @@ class DesignCanvas {
             entry.frame = next;
             entry.nextFrame = null;
             this.editor?.frameSwapped(entry.data.id);
+            this.queryLinks(entry);
         }, { once: true });
         next.src = url;
         entry.frame.after(next);
@@ -412,6 +429,94 @@ class DesignCanvas {
         return mobile;
     }
 
+    // ---------- setas das ligações ----------
+
+    toggleLinks(on = !this.showLinks) {
+        this.showLinks = on;
+        storage(`ward-design-links:${this.config.design}`, on);
+        this.linksToggle?.setAttribute('aria-pressed', String(on));
+        if (on) for (const entry of this.boards.values()) this.queryLinks(entry);
+        this.renderLinks();
+    }
+
+    /** Pergunta ao artboard carregado onde ficam as ligações (para a seta sair do botão certo). */
+    async queryLinks(entry) {
+        if (!this.showLinks || !entry.loaded || !(entry.data.links ?? []).length) return;
+        const version = entry.data.version ?? entry.data.revision;
+        const rects = await this.ask(entry.data.id, { ward: 'links' }, 1500);
+        if (!Array.isArray(rects)) return;
+        entry.linkRects = { version, rects };
+        this.renderLinks();
+    }
+
+    renderLinks() {
+        if (!this.linksLayer) {
+            this.linksLayer = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            this.linksLayer.setAttribute('class', 'ward-links');
+            this.world.append(this.linksLayer);
+        }
+        const svg = this.linksLayer;
+        svg.replaceChildren();
+        if (!this.showLinks || this.isMobile()) return;
+
+        const inv = 1 / this.view.scale;
+        const byName = new Map(this.pageBoards().map((board) => [board.name, board]));
+        const node = (tag, attrs) => {
+            const item = document.createElementNS('http://www.w3.org/2000/svg', tag);
+            for (const [key, value] of Object.entries(attrs)) item.setAttribute(key, String(value));
+            svg.append(item);
+            return item;
+        };
+
+        for (const source of this.pageBoards()) {
+            const entry = this.boards.get(source.id);
+            const fresh = entry?.linkRects && entry.linkRects.version === (source.version ?? source.revision) ? entry.linkRects.rects : null;
+            // Com o artboard carregado, uma seta por elemento; sem ele, uma por destino, saindo da borda.
+            const links = fresh
+                ? fresh.filter((link) => link.board).map((link) => ({ to: link.board, overlay: Boolean(link.overlay), rect: link }))
+                : (source.links ?? []).map((link) => ({ to: link.to, overlay: link.overlay, rect: null }));
+
+            for (const link of links) {
+                const target = byName.get(link.to);
+                if (!target || target.id === source.id) continue;
+                const from = link.rect
+                    ? { x: source.x + link.rect.x, y: source.y + link.rect.y, w: link.rect.w, h: link.rect.h }
+                    : { x: source.x, y: source.y, w: source.w, h: source.h };
+                if (link.rect) {
+                    node('rect', { x: from.x, y: from.y, width: from.w, height: from.h, rx: 4 * inv, 'stroke-width': 1.5 * inv });
+                }
+
+                // Sai pelo lado voltado para o destino e chega na borda mais próxima dele.
+                const right = target.x >= source.x + source.w;
+                const left = target.x + target.w <= source.x;
+                let start;
+                let end;
+                if (right || left) {
+                    start = { x: right ? (link.rect ? from.x + from.w : source.x + source.w) : (link.rect ? from.x : source.x), y: from.y + from.h / 2 };
+                    end = { x: right ? target.x : target.x + target.w, y: target.y + Math.min(target.h / 2, 120) };
+                } else {
+                    const below = target.y >= source.y + source.h;
+                    start = { x: from.x + from.w / 2, y: below ? (link.rect ? from.y + from.h : source.y + source.h) : (link.rect ? from.y : source.y) };
+                    end = { x: target.x + target.w / 2, y: below ? target.y : target.y + target.h };
+                }
+                const horizontal = right || left;
+                const bend = Math.max(60 * inv, Math.abs(horizontal ? end.x - start.x : end.y - start.y) / 2);
+                const dir = horizontal ? Math.sign(end.x - start.x) || 1 : Math.sign(end.y - start.y) || 1;
+                const c1 = horizontal ? `${start.x + bend * dir} ${start.y}` : `${start.x} ${start.y + bend * dir}`;
+                const c2 = horizontal ? `${end.x - bend * dir} ${end.y}` : `${end.x} ${end.y - bend * dir}`;
+                node('path', {
+                    d: `M ${start.x} ${start.y} C ${c1}, ${c2}, ${end.x} ${end.y}`,
+                    'stroke-width': 2 * inv, class: link.overlay ? 'is-overlay' : '',
+                });
+                const size = 10 * inv;
+                const head = horizontal
+                    ? `${end.x} ${end.y} ${end.x - size * dir} ${end.y - size * 0.6} ${end.x - size * dir} ${end.y + size * 0.6}`
+                    : `${end.x} ${end.y} ${end.x - size * 0.6} ${end.y - size * dir} ${end.x + size * 0.6} ${end.y - size * dir}`;
+                node('polygon', { points: head, class: 'ward-link-head' });
+            }
+        }
+    }
+
     // ---------- pan / zoom ----------
 
     applyView() {
@@ -420,6 +525,7 @@ class DesignCanvas {
         this.world.style.setProperty('--inv', String(1 / scale));
         if (this.zoomLabel) this.zoomLabel.textContent = `${Math.round(scale * 100)}%`;
         this.loadVisible();
+        if (this.showLinks) this.renderLinks();
         this.editor?.afterView();
         if (this.isMobile()) {
             // No celular o canvas fica oculto: não salva uma visualização sem sentido.
@@ -488,6 +594,7 @@ class DesignCanvas {
             const visible = left < rect.width + VISIBLE_MARGIN && left + data.w * scale > -VISIBLE_MARGIN
                 && top < rect.height + VISIBLE_MARGIN && top + data.h * scale > -VISIBLE_MARGIN;
             if (visible) {
+                entry.frame.addEventListener('load', () => this.queryLinks(entry), { once: true });
                 entry.frame.src = data.url;
                 entry.loaded = true;
             }
@@ -597,28 +704,35 @@ class DesignCanvas {
         clearTimeout(this.pollTimer);
     }
 
-    // ---------- foco e Play ----------
+    // ---------- Play (protótipo) ----------
+    // O artboard abre no tamanho dele (largura × altura reais, só reduzido para caber), dentro de uma
+    // moldura de celular, tablet ou navegador conforme o tamanho. Ligações do protótipo (runtime.js)
+    // trocam de tela com transição, abrem telas por cima e voltam pelo histórico.
 
     ordered() {
         return this.pageBoards();
     }
 
-    currentFocusId() {
-        return this.ordered()[this.focusIndex]?.id ?? null;
+    boardById(id) {
+        return this.state.boards.find((board) => board.id === id) ?? null;
     }
 
+    currentFocusId() {
+        return this.play?.current ?? null;
+    }
+
+    /** Começa o Play nesta tela (o histórico recomeça). */
     openFocus(id) {
-        const index = this.ordered().findIndex((board) => board.id === id);
-        if (index < 0) return;
-        this.focusIndex = index;
-        this.select(id);
+        if (!this.boardById(id)) return;
+        this.play = { start: id, current: id, stack: [], overlays: [], transition: null };
         this.focus.hidden = false;
         document.body.style.overflow = 'hidden';
-        this.renderFocus();
+        this.showPlayBoard(id, null);
     }
 
     closeFocus() {
         this.focusIndex = null;
+        this.play = null;
         this.focus.hidden = true;
         this.focus.querySelector('[data-focus-stage]').replaceChildren();
         document.body.style.overflow = '';
@@ -626,23 +740,98 @@ class DesignCanvas {
 
     stepFocus(delta) {
         const boards = this.ordered();
-        if (this.focusIndex === null || !boards.length) return;
-        this.focusIndex = (this.focusIndex + delta + boards.length) % boards.length;
-        this.select(boards[this.focusIndex].id);
-        this.renderFocus();
+        if (!this.play || !boards.length) return;
+        const index = (Math.max(0, boards.findIndex((board) => board.id === this.play.current)) + delta + boards.length) % boards.length;
+        this.playGo(boards[index].id, 'none');
+    }
+
+    /** Vai para outra tela guardando a atual no histórico. */
+    playGo(id, transition) {
+        if (!this.play || id === this.play.current) return;
+        this.play.stack.push(this.play.current);
+        this.play.overlays = [];
+        this.showPlayBoard(id, transition ?? 'slide');
+    }
+
+    playBack(transition) {
+        if (!this.play) return;
+        if (this.play.overlays.length) return this.playCloseOverlay();
+        const previous = this.play.stack.pop();
+        if (previous === undefined) return this.flashPlayHint('Esta é a primeira tela do caminho.');
+        this.showPlayBoard(previous, transition === 'none' ? 'none' : 'back');
+    }
+
+    playRestart() {
+        if (!this.play) return;
+        this.play.stack = [];
+        this.play.overlays = [];
+        this.showPlayBoard(this.play.start, 'none');
+    }
+
+    playOverlay(id, transition) {
+        if (!this.play) return;
+        this.play.overlays.push(id);
+        this.renderOverlays(transition);
+    }
+
+    playCloseOverlay() {
+        if (!this.play?.overlays.length) return;
+        this.play.overlays.pop();
+        this.renderOverlays(null);
+    }
+
+    /** Celular, tablet, navegador ou nada (posts, banners, componentes). */
+    deviceOf(data) {
+        if (data.transparent) return 'none';
+        if (data.kind === 'page') return 'browser';
+        const { w, h } = data;
+        if (w <= 500 && h >= w * 1.3) return 'phone';
+        const short = Math.min(w, h);
+        const long = Math.max(w, h);
+        if (short >= 600 && short <= 1100 && long / short >= 1.2 && long / short <= 1.7 && long <= 1400) return 'tablet';
+        if (w >= 1024 && h >= 560 && w > h) return 'browser';
+        return 'none';
+    }
+
+    playPrefs() {
+        return { frame: storage('ward-play-frame') ?? true, real: storage('ward-play-real') ?? false };
+    }
+
+    /** Tamanho da "janela" da tela: telas compridas e páginas rolam dentro dela, como no aparelho. */
+    viewportOf(data, device, availableHeight) {
+        if (data.kind === 'page') return { w: data.w, h: Math.max(320, Math.min(data.h, Math.round(availableHeight))) };
+        if (device === 'phone' && data.h > Math.round(data.w * 2.4)) return { w: data.w, h: Math.round(data.w * 2.165) };
+        return { w: data.w, h: data.h };
+    }
+
+    showPlayBoard(id, transition) {
+        const data = this.boardById(id);
+        if (!data || !this.play) return;
+        const previous = this.boardById(this.play.current);
+        this.play.current = id;
+        this.focusIndex = Math.max(0, this.ordered().findIndex((board) => board.id === id));
+        this.select(id);
+        this.renderPlayBar(data);
+
+        // Mesmo aparelho e mesmo tamanho: troca só o conteúdo, com transição.
+        const sameShell = this.playShell && previous && transition && transition !== 'none'
+            && this.playShell.dataset.size === `${data.kind}:${data.w}x${data.h}` && this.focus.contains(this.playShell);
+        if (sameShell) {
+            this.swapPlayScreen(data, transition);
+            return;
+        }
+        this.renderPlayShell(data);
     }
 
     renderFocus() {
-        const boards = this.ordered();
-        const data = boards[this.focusIndex];
+        if (!this.play) return;
+        const data = this.boardById(this.play.current);
         if (!data) return this.closeFocus();
+        this.renderPlayBar(data);
+        this.renderPlayShell(data);
+    }
 
-        this.focus.querySelector('[data-focus-title]').textContent = data.title || data.name;
-        this.focus.querySelector('[data-focus-meta]').textContent =
-            `${this.focusIndex + 1} de ${boards.length} · ${data.w}×${data.h}${data.interactive ? ' · Play' : ''}`;
-        this.focus.querySelector('[data-focus-open]').href = data.url;
-
-        const stage = this.focus.querySelector('[data-focus-stage]');
+    playFrame(data) {
         const frame = el('iframe', {
             src: data.url,
             title: data.title || data.name,
@@ -650,27 +839,185 @@ class DesignCanvas {
             allow: this.config.allow,
             referrerpolicy: 'no-referrer',
         });
+        frame.addEventListener('load', () => {
+            frame.contentWindow?.postMessage({ ward: 'play' }, this.config.contentOrigin);
+            if (this.play?.hotspots) frame.contentWindow?.postMessage({ ward: 'hotspots', on: true }, this.config.contentOrigin);
+        });
+        return frame;
+    }
 
-        if (data.kind === 'page') {
-            frame.className = 'ward-focus-page';
-            stage.replaceChildren(frame);
-            return;
-        }
-
+    renderPlayShell(data) {
+        const stage = this.focus.querySelector('[data-focus-stage]');
+        const prefs = this.playPrefs();
+        const device = prefs.frame ? this.deviceOf(data) : 'none';
         const rect = stage.getBoundingClientRect();
-        const scale = Math.min(1, (rect.width - 48) / data.w, (rect.height - 48) / data.h);
-        // zoom (e não transform): o iframe recebe cliques e o texto fica nítido.
-        Object.assign(frame.style, { width: `${data.w}px`, height: `${data.h}px`, zoom: String(scale) });
-        const box = el('div', { class: `ward-focus-box${data.transparent ? ' is-transparent' : ''}` }, [frame]);
-        stage.replaceChildren(box);
+        const pad = 32;
+        const chrome = { phone: [24, 24], tablet: [32, 32], browser: [2, 38], none: [0, 0] }[device];
+
+        // Escala pela largura; a altura da janela de uma página é o que sobra na tela.
+        let scale = prefs.real ? 1 : Math.min(1, (rect.width - pad * 2 - chrome[0]) / data.w);
+        const view = this.viewportOf(data, device, (rect.height - pad * 2 - chrome[1]) / scale);
+        if (!prefs.real && data.kind !== 'page') scale = Math.min(scale, (rect.height - pad * 2 - chrome[1]) / view.h);
+        scale = Math.max(0.1, scale);
+
+        const screen = el('div', { class: `ward-play-screen${data.transparent ? ' is-transparent' : ''}`, style: { width: `${view.w}px`, height: `${view.h}px` } });
+        const layer = el('div', { class: 'ward-play-layer' }, [this.playFrame(data)]);
+        Object.assign(layer.firstChild.style, { width: `${view.w}px`, height: `${view.h}px` });
+        screen.append(layer);
+
+        const children = device === 'browser'
+            ? [el('div', { class: 'ward-device-bar' }, [el('span'), el('span'), el('span'), el('em', { text: data.title || data.name })]), screen]
+            : [screen];
+        const shell = el('div', { class: `ward-device is-${device}`, 'data-size': `${data.kind}:${data.w}x${data.h}` }, children);
+        shell.style.zoom = String(scale);
+
+        stage.classList.toggle('is-real', prefs.real);
+        stage.replaceChildren(shell, el('p', { class: 'ward-play-toast', role: 'status', hidden: true }));
+        this.playShell = shell;
+        this.playScreen = screen;
+        this.renderOverlays(null);
+    }
+
+    /** Carrega a tela nova por cima da atual e só anima quando ela terminou de carregar. */
+    swapPlayScreen(data, transition) {
+        const screen = this.playScreen;
+        const old = [...screen.querySelectorAll(':scope > .ward-play-layer')];
+        const frame = this.playFrame(data);
+        Object.assign(frame.style, { width: screen.style.width, height: screen.style.height });
+        const layer = el('div', { class: 'ward-play-layer is-entering' }, [frame]);
+        screen.querySelectorAll(':scope > .ward-play-overlay').forEach((node) => node.remove());
+        screen.append(layer);
+
+        let done = false;
+        const reveal = () => {
+            if (done) return;
+            done = true;
+            layer.classList.remove('is-entering');
+            const keyframes = {
+                slide: [{ transform: 'translateX(100%)' }, { transform: 'translateX(0)' }],
+                back: [{ transform: 'translateX(-30%)', opacity: 0.4 }, { transform: 'translateX(0)', opacity: 1 }],
+                'slide-up': [{ transform: 'translateY(100%)' }, { transform: 'translateY(0)' }],
+                fade: [{ opacity: 0 }, { opacity: 1 }],
+            }[transition];
+            const finish = () => old.forEach((node) => node.remove());
+            if (!keyframes || !layer.animate) return finish();
+            layer.animate(keyframes, { duration: 260, easing: 'cubic-bezier(.2,.8,.2,1)' }).finished.then(finish, finish);
+        };
+        frame.addEventListener('load', () => setTimeout(reveal, 30), { once: true });
+        setTimeout(reveal, 1500);
+    }
+
+    renderOverlays(transition) {
+        const screen = this.playScreen;
+        if (!screen || !this.play) return;
+        const existing = [...screen.querySelectorAll(':scope > .ward-play-overlay')];
+        const wanted = this.play.overlays;
+
+        // Remove as que saíram (fechar) e acrescenta só a nova (abrir), sem recarregar as outras.
+        existing.slice(wanted.length).forEach((node) => node.remove());
+        wanted.slice(existing.length).forEach((id) => {
+            const data = this.boardById(id);
+            if (!data) return;
+            const sw = parseFloat(screen.style.width);
+            const sh = parseFloat(screen.style.height);
+            const sheet = data.w >= sw * 0.9;
+            const fit = Math.min(1, sw / data.w, sh / data.h);
+            const frame = this.playFrame(data);
+            Object.assign(frame.style, { width: `${data.w}px`, height: `${data.h}px` });
+            const panel = el('div', { class: `ward-play-panel${sheet ? ' is-sheet' : ''}`, style: { zoom: String(fit) } }, [frame]);
+            const overlay = el('div', { class: 'ward-play-overlay' }, [panel]);
+            overlay.addEventListener('click', (event) => {
+                if (event.target === overlay) this.playCloseOverlay();
+            });
+            screen.append(overlay);
+            const effect = transition ?? (sheet ? 'slide-up' : 'fade');
+            if (effect !== 'none' && panel.animate) {
+                overlay.animate([{ backgroundColor: 'rgb(0 0 0 / 0)' }, { backgroundColor: 'rgb(0 0 0 / .45)' }], { duration: 200 });
+                panel.animate(effect === 'slide-up' || effect === 'slide'
+                    ? [{ transform: 'translateY(100%)' }, { transform: 'translateY(0)' }]
+                    : [{ opacity: 0, transform: 'scale(.96)' }, { opacity: 1, transform: 'scale(1)' }], { duration: 240, easing: 'cubic-bezier(.2,.8,.2,1)' });
+            }
+        });
+        const current = this.boardById(this.play.current);
+        if (current) this.renderPlayBar(current);
+    }
+
+    renderPlayBar(data) {
+        const boards = this.ordered();
+        const index = boards.findIndex((board) => board.id === data.id);
+        const device = { phone: 'celular', tablet: 'tablet', browser: data.kind === 'page' ? 'página' : 'desktop', none: '' }[this.deviceOf(data)];
+        this.focus.querySelector('[data-focus-title]').textContent = data.title || data.name;
+        this.focus.querySelector('[data-focus-meta]').textContent = [
+            index >= 0 ? `${index + 1} de ${boards.length}` : null,
+            `${data.w}×${data.h}`,
+            device || null,
+            this.play?.stack.length ? `${this.play.stack.length} tela(s) no histórico` : null,
+        ].filter(Boolean).join(' · ');
+        this.focus.querySelector('[data-focus-open]').href = data.url;
+        if (this.playControls) {
+            const prefs = this.playPrefs();
+            this.playControls.back.disabled = !this.play?.stack.length && !this.play?.overlays.length;
+            this.playControls.hotspots.setAttribute('aria-pressed', String(Boolean(this.play?.hotspots)));
+            this.playControls.frame.setAttribute('aria-pressed', String(prefs.frame));
+            this.playControls.real.setAttribute('aria-pressed', String(prefs.real));
+        }
+    }
+
+    flashPlayHint(text) {
+        const toast = this.focus.querySelector('.ward-play-toast');
+        if (!toast) return;
+        toast.textContent = text;
+        toast.hidden = false;
+        clearTimeout(this.toastTimer);
+        this.toastTimer = setTimeout(() => { toast.hidden = true; }, 2200);
+    }
+
+    setHotspots(on) {
+        if (!this.play) return;
+        this.play.hotspots = on;
+        for (const frame of this.focus.querySelectorAll('[data-focus-stage] iframe')) {
+            frame.contentWindow?.postMessage({ ward: 'hotspots', on }, this.config.contentOrigin);
+        }
+        this.renderPlayBar(this.boardById(this.play.current));
+    }
+
+    /** Ligação clicada dentro de uma tela do Play (mensagem do runtime). */
+    playNavigate(message) {
+        if (message.close) return this.playCloseOverlay();
+        if (message.back) return this.playBack(message.transition);
+        const target = this.state.boards.find((board) => board.name === message.board);
+        if (!target) return this.flashPlayHint(`A tela "${message.board}" não existe neste design.`);
+        if (message.overlay) return this.playOverlay(target.id, message.transition);
+        this.playGo(target.id, message.transition);
     }
 
     bindFocus() {
+        const button = (label, title, onClick) => {
+            const node = el('button', { type: 'button', class: 'ward-play-btn', title, text: label });
+            node.addEventListener('click', onClick);
+            return node;
+        };
+        this.playControls = {
+            back: button('← Voltar', 'Voltar à tela anterior (Backspace)', () => this.playBack()),
+            restart: button('↺', 'Recomeçar do início', () => this.playRestart()),
+            hotspots: button('Áreas clicáveis', 'Mostrar onde dá para clicar (H)', () => this.setHotspots(!this.play?.hotspots)),
+            frame: button('Moldura', 'Mostrar a moldura do aparelho', () => {
+                storage('ward-play-frame', !this.playPrefs().frame);
+                this.renderFocus();
+            }),
+            real: button('100%', 'Tamanho real (sem reduzir para caber)', () => {
+                storage('ward-play-real', !this.playPrefs().real);
+                this.renderFocus();
+            }),
+        };
+        const prev = this.focus.querySelector('[data-focus-prev]');
+        prev?.before(...Object.values(this.playControls));
+
         this.focus.querySelector('[data-focus-close]').addEventListener('click', () => this.closeFocus());
         this.focus.querySelector('[data-focus-prev]').addEventListener('click', () => this.stepFocus(-1));
         this.focus.querySelector('[data-focus-next]').addEventListener('click', () => this.stepFocus(1));
         window.addEventListener('resize', () => {
-            if (this.focusIndex !== null) this.renderFocus();
+            if (this.play) this.renderFocus();
         });
     }
 
@@ -679,8 +1026,14 @@ class DesignCanvas {
         window.addEventListener('message', (event) => {
             if (event.origin !== this.config.contentOrigin) return;
             const message = event.data;
-            if (message?.ward === 'navigate' && typeof message.board === 'string') {
-                const target = this.ordered().find((board) => board.name === message.board);
+            if (message?.ward === 'key' && message.key === 'Escape' && this.play) {
+                if (this.play.overlays.length) this.playCloseOverlay();
+                else this.closeFocus();
+                return;
+            }
+            if (message?.ward === 'navigate') {
+                if (this.play) return this.playNavigate(message);
+                const target = this.state.boards.find((board) => board.name === message.board);
                 if (target) this.openFocus(target.id);
                 return;
             }
@@ -772,10 +1125,16 @@ class DesignCanvas {
         document.addEventListener('keydown', (event) => {
             if (event.defaultPrevented) return;
             if (event.target.closest('input, textarea, select, [contenteditable]')) return;
-            if (this.focusIndex !== null) {
-                if (event.key === 'Escape') this.closeFocus();
+            if (this.play) {
+                if (event.key === 'Escape') {
+                    if (this.play.overlays.length) this.playCloseOverlay();
+                    else this.closeFocus();
+                }
                 if (event.key === 'ArrowRight') this.stepFocus(1);
                 if (event.key === 'ArrowLeft') this.stepFocus(-1);
+                if (event.key === 'Backspace') this.playBack();
+                if (event.key === 'h' || event.key === 'H') this.setHotspots(!this.play.hotspots);
+                if (event.key === 'r' || event.key === 'R') this.playRestart();
                 return;
             }
             if (event.metaKey || event.ctrlKey || event.altKey) return;

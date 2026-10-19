@@ -44,11 +44,13 @@ class DesignCanvas
             'kind' => $board->kind->value,
             'page' => $board->page,
             'includes' => $board->includes ?? [],
+            'links' => $board->links ?? [],
             'x' => $board->x,
             'y' => $board->y,
             'w' => $board->w,
             'h' => $board->h,
-            'interactive' => $board->interactive,
+            // Com ligações do protótipo, a tela é interativa mesmo sem a marca.
+            'interactive' => $board->interactive || ! empty($board->links),
             'revision' => $board->revision,
             'file' => "boards/{$board->name}.html",
         ];

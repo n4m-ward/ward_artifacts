@@ -5,6 +5,7 @@ namespace App\Mcp\Tools;
 use App\Actions\Designs\PublishComponent;
 use App\Actions\Designs\UpsertArtboard;
 use App\Designs\DesignCanvas;
+use App\Designs\DesignLayoutCheck;
 use App\Designs\InvalidDesign;
 use App\Mcp\Apps\DesignApp;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
@@ -82,15 +83,16 @@ class UpsertArtboardTool extends WardTool
         }
 
         $design->refresh();
+        $check = app(DesignLayoutCheck::class)->check($design);
 
         return Response::make(Response::text(
             "Artboard \"{$board->name}\" salvo (revisão {$board->revision}) em {$board->x},{$board->y}, {$board->w}×{$board->h}. ".
-            "Design: {$design->url()}"
+            "Design: {$design->url()}\n".DesignLayoutCheck::describe($check)
         ))->withStructuredContent([
             'design' => $design->uuid,
             'url' => $design->url(),
             'design_revision' => $design->design_revision,
             'board' => $canvas->board($board),
-        ]);
+        ] + $check);
     }
 }

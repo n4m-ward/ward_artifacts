@@ -1735,10 +1735,79 @@ Object.assign(DesignEditor.prototype, {
                     field('Alinhar', select('align-items', [['stretch', 'Esticar'], ['flex-start', 'Início'], ['center', 'Centro'], ['flex-end', 'Fim']])),
                 ]) : null,
             ]),
+            this.interactionSection(e, board),
             attrFields.length ? section('Atributos', attrFields) : null,
             this.cssSection(e),
         ].filter(Boolean));
         this.props.hidden = false;
+    },
+
+    // ----- Interação do protótipo (Play) -----
+
+    /** O que o elemento faz ao ser clicado no Play, lido dos atributos dele. */
+    interactionOf(e) {
+        const a = e.attrs ?? {};
+        const boardHref = typeof a.href === 'string' && a.href.startsWith('board:') ? decodeURIComponent(a.href.slice(6)) : null;
+        const transition = a['data-ward-transition'] ?? '';
+        if (a['data-ward-close'] !== null && a['data-ward-close'] !== undefined) return { mode: 'close', to: '', transition };
+        if (a['data-ward-back'] !== null && a['data-ward-back'] !== undefined) return { mode: 'back', to: '', transition };
+        if (a['data-ward-overlay']) return { mode: 'overlay', to: a['data-ward-overlay'], transition };
+        if (a['data-ward-to']) return { mode: 'go', to: a['data-ward-to'], transition };
+        if (boardHref) return { mode: 'go', to: boardHref, transition, viaHref: true };
+        return { mode: '', to: '', transition };
+    },
+
+    interactionSection(e, board) {
+        const current = this.interactionOf(e);
+        const names = this.canvas.state.boards.map((item) => item.name).filter((name) => name !== board?.name);
+        const mode = el('select', {}, [
+            ['', 'Nada'], ['go', 'Ir para a tela'], ['overlay', 'Abrir por cima (modal, folha)'], ['back', 'Voltar à tela anterior'], ['close', 'Fechar a tela de cima'],
+        ].map(([v, label]) => el('option', { value: v, text: label, selected: current.mode === v })));
+        const target = el('select', {}, [
+            el('option', { value: '', text: names.length ? 'Escolha a tela' : 'Crie outra tela primeiro', selected: !current.to }),
+            ...names.map((name) => el('option', { value: name, text: name, selected: current.to === name })),
+            ...(current.to && !names.includes(current.to) ? [el('option', { value: current.to, text: `${current.to} (não existe)`, selected: true })] : []),
+        ]);
+        const transition = el('select', {}, [
+            ['', 'Padrão'], ['slide', 'Deslizar'], ['slide-up', 'Subir'], ['fade', 'Esmaecer'], ['none', 'Sem transição'],
+        ].map(([v, label]) => el('option', { value: v, text: label, selected: current.transition === v })));
+        const targetField = field('Tela', target);
+        const sync = () => { targetField.hidden = !['go', 'overlay'].includes(mode.value); };
+        sync();
+        const apply = () => {
+            sync();
+            if (['go', 'overlay'].includes(mode.value) && !target.value) return;
+            this.setInteraction(e, mode.value, target.value, transition.value);
+        };
+        for (const input of [mode, target, transition]) input.addEventListener('change', apply);
+
+        return el('section', { class: 'ward-ed-section' }, [
+            el('h3', { text: 'Interação (Play)' }),
+            field('Ao clicar', mode),
+            targetField,
+            field('Transição', transition),
+            el('p', { class: 'ward-ed-hint', text: 'Teste no ▶ Play. Para abas e menus dentro da mesma tela, peça à IA o comportamento.' }),
+        ]);
+    },
+
+    setInteraction(e, mode, to, transition) {
+        const usesHref = e.tag === 'a' && typeof e.attrs?.href === 'string' && e.attrs.href.startsWith('board:');
+        const attrs = {
+            'data-ward-to': mode === 'go' && !usesHref ? to : null,
+            'data-ward-overlay': mode === 'overlay' ? to : null,
+            'data-ward-back': mode === 'back' ? '' : null,
+            'data-ward-close': mode === 'close' ? '' : null,
+            'data-ward-transition': mode && transition ? transition : null,
+        };
+        // <a href="board:…"> continua com href quando só muda o destino; nos outros casos o href sai.
+        if (usesHref) attrs.href = mode === 'go' ? `board:${to}` : '#';
+        this.editElement((node) => {
+            for (const [name, value] of Object.entries(attrs)) {
+                if (value === null) node.removeAttribute(name);
+                else node.setAttribute(name, value);
+            }
+        }, { live: { attrs }, label: mode ? 'Interação atualizada' : 'Interação removida' });
+        e.attrs = { ...(e.attrs ?? {}), ...attrs };
     },
 
     // ----- Tweaks -----

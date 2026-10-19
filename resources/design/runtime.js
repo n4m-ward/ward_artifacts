@@ -1,6 +1,6 @@
 (() => {
   // Runtime do Ward Design, injetado ao servir um artboard (não fica salvo).
-  // - Links "board:Nome" pedem à página do canvas para trocar de artboard.
+  // - Ligações do protótipo (board:, data-ward-to/overlay/back/close) pedem ao canvas para trocar de tela.
   // - Erros de script e de carregamento vão para o canvas (que marca o artboard).
   // - O canvas pergunta "que elemento está neste ponto?" (comentários e seleção).
   // Impressão (PDF): o artboard aberto sozinho com ?print=1 ajusta a página ao tamanho dele e imprime.
@@ -69,13 +69,74 @@
   };
   window.addEventListener('load', reportBackground);
 
+  // Protótipo: ligações entre artboards (o canvas troca a tela no Play).
+  //   <a href="board:Checkout"> ou data-ward-to="Checkout"   vai para a tela
+  //   data-ward-overlay="Filtro"                              abre a tela por cima (modal, folha)
+  //   data-ward-back                                          volta à tela anterior (ou fecha a de cima)
+  //   data-ward-close                                         fecha a tela de cima
+  //   data-ward-transition="slide|slide-up|fade|none"         como a troca acontece
+  const LINK_SELECTOR = 'a[href^="board:"], [data-ward-to], [data-ward-overlay], [data-ward-back], [data-ward-close]';
+  const INTERACTIVE = 'a[href], button, input, select, textarea, label, summary, [onclick], [role="button"], [role="tab"], [contenteditable]';
+  let playing = false;
+
+  const linkOf = (node) => {
+    const href = node.getAttribute('href');
+    const transition = node.getAttribute('data-ward-transition') || null;
+    if (node.hasAttribute('data-ward-close')) return { close: true, transition };
+    if (node.hasAttribute('data-ward-back')) return { back: true, transition };
+    if (node.hasAttribute('data-ward-overlay')) return { board: node.getAttribute('data-ward-overlay').trim(), overlay: true, transition };
+    if (node.hasAttribute('data-ward-to')) return { board: node.getAttribute('data-ward-to').trim(), transition };
+    let board = href.slice(6);
+    try { board = decodeURIComponent(board); } catch { /* nome com % solto */ }
+    return { board: board.trim(), transition };
+  };
+
+  // Áreas clicáveis do protótipo: contorno azul (fixo, ou piscando quando o clique não acerta nada).
+  let hotspotsOn = false;
+  let hotspotTimer = null;
+  const hotspotStyle = document.createElement('style');
+  hotspotStyle.textContent = '[data-ward-hotspot]{outline:2px solid rgb(37 99 235 / .9)!important;outline-offset:1px!important;'
+    + 'box-shadow:0 0 0 4px rgb(37 99 235 / .25)!important}';
+  const markHotspots = (on) => {
+    if (on && !hotspotStyle.isConnected) (document.head || document.documentElement).append(hotspotStyle);
+    for (const node of document.querySelectorAll(LINK_SELECTOR)) {
+      if (on) node.setAttribute('data-ward-hotspot', '');
+      else node.removeAttribute('data-ward-hotspot');
+    }
+  };
+  const flashHotspots = () => {
+    if (hotspotsOn) return;
+    markHotspots(true);
+    clearTimeout(hotspotTimer);
+    hotspotTimer = setTimeout(() => { if (!hotspotsOn) markHotspots(false); }, 700);
+  };
+
   document.addEventListener('click', (event) => {
-    const link = event.target.closest && event.target.closest('a[href^="board:"]');
-    if (!link) return;
+    const target = event.target instanceof Element ? event.target : null;
+    const link = target && target.closest(LINK_SELECTOR);
+    if (!link) {
+      // No Play, um clique fora de qualquer ligação mostra onde dá para clicar.
+      if (playing && !(target && target.closest(INTERACTIVE))) flashHotspots();
+      return;
+    }
     event.preventDefault();
-    const board = decodeURIComponent(link.getAttribute('href').slice(6));
-    post({ ward: 'navigate', board });
+    post({ ward: 'navigate', ...linkOf(link) });
   }, true);
+
+  // No Play, Esc dentro da tela também fecha (o foco do teclado fica no iframe depois de um clique).
+  document.addEventListener('keydown', (event) => {
+    if (playing && event.key === 'Escape' && !editing) post({ ward: 'key', key: 'Escape' });
+  });
+
+  // Ligações e onde ficam (px do artboard), para o canvas desenhar as setas.
+  const linkRects = () => Array.from(document.querySelectorAll(LINK_SELECTOR)).slice(0, 200).map((node) => {
+    const rect = node.getBoundingClientRect();
+    return {
+      ...linkOf(node),
+      x: Math.round(rect.left + window.scrollX), y: Math.round(rect.top + window.scrollY),
+      w: Math.round(rect.width), h: Math.round(rect.height),
+    };
+  }).filter((link) => link.w > 0 && link.h > 0);
 
   // Caminho do elemento: posição entre os filhos, do <body> até ele ("0/2/1").
   const pathOf = (element) => {
@@ -122,7 +183,12 @@
       inline: element.getAttribute('style') || '',
       // Só texto (sem filhos elementos): dá para editar no lugar.
       textOnly: element.children.length === 0 && text.length > 0,
-      attrs: { src: element.getAttribute('src'), alt: element.getAttribute('alt'), href: element.getAttribute('href') },
+      attrs: {
+        src: element.getAttribute('src'), alt: element.getAttribute('alt'), href: element.getAttribute('href'),
+        'data-ward-to': element.getAttribute('data-ward-to'), 'data-ward-overlay': element.getAttribute('data-ward-overlay'),
+        'data-ward-back': element.getAttribute('data-ward-back'), 'data-ward-close': element.getAttribute('data-ward-close'),
+        'data-ward-transition': element.getAttribute('data-ward-transition'),
+      },
       parentDisplay: parent ? parent.display : null,
       // Elemento que vem de um componente (<ward-include>): edita-se no artboard do componente.
       component: (element.closest && element.closest('[data-ward-component]')) ? element.closest('[data-ward-component]').getAttribute('data-ward-component') : null,
@@ -170,7 +236,14 @@
     const data = event.data;
     if (!data || typeof data.ward !== 'string') return;
 
-    if (data.ward === 'pick') {
+    if (data.ward === 'play') {
+      playing = true;
+    } else if (data.ward === 'hotspots') {
+      hotspotsOn = Boolean(data.on);
+      markHotspots(hotspotsOn);
+    } else if (data.ward === 'links') {
+      post({ ward: 'answer', request: data.request, value: linkRects() });
+    } else if (data.ward === 'pick') {
       let element = document.elementFromPoint(data.x, data.y);
       if (element === document.documentElement) element = null;
       post({ ward: 'picked', request: data.request, element: element ? describe(element) : null });

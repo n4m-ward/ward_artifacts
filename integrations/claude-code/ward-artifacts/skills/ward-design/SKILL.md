@@ -1,6 +1,6 @@
 ---
 name: ward-design
-description: Design screens and visuals on a Ward Design canvas (artifacts.wardtecnology.com) through the ward-artifacts MCP server. Use when the user wants mockups, app screens, UI flows, landing page or website layouts, social posts, banners, posters, or several visual variations side by side — "design", "mockup", "tela", "protótipo", "post", "layout", "variações", "Ward Design" — rather than a single standalone page. Covers opening the live canvas before editing so the user watches the work, setting a design direction, high-fidelity craft, reviewing a screenshot of every artboard in the embedded browser before calling it done, clickable prototypes with board: links, editing an artboard, and saving versions.
+description: Design screens and visuals on a Ward Design canvas (artifacts.wardtecnology.com) through the ward-artifacts MCP server. Use when the user wants mockups, app screens, UI flows, landing page or website layouts, social posts, banners, posters, or several visual variations side by side — "design", "mockup", "tela", "protótipo", "post", "layout", "variações", "Ward Design" — rather than a single standalone page. Covers opening the live canvas before editing so the user watches the work, setting a design direction, high-fidelity craft, reviewing a screenshot of every artboard in the embedded browser before calling it done, clickable prototypes tested in Play mode (links between screens, overlays, back, transitions), keeping artboards from overlapping on the canvas, editing an artboard, and saving versions.
 ---
 
 # Ward Design
@@ -60,20 +60,47 @@ Nenhuma tela está pronta sem você olhar a imagem dela. O ciclo de cada tela é
    - `kind: "page"`: site, landing, dashboard, ou seja, raiz fluida; `w` 1280–1440 e `h` a altura real.
 2. **Tire um print no navegador embutido** (no Claude Code, o painel de navegador com o canvas aberto
    pela seção 1). O canvas atualiza sozinho; espere a tela nova aparecer.
-   - Uma tela: abra o artboard em foco (clique duplo) ou use zoom na área dele.
+   - Uma tela: use zoom na área dele, ou o ▶ Play na legenda do artboard (abre no tamanho do aparelho).
    - O conjunto: "ajustar tudo" (tecla 1) e print do canvas inteiro.
    - Os iframes do canvas às vezes demoram alguns segundos para pintar na captura: espere e capture de
      novo antes de concluir que a tela está em branco.
-3. Na imagem, procure: conteúdo cortado ou atrás de barras fixas, texto quebrando ou vazando, fotos que
+3. **Leia o aviso da resposta** de `upsert_artboard`/`update_layout`: "artboards sobrepostos" exige
+   `update_layout` na hora (um artboard nunca fica em cima de outro, nem de um título ou nota).
+4. Na imagem, procure: artboards, títulos ou notas cobrindo uns aos outros, conteúdo cortado ou atrás de barras fixas, texto quebrando ou vazando, fotos que
    não carregaram, fonte de fallback, alinhamento e espaçamento irregulares, contraste fraco, hierarquia
    confusa, inconsistência com as outras telas, áreas vazias com cara de inacabado.
-4. Achou algo: corrija com `upsert_artboard` do mesmo `name` e tire o print de novo. Repita até a tela
+5. Achou algo: corrija com `upsert_artboard` do mesmo `name` e tire o print de novo. Repita até a tela
    estar sem defeitos; só então siga para a próxima.
-5. Com todas as telas prontas: `update_layout` para organizar (fileiras com 80 px entre artboards, 160 px
+6. Com todas as telas prontas: `update_layout` para organizar (fileiras com 80 px entre artboards, 160 px
    entre fileiras, títulos `kind: "title"` e notas adesivas) e um print do canvas inteiro para avaliar o
-   conjunto.
-6. No fim, passe ao usuário a **URL do design** (`url`), nunca o `preview_url`. Diga que avaliou os
+   conjunto: nada sobreposto, títulos sem cobrir telas. `get_design` também lista sobreposições.
+7. Fluxo com várias telas: ligações completas e teste no Play (seção 4).
+8. No fim, passe ao usuário a **URL do design** (`url`), nunca o `preview_url`. Diga que avaliou os
    prints e o que corrigiu. Se não teve como ver as telas, diga isso.
+
+## 4. Protótipo (Play)
+
+Telas de um mesmo fluxo (app, site, checkout, onboarding) são um **protótipo**: a pessoa aperta ▶ Play e
+navega clicando, com a tela no tamanho do aparelho (moldura de celular, tablet ou navegador). Ligue as
+telas no HTML de cada uma (detalhes em `get_design_guide`, seção "Protótipo (Play)"):
+
+- `<a href="board:Checkout">` ou `data-ward-to="Checkout"`: vai para a tela.
+- `data-ward-overlay="Filtro"`: abre a tela por cima (modal ou folha). A tela de cima é um artboard do
+  tamanho do painel, sem fundo escurecido.
+- `data-ward-back`: volta. `data-ward-close`: fecha a de cima.
+- `data-ward-transition="slide" | "slide-up" | "fade" | "none"`.
+
+Regras:
+1. **Toda ação principal leva a algum lugar.** Crie as telas de destino que faltarem (sucesso, erro,
+   confirmação, modal) em vez de deixar botão morto. Ícone de voltar usa `data-ward-back`.
+2. Mudança dentro da mesma tela (abas, acordeão, toggle, validação) é JS inline no artboard.
+3. As respostas de `upsert_artboard`, `update_layout` e `get_design` listam **ligações quebradas**
+   (para telas que não existem): corrija antes de entregar.
+4. **Teste o fluxo no Play** antes de dizer que está pronto: abra o canvas, ▶ Play na primeira tela e
+   clique o caminho principal (ida, volta, telas por cima). "Áreas clicáveis" (tecla H) mostra o que
+   tem ligação. Conte ao usuário o caminho que testou.
+   - No navegador embutido, clique dentro da tela com o Play em **100%** (tamanho real): com a tela
+     reduzida para caber, a automação às vezes não consegue clicar dentro dela.
 
 ## Qualidade (resumo do guia)
 
@@ -92,7 +119,7 @@ Nenhuma tela está pronta sem você olhar a imagem dela. O ciclo de cada tela é
   à esquerda, tudo centralizado, textos genéricos.
 - Pedido aberto: 2–3 direções realmente diferentes lado a lado, numa fileira com título.
 - Acessível mesmo sendo mockup: `<button>`, `<a href>`, `<label>` reais, contraste ≥ 4.5:1, alvos ≥ 44 px.
-- Protótipo clicável: `<a href="board:Checkout">` liga artboards; marque-os com `interactive: true`.
+- Fluxo de várias telas: protótipo ligado e testado no Play (seção 4).
 - Nada sensível no HTML.
 
 ## Alterações
