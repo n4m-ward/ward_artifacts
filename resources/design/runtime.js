@@ -128,6 +128,41 @@
     if (playing && event.key === 'Escape' && !editing) post({ ward: 'key', key: 'Escape' });
   });
 
+  // Ações da IA (show_in_canvas): achar um elemento pelo texto visível (o mais específico, de
+  // preferência clicável) ou por seletor CSS, como o servidor acha (BoardElementFinder).
+  const CLICKABLE = 'a, button, [data-ward-to], [data-ward-overlay], [data-ward-back], [data-ward-close], [role="button"], [role="tab"], input, summary, label, li';
+  const textOf = (node) => (node.textContent || '').replace(/\s+/g, ' ').trim();
+  const findTarget = (query) => {
+    const needle = String(query || '').trim().toLowerCase();
+    if (!needle || !document.body) return null;
+    for (const list of [document.querySelectorAll(CLICKABLE), document.body.querySelectorAll('*')]) {
+      let best = null;
+      let length = Infinity;
+      for (const node of list) {
+        if (/^(SCRIPT|STYLE|TEMPLATE)$/.test(node.tagName)) continue;
+        const text = textOf(node);
+        const label = `${text} ${node.getAttribute('aria-label') || ''} ${node.value || ''}`.toLowerCase();
+        if (label.includes(needle) && text.length < length) {
+          best = node;
+          length = text.length;
+        }
+      }
+      if (best) return best;
+    }
+    try {
+      return document.querySelector(query);
+    } catch {
+      return null;
+    }
+  };
+  const located = (node) => {
+    const rect = node.getBoundingClientRect();
+    return {
+      found: true, tag: node.tagName.toLowerCase(), text: textOf(node).slice(0, 80),
+      rect: { x: Math.round(rect.left), y: Math.round(rect.top), w: Math.round(rect.width), h: Math.round(rect.height) },
+    };
+  };
+
   // Ligações e onde ficam (px do artboard), para o canvas desenhar as setas.
   const linkRects = () => Array.from(document.querySelectorAll(LINK_SELECTOR)).slice(0, 200).map((node) => {
     const rect = node.getBoundingClientRect();
@@ -241,6 +276,18 @@
     } else if (data.ward === 'hotspots') {
       hotspotsOn = Boolean(data.on);
       markHotspots(hotspotsOn);
+    } else if (data.ward === 'locate') {
+      const node = findTarget(data.query);
+      // Numa tela que rola (página no Play), traz o elemento para a vista antes de medir.
+      if (node && data.scroll) node.scrollIntoView({ block: 'center', inline: 'nearest' });
+      post({ ward: 'answer', request: data.request, value: node ? located(node) : { found: false } });
+    } else if (data.ward === 'click') {
+      const node = findTarget(data.query);
+      if (node) {
+        if (typeof node.focus === 'function') node.focus({ preventScroll: true });
+        node.click();
+      }
+      post({ ward: 'answer', request: data.request, value: node ? located(node) : { found: false } });
     } else if (data.ward === 'links') {
       post({ ward: 'answer', request: data.request, value: linkRects() });
     } else if (data.ward === 'pick') {

@@ -1,6 +1,6 @@
 ---
 name: ward-design
-description: Design screens and visuals on a Ward Design canvas (artifacts.wardtecnology.com) through the ward-artifacts MCP server. Use when the user wants mockups, app screens, UI flows, landing page or website layouts, social posts, banners, posters, or several visual variations side by side — "design", "mockup", "tela", "protótipo", "post", "layout", "variações", "Ward Design" — rather than a single standalone page. Covers opening the live canvas before editing so the user watches the work, setting a design direction, high-fidelity craft, reviewing a screenshot of every artboard for both defects and design sense (purpose, hierarchy, typography, color, UX and usability) in the embedded browser before calling it done, clickable prototypes tested in Play mode (links between screens, overlays, back, transitions), keeping artboards from overlapping on the canvas, editing an artboard, and saving versions.
+description: Design screens and visuals on a Ward Design canvas (artifacts.wardtecnology.com) through the ward-artifacts MCP server. Use when the user wants mockups, app screens, UI flows, landing page or website layouts, social posts, banners, posters, or several visual variations side by side — "design", "mockup", "tela", "protótipo", "post", "layout", "variações", "Ward Design" — rather than a single standalone page. Covers opening the live canvas before editing so the user watches the work, setting a design direction, high-fidelity craft, reviewing a screenshot of every artboard for both defects and design sense (purpose, hierarchy, typography, color, UX and usability) in the embedded browser before calling it done, clickable prototypes tested in Play mode with real clicks through show_in_canvas (links between screens, overlays, back, transitions), guiding the viewer's camera and AI cursor while working, keeping artboards from overlapping on the canvas, editing an artboard, and saving versions.
 ---
 
 # Ward Design
@@ -80,6 +80,18 @@ Nenhuma tela está pronta sem você olhar a imagem dela. O ciclo de cada tela é
 9. No fim, passe ao usuário a **URL do design** (`url`), nunca o `preview_url`. Diga que avaliou os
    prints, o que validou na revisão de design e o que corrigiu. Se não teve como ver as telas, diga isso.
 
+## Mostrar o que você está fazendo (`show_in_canvas`)
+
+Quem acompanha o canvas (o MCP App no chat, a aba App do WardCode, o canvas no navegador) **segue
+você**: a câmera voa até a tela e um cursor com o seu nome aponta onde você está. Isso já acontece
+sozinho em `upsert_artboard` (foca a tela salva), `get_artboard_source` ("Lendo …") e `update_layout`.
+Use `show_in_canvas` para conduzir o resto, sempre com uma `message` curta em português:
+
+- `focus` numa tela antes de falar dela ou de revisá-la; `fit` para mostrar o conjunto no fim.
+- `point` num elemento (texto visível ou seletor CSS) para mostrar o que vai mudar ou o que mudou.
+- `play` abre o Play numa tela; `click` clica num elemento dentro do Play; `back` e `close`.
+- A pessoa pode pausar o "seguir"; não brigue com isso (não repita ações só para puxar a câmera).
+
 ## Revisão de design: fazer sentido, não só estar pronto
 
 Uma tela sem defeito técnico ainda pode estar errada. A cada print, **olhe a imagem como diretor de arte
@@ -145,9 +157,17 @@ Regras:
 2. Mudança dentro da mesma tela (abas, acordeão, toggle, validação) é JS inline no artboard.
 3. As respostas de `upsert_artboard`, `update_layout` e `get_design` listam **ligações quebradas**
    (para telas que não existem): corrija antes de entregar.
-4. **Teste o fluxo no Play** antes de dizer que está pronto: abra o canvas, ▶ Play na primeira tela e
-   clique o caminho principal (ida, volta, telas por cima). "Áreas clicáveis" (tecla H) mostra o que
-   tem ligação. Conte ao usuário o caminho que testou.
+4. **Teste o fluxo de verdade** quando o design tiver interação que faça sentido testar (navegação,
+   menu, modal, abas, formulário). Post, banner ou tela solta sem ação não precisa.
+   - Use `show_in_canvas` com `click` (`board` = a tela onde o elemento está, `element` = texto
+     visível ou seletor CSS, `message` = o que está testando). O clique acontece no Play de quem está
+     vendo, que assiste ao teste, e a resposta diz **em que tela o Play ficou**, o que abriu por cima e
+     se houve erro de script. Funciona também no chat do Claude, sem navegador.
+   - Percorra o caminho principal: ida, volta (`data-ward-back`), telas por cima e fechar. Compare cada
+     resultado com o esperado ("Pagar" devia levar a "Fim"); errado, corrija e teste de novo.
+   - Resposta "ninguém está com o canvas aberto": nada foi clicado. Abra o canvas (`open_design`, ou o
+     `preview_url` no seu navegador) e repita. Sem resultado de clique, **não diga que validou**.
+   - Depois de testar, `show_in_canvas` com `close` e conte ao usuário o caminho testado e o resultado.
    - No navegador embutido, clique dentro da tela com o Play em **100%** (tamanho real): com a tela
      reduzida para caber, a automação às vezes não consegue clicar dentro dela.
 

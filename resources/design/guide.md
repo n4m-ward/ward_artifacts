@@ -116,8 +116,10 @@ conforme `w`×`h` e `kind`) e a pessoa navega clicando, como no aparelho. Ligue 
   artboard; ele roda no Play.
 - As respostas de `upsert_artboard`, `update_layout` e `get_design` listam ligações para telas que não
   existem: corrija antes de entregar.
-- Para conferir, abra o Play (botão ▶ na legenda do artboard, ou Enter com ele selecionado) e clique o
-  fluxo inteiro. "Áreas clicáveis" (tecla H) destaca o que tem ligação.
+- Para conferir, teste com `show_in_canvas` (`click` num elemento de uma tela): o clique acontece no Play
+  de quem está vendo o canvas e a resposta diz em que tela o Play ficou e se houve erro. Percorra o
+  fluxo inteiro (ida, volta, telas por cima). A pessoa também pode testar: botão ▶ na legenda do
+  artboard, ou Enter com ele selecionado; "Áreas clicáveis" (tecla H) destaca o que tem ligação.
 
 ## Tokens, componentes e páginas
 

@@ -4,6 +4,7 @@ namespace App\Mcp\Tools;
 
 use App\Actions\Designs\UpdateDesignLayout;
 use App\Designs\DesignLayoutCheck;
+use App\Designs\DesignPresence;
 use App\Designs\InvalidDesign;
 use App\Models\DesignNote;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
@@ -83,6 +84,10 @@ class UpdateDesignLayoutTool extends WardTool
 
         $design->refresh();
         $check = app(DesignLayoutCheck::class)->check($design);
+        $moved = array_values(array_filter(array_map(fn ($change) => $change['new_name'] ?? $change['name'] ?? null, $validated['boards'] ?? [])));
+        app(DesignPresence::class)->push($design, DesignPresence::actorFor($this->user($request)), [
+            'action' => 'layout', 'boards' => array_slice($moved, 0, 40), 'message' => 'Organizando o canvas',
+        ]);
 
         return Response::make(Response::text("Layout atualizado (revisão {$design->design_revision}). Design: {$design->url()}\n".DesignLayoutCheck::describe($check)))
             ->withStructuredContent(['design' => $design->uuid, 'design_revision' => $design->design_revision] + $check);

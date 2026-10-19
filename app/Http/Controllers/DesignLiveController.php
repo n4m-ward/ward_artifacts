@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Designs\DesignPresence;
 use App\Designs\DesignState;
 use App\Models\Artifact;
 use Illuminate\Http\JsonResponse;
@@ -10,8 +11,9 @@ use Illuminate\Support\Facades\Gate;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * /d/{uuid}/live?rev=N: o canvas pergunta se algo mudou. 204 se a revisão é a
- * mesma; senão, o estado completo (artboards com URLs novas, notas).
+ * /d/{uuid}/live?rev=N&p=S: o canvas pergunta se algo mudou. 204 se a revisão
+ * e a presença da IA (S) são as mesmas; só a presença mudou: {unchanged, presence};
+ * senão, o estado completo (artboards com URLs novas, notas) com a presença.
  *
  * Quem está logado precisa poder ver o design. Sem sessão (link público,
  * pré-visualização ou o MCP App no Claude), vale a URL assinada que a página
@@ -19,7 +21,7 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class DesignLiveController extends Controller
 {
-    public function __invoke(Request $request, string $artifact, DesignState $state): Response
+    public function __invoke(Request $request, string $artifact, DesignState $state, DesignPresence $presence): Response
     {
         $design = Artifact::where('uuid', $artifact)->first();
 
@@ -39,12 +41,19 @@ class DesignLiveController extends Controller
             $headers['Access-Control-Allow-Origin'] = '*';
         }
 
+        $presence->touchViewer($design);
+        $current = $presence->current($design);
+        // p = última presença da IA que o canvas já mostra (cliente antigo não manda: só a revisão conta).
+        $presenceChanged = $request->has('p') && (int) $request->query('p') !== (int) ($current['seq'] ?? 0);
+
         if ((int) $request->query('rev', -1) === $design->design_revision) {
-            return response()->noContent(204, $headers);
+            return $presenceChanged
+                ? new JsonResponse(['unchanged' => true, 'revision' => $design->design_revision, 'presence' => $current], 200, $headers)
+                : response()->noContent(204, $headers);
         }
 
         $ttl = $request->user() ? null : (int) config('ward.artifacts.preview_content_ttl_minutes');
 
-        return new JsonResponse($state->toArray($design, $ttl, comments: $request->user() !== null), 200, $headers);
+        return new JsonResponse([...$state->toArray($design, $ttl, comments: $request->user() !== null), 'presence' => $current], 200, $headers);
     }
 }

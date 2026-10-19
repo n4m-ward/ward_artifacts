@@ -7,9 +7,11 @@ use App\Http\Controllers\DesignAssetController;
 use App\Http\Controllers\DesignCommentController;
 use App\Http\Controllers\DesignEditController;
 use App\Http\Controllers\DesignLiveController;
+use App\Http\Controllers\DesignPresenceController;
 use App\Http\Controllers\DesignPrintController;
 use App\Http\Controllers\DesignSystemController;
 use App\Models\User;
+use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Support\Facades\Route;
 use Livewire\Volt\Volt;
 
@@ -52,6 +54,13 @@ Route::get('d/{artifact}/live', DesignLiveController::class)
     ->where('artifact', '[0-9a-f]{32}')
     ->middleware('throttle:240,1')
     ->name('designs.live');
+
+// O canvas devolve o resultado de uma ação da IA (show_in_canvas). Assinada; sem sessão nem CSRF.
+Route::post('d/{artifact}/presence', DesignPresenceController::class)
+    ->where('artifact', '[0-9a-f]{32}')
+    ->middleware('throttle:120,1')
+    ->withoutMiddleware(ValidateCsrfToken::class)
+    ->name('designs.presence');
 
 // Edição à mão no canvas web (dono do design ou admin).
 Route::middleware(['auth', 'throttle:600,1'])->where(['artifact' => '[0-9a-f]{32}', 'board' => '[0-9]+', 'comment' => '[0-9]+'])->group(function () {

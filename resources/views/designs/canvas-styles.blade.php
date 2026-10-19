@@ -69,6 +69,27 @@
     .ward-play-toast { position: absolute; left: 50%; bottom: 20px; z-index: 5; transform: translateX(-50%); margin: 0; padding: 8px 14px; border-radius: 999px;
         background: #f4f4f5; color: #18181b; font: 500 13px system-ui, sans-serif; box-shadow: 0 6px 20px rgb(0 0 0 / .4); }
     .ward-play-toast[hidden] { display: none; }
+    /* Cursor da IA (show_in_canvas): desliza até o alvo, nunca teleporta. */
+    .ward-ai-cursor { position: fixed; left: 0; top: 0; z-index: 80; pointer-events: none; will-change: transform; }
+    .ward-ai-cursor[hidden] { display: none; }
+    .ward-ai-arrow { position: absolute; left: -2px; top: -2px; width: 22px; height: 24px; background: #7c3aed;
+        clip-path: polygon(0 0, 0 100%, 30% 74%, 52% 100%, 66% 93%, 45% 68%, 82% 68%); filter: drop-shadow(0 1px 1px rgb(0 0 0 / .4)); }
+    .ward-ai-arrow::after { content: ''; position: absolute; inset: 3px 5px 5px 3px; background: #a78bfa;
+        clip-path: polygon(0 0, 0 100%, 30% 74%, 52% 100%, 66% 93%, 45% 68%, 82% 68%); }
+    .ward-ai-label { position: absolute; left: 18px; top: 20px; max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        padding: 4px 10px; border-radius: 999px; background: #7c3aed; color: #fff; font: 600 12px system-ui, sans-serif; box-shadow: 0 4px 14px rgb(0 0 0 / .3); }
+    .ward-ai-cursor::before { content: ''; position: absolute; left: -18px; top: -18px; width: 36px; height: 36px; border-radius: 999px;
+        border: 2px solid #a78bfa; opacity: 0; }
+    .ward-ai-cursor.is-click::before { animation: ward-ai-click .6s ease-out; }
+    @keyframes ward-ai-click { from { opacity: 1; transform: scale(.3); } to { opacity: 0; transform: scale(1.6); } }
+    .ward-follow { position: absolute; z-index: 16; left: 50%; top: 52px; transform: translateX(-50%); display: flex; align-items: center; gap: 8px;
+        padding: 5px 6px 5px 12px; border-radius: 999px; background: #18181b; color: #fff; font: 500 13px system-ui, sans-serif; box-shadow: 0 6px 20px rgb(0 0 0 / .25); }
+    .ward-follow[hidden] { display: none; }
+    .ward-follow-dot { width: 8px; height: 8px; border-radius: 999px; background: #a78bfa; box-shadow: 0 0 0 4px rgb(167 139 250 / .25); }
+    .ward-follow.is-paused .ward-follow-dot { background: #71717a; box-shadow: none; }
+    .ward-follow button { height: 26px; padding: 0 10px; border: 0; border-radius: 999px; background: #7c3aed; color: #fff; font: 600 12px system-ui, sans-serif; cursor: pointer; }
+    .ward-follow:not(.is-paused) button { background: rgb(255 255 255 / .12); }
+    .is-list .ward-follow { top: 8px; }
     /* Setas das ligações do protótipo no canvas. */
     .ward-links { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: visible; pointer-events: none; }
     .ward-links path { fill: none; stroke: #2563eb; stroke-linecap: round; }

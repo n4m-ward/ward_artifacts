@@ -6,6 +6,7 @@ use App\Actions\Designs\PublishComponent;
 use App\Actions\Designs\UpsertArtboard;
 use App\Designs\DesignCanvas;
 use App\Designs\DesignLayoutCheck;
+use App\Designs\DesignPresence;
 use App\Designs\InvalidDesign;
 use App\Mcp\Apps\DesignApp;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
@@ -84,6 +85,10 @@ class UpsertArtboardTool extends WardTool
 
         $design->refresh();
         $check = app(DesignLayoutCheck::class)->check($design);
+        // Quem acompanha o canvas vê a câmera ir até a tela salva.
+        app(DesignPresence::class)->push($design, DesignPresence::actorFor($this->user($request)), [
+            'action' => 'editing', 'board' => $board->name, 'message' => "Editando {$board->name}",
+        ]);
 
         return Response::make(Response::text(
             "Artboard \"{$board->name}\" salvo (revisão {$board->revision}) em {$board->x},{$board->y}, {$board->w}×{$board->h}. ".

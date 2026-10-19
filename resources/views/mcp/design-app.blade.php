@@ -169,11 +169,12 @@
                 return result.structuredContent.app;
             }
 
-            async function poll(revision) {
+            // Devolve o estado novo, só a presença da IA ({unchanged, presence}) ou null.
+            async function poll(revision, presenceSeq = 0) {
                 if (config.liveUrl && fetchFailures < 2) {
                     try {
                         const separator = config.liveUrl.includes('?') ? '&' : '?';
-                        const response = await fetch(`${config.liveUrl}${separator}rev=${revision}`, {
+                        const response = await fetch(`${config.liveUrl}${separator}rev=${revision}&p=${presenceSeq}`, {
                             credentials: 'omit', cache: 'no-store', headers: { Accept: 'application/json' },
                         });
                         if (response.status === 204) { fetchFailures = 0; return null; }
@@ -182,13 +183,28 @@
                         // CSP do cliente ou assinatura vencida: cai para a ferramenta
                     }
                     fetchFailures++;
-                    if (fetchFailures >= 2 && canvas) canvas.options.pollVisible = 4000;
+                    if (fetchFailures >= 2 && canvas) canvas.options.pollVisible = 3000;
                 }
-                const result = await app.callServerTool('design_live', { design: config.design, rev: revision });
+                const result = await app.callServerTool('design_live', { design: config.design, rev: revision, p: presenceSeq });
                 const content = result?.structuredContent;
-                if (!content?.changed) return null;
+                if (!content?.changed) return content?.presence ? { unchanged: true, presence: content.presence } : null;
                 config = { ...config, ...content.app };
-                return content.app.state;
+                return { ...content.app.state, presence: content.app.presence };
+            }
+
+            // Resultado de uma ação da IA (clique no Play): direto pela URL assinada; se o host bloquear, pela ferramenta.
+            async function reportPresence(seq, result) {
+                try {
+                    const response = await fetch(config.presenceUrl, {
+                        method: 'POST', credentials: 'omit', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ seq, result }),
+                    });
+                    if (response.ok) return;
+                } catch {
+                    // cai para a ferramenta
+                }
+                await app.callServerTool('design_report_view', {
+                    design: config.design, board: selected?.name ?? '', presence_seq: seq, presence_result: result,
+                }).catch(() => {});
             }
 
             function setHeading() {
@@ -214,6 +230,8 @@
                         listMaxHeight: 420,
                         isActive: () => visible,
                         poll,
+                        reportPresence,
+                        diagnose: true,
                         onSelect,
                     });
                     startEditor();
@@ -309,6 +327,7 @@
                 ui.sub.textContent = writing ? 'A IA está escrevendo…' : 'Salvando…';
                 if (typeof lastArgs.html !== 'string' || !lastArgs.html) return;
                 stream.pending = lastArgs.html;
+                stream.latest = lastArgs.html;
                 if (!stream.timer) renderStream();
             }
 
@@ -328,8 +347,9 @@
                     frame.classList.remove('is-next');
                     for (const old of ui.stage.querySelectorAll('iframe')) if (old !== frame) old.remove();
                 }, { once: true });
-                frame.srcdoc = html;
+                frame.srcdoc = stream.rendered && stream.renderedFor === html.length ? stream.rendered : html;
                 ui.stage.append(frame);
+                renderPreview(html);
                 const { w, h } = streamSize(lastArgs);
                 layoutStage(w, h);
                 if (!ui.stage.querySelector('.wa-writing')) {
@@ -340,23 +360,29 @@
                 }
             }
 
-            function showSavedBoard(board) {
-                clearTimeout(stream.timer);
-                stream = { timer: null, pending: null, size: null };
-                ui.stream.hidden = false;
-                ui.canvas.hidden = true;
-                const frame = document.createElement('iframe');
-                frame.src = board.url;
-                frame.title = boardLabel(board);
-                frame.setAttribute('sandbox', config.sandbox);
-                frame.setAttribute('allow', config.allow);
-                frame.setAttribute('referrerpolicy', 'no-referrer');
-                ui.stage.replaceChildren(frame);
-                layoutStage(board.w, board.h);
-                ui.title.textContent = boardLabel(board);
-                ui.sub.textContent = `${config.title} · ${board.w}×${board.h} · revisão ${board.revision}`;
-                ui.toCanvas.hidden = false;
-                ui.open.hidden = false;
+            // A prévia crua não tem os tokens nem os componentes do design (ficava branca): o servidor
+            // monta a versão do canvas, no máximo a cada 1,5 s, e ela substitui a crua.
+            function renderPreview(html) {
+                const design = lastArgs.design ?? config?.design;
+                if (!design || !lastArgs.name || stream.rendering || stream.renderedFor === html.length) return;
+                const since = Date.now() - (stream.renderedAt ?? 0);
+                if (since < 1500) {
+                    clearTimeout(stream.renderTimer);
+                    stream.renderTimer = setTimeout(() => renderPreview(stream.latest ?? html), 1500 - since);
+                    return;
+                }
+                stream.rendering = true;
+                stream.renderedAt = Date.now();
+                app.callServerTool('design_render_preview', { design, name: lastArgs.name, html }).then((result) => {
+                    const rendered = result?.structuredContent?.html;
+                    if (!rendered || result?.isError) return;
+                    stream.rendered = rendered;
+                    stream.renderedFor = html.length;
+                    if (stream.pending === null && !stream.timer) {
+                        stream.pending = html;
+                        renderStream();
+                    }
+                }).catch(() => {}).finally(() => { stream.rendering = false; });
             }
 
             // ---------- eventos do host ----------
@@ -390,8 +416,8 @@
                     }
                     if (content.design && content.board) {
                         config = await loadConfig(content.design);
-                        const board = config.state.boards.find((item) => item.name === content.board.name);
-                        return board ? showSavedBoard(board) : enterCanvas();
+                        // O canvas abre seguindo a IA: a câmera já vai para a tela que acabou de ser salva.
+                        return enterCanvas();
                     }
                     showError('Resposta inesperada da ferramenta.');
                 } catch (error) {
