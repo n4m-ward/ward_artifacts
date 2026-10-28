@@ -6,6 +6,7 @@ use App\Artifacts\ContentGateway;
 use App\Designs\DesignView;
 use App\Models\Artifact;
 use App\Models\ArtifactPreview;
+use App\Whiteboards\WhiteboardView;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Cookie;
@@ -28,7 +29,7 @@ class ArtifactPreviewController extends Controller
         $preview = ArtifactPreview::findByToken($token);
         $artifact = $preview?->artifact()->with('user', 'project', 'currentVersion')->first();
 
-        abort_if($artifact === null || (! $artifact->isDesign() && $artifact->currentVersion === null), 404);
+        abort_if($artifact === null || (! $artifact->isCanvas() && $artifact->currentVersion === null), 404);
 
         if ($request->user()?->can('view', $artifact)) {
             return redirect($artifact->path());
@@ -60,6 +61,13 @@ class ArtifactPreviewController extends Controller
 
     private function render(Artifact $artifact, ContentGateway $gateway): Response
     {
+        if ($artifact->isWhiteboard()) {
+            return app(WhiteboardView::class)->render($artifact, preview: true)
+                ->header('Cache-Control', 'no-store, private')
+                ->header('X-Robots-Tag', 'noindex, nofollow')
+                ->header('Referrer-Policy', 'no-referrer');
+        }
+
         if ($artifact->isDesign()) {
             return app(DesignView::class)->render($artifact, preview: true)
                 ->header('Cache-Control', 'no-store, private')

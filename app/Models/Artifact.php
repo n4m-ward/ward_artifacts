@@ -21,7 +21,7 @@ class Artifact extends Model
     protected $fillable = [
         'uuid', 'user_id', 'project_id', 'title', 'slug',
         'visibility', 'public_until', 'current_version_id', 'size_bytes',
-        'type', 'design_revision', 'design_system', 'description', 'docs', 'uses_design_system_id',
+        'type', 'design_revision', 'whiteboard_seq', 'whiteboard_state', 'design_system', 'description', 'docs', 'uses_design_system_id',
     ];
 
     protected function casts(): array
@@ -30,6 +30,8 @@ class Artifact extends Model
             'visibility' => Visibility::class,
             'type' => ArtifactType::class,
             'design_revision' => 'integer',
+            'whiteboard_seq' => 'integer',
+            'whiteboard_state' => 'array',
             'design_system' => 'boolean',
             'public_until' => 'datetime',
             'size_bytes' => 'integer',
@@ -56,14 +58,30 @@ class Artifact extends Model
         return $this->type === ArtifactType::Design;
     }
 
+    public function isWhiteboard(): bool
+    {
+        return $this->type === ArtifactType::Whiteboard;
+    }
+
     /**
-     * Tem conteúdo para mostrar: uma versão (página) ou ao menos um artboard (design).
+     * Tem conteúdo para mostrar: uma versão (página), ao menos um artboard (design)
+     * ou um elemento (whiteboard).
      */
     public function hasContent(): bool
     {
-        return $this->isDesign()
-            ? $this->boards()->exists()
-            : $this->current_version_id !== null;
+        return match (true) {
+            $this->isDesign() => $this->boards()->exists(),
+            $this->isWhiteboard() => $this->whiteboardElements()->where('is_deleted', false)->exists(),
+            default => $this->current_version_id !== null,
+        };
+    }
+
+    /**
+     * Abre sem uma versão publicada (design e whiteboard nascem vazios).
+     */
+    public function isCanvas(): bool
+    {
+        return $this->isDesign() || $this->isWhiteboard();
     }
 
     public function isPublic(): bool
@@ -163,6 +181,30 @@ class Artifact extends Model
     public function snapshots(): HasMany
     {
         return $this->hasMany(DesignSnapshot::class);
+    }
+
+    public function whiteboardElements(): HasMany
+    {
+        return $this->hasMany(WhiteboardElement::class);
+    }
+
+    public function whiteboardFiles(): HasMany
+    {
+        return $this->hasMany(WhiteboardFile::class);
+    }
+
+    public function members(): HasMany
+    {
+        return $this->hasMany(ArtifactMember::class);
+    }
+
+    public function isMember(?User $user, ?string $role = null): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        return $this->members()->where('user_id', $user->id)->when($role, fn ($query) => $query->where('role', $role))->exists();
     }
 
     public function views(): HasMany

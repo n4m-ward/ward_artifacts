@@ -2,6 +2,8 @@
 
 use App\Actions\Artifacts\RenameArtifact;
 use App\Actions\Artifacts\SetArtifactVisibility;
+use App\Actions\Whiteboards\WhiteboardEditors;
+use App\Whiteboards\InvalidWhiteboard;
 use App\Enums\Visibility;
 use App\Models\Artifact;
 use Illuminate\Validation\Rule;
@@ -20,6 +22,7 @@ new class extends Component {
     public string $visibility = '';
     public string $publicHours = '24';
     public string $title = '';
+    public string $invite = '';
 
     public function mount(): void
     {
@@ -67,6 +70,41 @@ new class extends Component {
         $action->endPublic($this->artifact);
     }
 
+    /**
+     * Editores convidados (só whiteboards).
+     */
+    #[Computed]
+    public function members()
+    {
+        return $this->artifact->isWhiteboard()
+            ? $this->artifact->members()->with('user')->orderBy('id')->get()
+            : collect();
+    }
+
+    public function inviteEditor(WhiteboardEditors $editors): void
+    {
+        $this->authorize('update', $this->artifact);
+        $this->validate(['invite' => ['required', 'string', 'max:200']], attributes: ['invite' => 'username ou e-mail']);
+
+        try {
+            $editors->invite($this->artifact, auth()->user(), $this->invite);
+        } catch (InvalidWhiteboard $e) {
+            $this->addError('invite', $e->getMessage());
+
+            return;
+        }
+
+        $this->invite = '';
+        unset($this->members);
+    }
+
+    public function removeEditor(WhiteboardEditors $editors, int $userId): void
+    {
+        $this->authorize('update', $this->artifact);
+        $editors->remove($this->artifact, $userId);
+        unset($this->members);
+    }
+
     public function rename(RenameArtifact $action): void
     {
         $this->authorize('update', $this->artifact);
@@ -105,7 +143,7 @@ new class extends Component {
             @if ($contentUrl)
                 <flux:menu.item icon="arrow-top-right-on-square" :href="$contentUrl" target="_blank" rel="noopener noreferrer">Abrir HTML puro</flux:menu.item>
             @endif
-            <flux:menu.item icon="arrow-down-tray" :href="route('artifacts.download', $artifact)">{{ $artifact->isDesign() ? 'Baixar design (.zip)' : 'Baixar código' }}</flux:menu.item>
+            <flux:menu.item icon="arrow-down-tray" :href="route('artifacts.download', $artifact)">{{ $artifact->isWhiteboard() ? 'Baixar quadro (.excalidraw)' : ($artifact->isDesign() ? 'Baixar design (.zip)' : 'Baixar código') }}</flux:menu.item>
         </flux:menu>
     </flux:dropdown>
 
@@ -137,6 +175,37 @@ new class extends Component {
                         <flux:radio value="owner" label="Só eu" description="Só você (e os admins) abrem este artifact." />
                         <flux:radio value="users" label="Usuários logados" description="Qualquer pessoa com conta no Ward Artifacts e com o link." />
                     </flux:radio.group>
+                @endif
+
+                @if ($artifact->isWhiteboard())
+                    <flux:separator />
+
+                    <div class="space-y-3">
+                        <div>
+                            <flux:heading>Editores convidados</flux:heading>
+                            <flux:text>Podem desenhar, mover e apagar no quadro (e a IA conectada na conta deles também). Veem o quadro mesmo com "Só eu".</flux:text>
+                        </div>
+
+                        <form wire:submit="inviteEditor" class="flex items-start gap-2">
+                            <div class="flex-1">
+                                <flux:input wire:model="invite" placeholder="username ou e-mail" aria-label="Username ou e-mail de quem convidar" />
+                                <flux:error name="invite" />
+                            </div>
+                            <flux:button type="submit" icon="user-plus">Convidar</flux:button>
+                        </form>
+
+                        @if ($this->members->isNotEmpty())
+                            <ul class="divide-y divide-zinc-200 rounded-lg border border-zinc-200 dark:divide-zinc-700 dark:border-zinc-700">
+                                @foreach ($this->members as $member)
+                                    <li wire:key="member-{{ $member->id }}" class="flex items-center gap-3 px-3 py-2 text-sm">
+                                        <span class="min-w-0 flex-1 truncate">{{ $member->user->name }} <span class="text-zinc-500">{{ '@'.$member->user->username }}</span></span>
+                                        <flux:badge size="sm" color="zinc">editor</flux:badge>
+                                        <flux:button size="sm" variant="ghost" icon="x-mark" wire:click="removeEditor({{ $member->user_id }})" aria-label="Remover {{ $member->user->name }}" />
+                                    </li>
+                                @endforeach
+                            </ul>
+                        @endif
+                    </div>
                 @endif
 
                 <flux:separator />

@@ -78,11 +78,42 @@ abstract class WardTool extends Tool
             return Response::error('Design não encontrado.');
         }
 
+        if ($design->isWhiteboard()) {
+            return Response::error('Este artifact é um whiteboard, não um design. Use get_whiteboard, add_elements, update_elements e create_diagram.');
+        }
+
         if (! $design->isDesign()) {
             return Response::error('Este artifact é uma página, não um design. Use get_artifact_source/update_artifact.');
         }
 
         return $design;
+    }
+
+    /**
+     * Um whiteboard que o usuário pode ver, ou um erro pronto para devolver.
+     */
+    protected function findWhiteboard(Request $request, ?string $reference): Artifact|Response
+    {
+        $board = $this->findArtifact($reference);
+
+        if (! $board || $this->user($request)->cannot('view', $board)) {
+            return Response::error('Whiteboard não encontrado.');
+        }
+
+        if (! $board->isWhiteboard()) {
+            return Response::error($board->isDesign()
+                ? 'Este artifact é um design, não um whiteboard. Use get_design e upsert_artboard.'
+                : 'Este artifact é uma página, não um whiteboard. Use get_artifact_source/update_artifact.');
+        }
+
+        return $board;
+    }
+
+    protected function cannotEditWhiteboard(Request $request, Artifact $board): ?Response
+    {
+        return $this->user($request)->cannot('edit', $board)
+            ? Response::error('Só o dono do quadro, um convidado editor ou um admin pode alterá-lo.')
+            : null;
     }
 
     protected function cannotEdit(Request $request, Artifact $design): ?Response

@@ -3,9 +3,15 @@
 namespace App\Mcp\Servers;
 
 use App\Mcp\Apps\DesignApp;
+use App\Mcp\Apps\WhiteboardApp;
 use App\Mcp\Tools\AddDesignAssetTool;
+use App\Mcp\Tools\AddElementsTool;
+use App\Mcp\Tools\ArrangeElementsTool;
 use App\Mcp\Tools\CreateDesignTool;
+use App\Mcp\Tools\CreateDiagramTool;
+use App\Mcp\Tools\CreateWhiteboardTool;
 use App\Mcp\Tools\DeleteArtboardTool;
+use App\Mcp\Tools\DeleteElementsTool;
 use App\Mcp\Tools\DesignAppRequestTool;
 use App\Mcp\Tools\DesignBoardHtmlTool;
 use App\Mcp\Tools\DesignLiveTool;
@@ -18,12 +24,14 @@ use App\Mcp\Tools\GetDesignGuideTool;
 use App\Mcp\Tools\GetDesignSystemTool;
 use App\Mcp\Tools\GetDesignTool;
 use App\Mcp\Tools\GetTemplateTool;
+use App\Mcp\Tools\GetWhiteboardTool;
 use App\Mcp\Tools\ImportComponentTool;
 use App\Mcp\Tools\InviteUserTool;
 use App\Mcp\Tools\ListArtifactsTool;
 use App\Mcp\Tools\ListDesignSystemsTool;
 use App\Mcp\Tools\ListProjectsTool;
 use App\Mcp\Tools\OpenDesignTool;
+use App\Mcp\Tools\OpenWhiteboardTool;
 use App\Mcp\Tools\PublishArtifactTool;
 use App\Mcp\Tools\PublishComponentTool;
 use App\Mcp\Tools\RenameArtifactTool;
@@ -34,7 +42,9 @@ use App\Mcp\Tools\SetDesignTokensTool;
 use App\Mcp\Tools\ShowInCanvasTool;
 use App\Mcp\Tools\UpdateArtifactTool;
 use App\Mcp\Tools\UpdateDesignLayoutTool;
+use App\Mcp\Tools\UpdateElementsTool;
 use App\Mcp\Tools\UpsertArtboardTool;
+use App\Mcp\Tools\WhiteboardLiveTool;
 use App\Mcp\Tools\WhoAmITool;
 use Laravel\Mcp\Server;
 use Laravel\Mcp\Server\Attributes\Instructions;
@@ -92,6 +102,21 @@ Ward Design (canvas com vários artboards, para mockups, telas de app, landing p
 - Comentários do canvas são pedidos da pessoa: aplique a mudança no artboard/elemento indicado e
   responda com resolve_comment (uma frase do que mudou). Comentário com imagem anexada: veja-a com
   get_comment_image antes de mexer.
+
+Ward Whiteboard (quadro estilo Miro com Excalidraw, para post-its, fluxogramas, mapas mentais,
+retrospectivas e diagramas; várias pessoas editam ao vivo):
+- Se tiver a skill ward-whiteboard, carregue antes.
+- create_whiteboard (template opcional) → open_whiteboard UMA vez se o cliente mostra MCP Apps (o quadro
+  ao vivo no chat, seguindo você); senão abra o preview_url no seu navegador →
+  get_whiteboard (elementos, frames, quem está vendo, comentários, lugar livre) → desenhe.
+- Diagrama a partir de nós e ligações: create_diagram (flowchart, tree, org, mindmap, grid); o servidor
+  calcula o layout. Itens soltos: add_elements (sticky = post-it, rectangle, ellipse, diamond, text,
+  arrow com from/to presa aos elementos, line, frame com children, image). Ids seus ligam setas e
+  frames no mesmo pedido.
+- Mudar: update_elements (texto, cor, posição, frame, setas); apagar: delete_elements; organizar ou
+  agrupar post-its por tema em frames: arrange_elements (cluster).
+- show_in_canvas também conduz o quadro (focus/point por id do elemento ou do frame, fit).
+  save_design_version e resolve_comment também valem para quadros.
 TXT)]
 class WardServer extends Server
 {
@@ -129,9 +154,19 @@ class WardServer extends Server
         DesignRenderPreviewTool::class,
         DesignReportViewTool::class,
         DesignAppRequestTool::class,
+        CreateWhiteboardTool::class,
+        GetWhiteboardTool::class,
+        AddElementsTool::class,
+        UpdateElementsTool::class,
+        DeleteElementsTool::class,
+        CreateDiagramTool::class,
+        ArrangeElementsTool::class,
+        OpenWhiteboardTool::class,
+        WhiteboardLiveTool::class,
     ];
 
     protected array $resources = [
         DesignApp::class,
+        WhiteboardApp::class,
     ];
 }

@@ -46,6 +46,20 @@ return [
         'viewing_ttl_minutes' => 30,
     ],
 
+    'whiteboards' => [
+        'max_elements' => 10_000,
+        // Tamanho máximo de um envio de elementos (POST /w/{uuid}/elements).
+        'max_batch_bytes' => 2 * 1024 * 1024,
+        'max_file_bytes' => 4 * 1024 * 1024,
+        'keep_versions' => 10,
+        // Pessoa sem sinal há mais que isso sai da lista de quem está no quadro.
+        'presence_ttl_seconds' => 20,
+        // Elementos apagados somem do banco depois disso (o ao vivo manda o quadro inteiro a quem ficou para trás).
+        'purge_deleted_days' => 7,
+        // Domínios que podem aparecer embutidos no quadro, além do próprio app (artboards do Ward Design).
+        'embed_hosts' => array_filter(explode(' ', (string) env('WARD_WHITEBOARD_EMBED_HOSTS', 'youtube.com youtu.be vimeo.com'))),
+    ],
+
     // Fuso usado para mostrar datas no painel (o banco guarda em UTC).
     'display_timezone' => env('WARD_DISPLAY_TIMEZONE', 'America/Sao_Paulo'),
 

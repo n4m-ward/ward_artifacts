@@ -34,6 +34,10 @@ class UpdateArtifactTool extends WardTool
             return Response::error('Artifact não encontrado.');
         }
 
+        if ($artifact->isWhiteboard()) {
+            return Response::error('Este artifact é um whiteboard: altere com add_elements, update_elements e delete_elements.');
+        }
+
         if ($artifact->isDesign()) {
             return Response::error('Este artifact é um design: altere os artboards com upsert_artboard.');
         }

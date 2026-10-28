@@ -5,6 +5,8 @@ namespace App\Mcp\Tools;
 use App\Designs\BoardElementFinder;
 use App\Designs\BoardRenderer;
 use App\Designs\DesignPresence;
+use App\Whiteboards\WhiteboardPresence;
+use App\Whiteboards\WhiteboardStore;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
@@ -13,16 +15,17 @@ use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Attributes\Name;
 
 #[Name('show_in_canvas')]
-#[Description('Conduz quem está vendo o canvas do design (página, preview_url, MCP App): a câmera vai até a tela, um cursor com o seu nome aponta o elemento, e o Play abre e clica como uma pessoa. Use para mostrar o que você está fazendo e para TESTAR o protótipo: action "click" executa o clique no Play de quem está vendo e devolve em que tela o Play ficou e se houve erro. Ações: focus (câmera na tela), fit (tudo), point (aponta um elemento), play (abre o Play na tela), click (clica no elemento dentro do Play), back (volta no Play), close (fecha o Play).')]
+#[Description('Conduz quem está vendo o canvas do design ou o whiteboard (página, preview_url, MCP App). Num whiteboard: focus (câmera no element ou frame, por id), fit (o quadro todo) e point (cursor sobre o element). Num design: a câmera vai até a tela, um cursor com o seu nome aponta o elemento, e o Play abre e clica como uma pessoa. Use para mostrar o que você está fazendo e para TESTAR o protótipo: action "click" executa o clique no Play de quem está vendo e devolve em que tela o Play ficou e se houve erro. Ações: focus (câmera na tela), fit (tudo), point (aponta um elemento), play (abre o Play na tela), click (clica no elemento dentro do Play), back (volta no Play), close (fecha o Play).')]
 class ShowInCanvasTool extends WardTool
 {
     public function schema(JsonSchema $schema): array
     {
         return [
-            'design' => $schema->string()->description('Id (32 caracteres) ou URL do design.')->required(),
+            'design' => $schema->string()->description('Id (32 caracteres) ou URL do design ou do whiteboard.')->required(),
             'action' => $schema->string()->enum(['focus', 'fit', 'point', 'play', 'click', 'back', 'close'])->description('O que mostrar ou fazer.')->required(),
             'board' => $schema->string()->description('Nome do artboard (obrigatório em focus, point, play e click). Em click, a tela onde o elemento está.'),
-            'element' => $schema->string()->description('Em point e click: o texto visível do elemento ("Pagar") ou um seletor CSS ("#pagar", "nav a:last-child").'),
+            'element' => $schema->string()->description('Em point e click: o texto visível do elemento ("Pagar") ou um seletor CSS ("#pagar", "nav a:last-child"). Num whiteboard: o id do elemento (focus e point).'),
+            'frame' => $schema->string()->description('Whiteboard: id do frame para focus.'),
             'message' => $schema->string()->max(140)->description('Frase curta ao lado do cursor para quem acompanha (ex.: "Testando o botão Pagar").'),
         ];
     }
@@ -35,7 +38,12 @@ class ShowInCanvasTool extends WardTool
             'board' => ['nullable', 'string', 'max:60'],
             'element' => ['nullable', 'string', 'max:200'],
             'message' => ['nullable', 'string', 'max:140'],
+            'frame' => ['nullable', 'string', 'max:64'],
         ]);
+
+        if ($this->findArtifact($validated['design'])?->isWhiteboard()) {
+            return $this->whiteboard($request, $validated);
+        }
 
         $design = $this->findDesign($request, $validated['design']);
         if ($design instanceof Response) {
@@ -138,5 +146,61 @@ class ShowInCanvasTool extends WardTool
         $errors = ($result['errors'] ?? []) !== [] ? "\nErros de script: ".implode(' | ', $result['errors']) : "\nSem erros de script.";
 
         return $text."\nResultado no canvas: {$where}.".(isset($result['note']) ? " {$result['note']}" : '').$errors;
+    }
+
+    /**
+     * show_in_canvas num whiteboard: câmera e cursor da IA em quem está vendo o quadro.
+     *
+     * @param  array<string, mixed>  $validated
+     */
+    private function whiteboard(Request $request, array $validated): Response|ResponseFactory
+    {
+        $board = $this->findWhiteboard($request, $validated['design']);
+        if ($board instanceof Response) {
+            return $board;
+        }
+
+        if ($error = $this->cannotEditWhiteboard($request, $board)) {
+            return $error;
+        }
+
+        $action = $validated['action'];
+        if (! in_array($action, ['focus', 'fit', 'point'], true)) {
+            return Response::error('Num whiteboard, show_in_canvas aceita focus, fit e point.');
+        }
+
+        $store = app(WhiteboardStore::class);
+        $element = $validated['element'] ?? null;
+        $frame = $validated['frame'] ?? null;
+
+        if (in_array($action, ['focus', 'point'], true) && blank($element) && blank($frame)) {
+            return Response::error("A ação \"{$action}\" precisa de element (id) ou frame (id) — veja get_whiteboard.");
+        }
+
+        foreach (array_filter([$element, $frame]) as $id) {
+            if ($store->find($board, $id) === null) {
+                return Response::error("Elemento \"{$id}\" não existe no quadro.");
+            }
+        }
+
+        $target = $element !== null ? $store->find($board, $element) : null;
+        $presence = app(WhiteboardPresence::class);
+        $presence->pushAi($board, DesignPresence::actorFor($this->user($request)), array_filter([
+            'action' => $action,
+            'elements' => array_values(array_filter([$element])),
+            'frame' => $frame,
+            'point' => $target ? ['x' => $target['x'] + $target['width'] / 2, 'y' => $target['y'] + $target['height'] / 2] : null,
+            'message' => $validated['message'] ?? null,
+        ]));
+
+        $watching = $presence->hasViewers($board);
+        $text = match ($action) {
+            'fit' => 'Câmera mostrando o quadro inteiro.',
+            'focus' => 'Câmera em '.($frame ? "frame {$frame}" : "elemento {$element}").'.',
+            'point' => "Cursor apontando o elemento {$element}.",
+        };
+
+        return Response::make(Response::text($text.($watching ? '' : "\nNinguém está com o quadro aberto agora.")))
+            ->withStructuredContent(['whiteboard' => $board->uuid, 'action' => $action, 'watching' => $watching]);
     }
 }

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Designs\DesignCanvas;
 use App\Enums\ArtifactKind;
 use App\Models\Artifact;
+use App\Whiteboards\WhiteboardVersions;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
@@ -22,6 +23,16 @@ class ArtifactDownloadController extends Controller
         // O MCP devolve um link assinado (15 min) para a IA baixar com curl.
         if (! $request->hasValidSignature()) {
             Gate::authorize('view', $artifact);
+        }
+
+        if ($artifact->isWhiteboard()) {
+            $document = app(WhiteboardVersions::class)->document($artifact, withFiles: true);
+
+            return response()->streamDownload(
+                fn () => print (json_encode($document, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)),
+                "{$artifact->slug}.excalidraw",
+                ['Content-Type' => 'application/json', 'X-Robots-Tag' => 'noindex, nofollow'],
+            );
         }
 
         if ($artifact->isDesign()) {

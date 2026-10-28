@@ -20,9 +20,9 @@ class ListArtifactsTool extends WardTool
     public function schema(JsonSchema $schema): array
     {
         return [
-            'scope' => $schema->string()->enum(['mine', 'viewed', 'all'])->description('Padrão: mine.'),
+            'scope' => $schema->string()->enum(['mine', 'shared', 'viewed', 'all'])->description('Padrão: mine. shared: whiteboards em que você foi convidado como editor.'),
             'search' => $schema->string()->description('Parte do título.'),
-            'type' => $schema->string()->enum(['page', 'design'])->description('Só páginas ou só designs. Padrão: os dois.'),
+            'type' => $schema->string()->enum(['page', 'design', 'whiteboard'])->description('Só páginas, só designs ou só whiteboards. Padrão: todos.'),
             'project' => $schema->string()->description('Slug ou nome do projeto.'),
             'limit' => $schema->integer()->min(1)->max(100)->description('Padrão: 25.'),
         ];
@@ -31,9 +31,9 @@ class ListArtifactsTool extends WardTool
     public function handle(Request $request): Response|ResponseFactory
     {
         $request->validate([
-            'scope' => ['nullable', 'in:mine,viewed,all'],
+            'scope' => ['nullable', 'in:mine,shared,viewed,all'],
             'search' => ['nullable', 'string', 'max:200'],
-            'type' => ['nullable', 'in:page,design'],
+            'type' => ['nullable', 'in:page,design,whiteboard'],
             'project' => ['nullable', 'string', 'max:120'],
             'limit' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
@@ -53,6 +53,7 @@ class ListArtifactsTool extends WardTool
                     ->orWhere('public_until', '>', now())))
                 ->orderByPivot('last_viewed_at', 'desc'),
             'all' => Artifact::query()->latest('updated_at'),
+            'shared' => Artifact::query()->whereHas('members', fn ($query) => $query->where('user_id', $user->id))->latest('updated_at'),
             default => $user->artifacts()->latest('updated_at'),
         };
 
@@ -69,7 +70,7 @@ class ListArtifactsTool extends WardTool
 
         $text = $items === []
             ? 'Nenhum artifact encontrado.'
-            : collect($items)->map(fn ($a) => "- {$a['title']} ({$a['project']}, ".($a['type'] === 'design' ? 'design' : "v{$a['version']}").", {$a['visibility']}) {$a['url']}")->implode("\n");
+            : collect($items)->map(fn ($a) => "- {$a['title']} ({$a['project']}, ".(in_array($a['type'], ['design', 'whiteboard'], true) ? $a['type'] : "v{$a['version']}").", {$a['visibility']}) {$a['url']}")->implode("\n");
 
         return Response::make(Response::text($text))->withStructuredContent(['artifacts' => $items]);
     }

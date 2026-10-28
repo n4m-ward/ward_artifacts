@@ -14,6 +14,7 @@
             <flux:navlist variant="outline">
                 <flux:navlist.group heading="Ward" class="grid">
                     <flux:navlist.item icon="squares-2x2" :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate>Artifacts</flux:navlist.item>
+                    <flux:navlist.item icon="presentation-chart-line" :href="route('whiteboards.index')" :current="request()->routeIs('whiteboards.*')" wire:navigate>Whiteboards</flux:navlist.item>
                     <flux:navlist.item icon="swatch" :href="route('design-systems.index')" :current="request()->routeIs('design-systems.*')" wire:navigate>Design systems</flux:navlist.item>
                     <flux:navlist.item icon="link" :href="route('connections.index')" :current="request()->routeIs('connections.*')" wire:navigate>Conexões MCP</flux:navlist.item>
                 </flux:navlist.group>
