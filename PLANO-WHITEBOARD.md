@@ -301,6 +301,10 @@ outra pessoa, só leitura, celular e o MCP App num host falso.
 - **Votos** valem para post-its, formas e imagens; os selos somem quando o elemento fica pequeno na tela.
 - **Modelos, Mermaid e artboards** entram num lugar livre à direita do conteúdo, e a câmera vai até eles.
 - O "+" do Miro para criar post-it ligado não foi feito: o Excalidraw já tem Ctrl/Cmd + seta.
+- No fluxograma, a seta que volta para uma etapa anterior contorna o diagrama (por baixo no LR, pela
+  direita no TB) em vez de cruzar as formas.
+- O `open_whiteboard` não devolve os elementos (só a configuração e o link): o app busca o quadro pelo
+  ao vivo, e clientes sem MCP Apps não recebem o quadro inteiro no contexto.
 
 **Para o deploy:** a migration roda sozinha (`ward:post-deploy`); `npm ci` + `npm run build` no CI
 geram o pacote e copiam as fontes. Conferir em produção que `/build/assets/*.js` sai com

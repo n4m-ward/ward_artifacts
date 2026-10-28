@@ -84,6 +84,20 @@
                 return content.changed || content.unchanged ? content : null;
             }
 
+            async function loadInitial() {
+                try {
+                    const url = new URL(config.liveUrl);
+                    url.searchParams.set('since', '0');
+                    const response = await fetch(url, { credentials: 'omit', cache: 'no-store', headers: { Accept: 'application/json' } });
+                    if (response.ok) return await response.json();
+                } catch {
+                    // CSP do cliente: cai para a ferramenta
+                }
+                const fresh = await fallbackPoll(0, '');
+                if (!fresh) throw new Error('Não foi possível carregar o quadro.');
+                return fresh;
+            }
+
             function enter() {
                 ui.title.textContent = config.title;
                 ui.sub.textContent = 'Ao vivo · só leitura aqui; edite pelo link';
@@ -103,11 +117,11 @@
                 const content = result?.structuredContent ?? {};
                 if (!content.app) return showError('Resposta inesperada da ferramenta.');
                 config = content.app;
-                // Chat reaberto: o estado inicial é velho; busca o quadro de novo pela conexão.
-                if (Date.now() - (config.issuedAt || 0) > 10 * 60 * 1000) {
+                // O open_whiteboard não traz o quadro (para não encher o contexto da IA): busca
+                // pela URL assinada e, se o host bloquear ou o link tiver vencido, pela conexão do app.
+                if (!config.initial || Date.now() - (config.issuedAt || 0) > 10 * 60 * 1000) {
                     try {
-                        const fresh = await fallbackPoll(0, '');
-                        if (fresh) config = { ...config, initial: fresh };
+                        config = { ...config, initial: await loadInitial() };
                     } catch (error) {
                         return showError(error.message);
                     }

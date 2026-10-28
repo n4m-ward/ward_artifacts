@@ -276,7 +276,7 @@ class ElementFactory
         if ($from !== null || $to !== null) {
             $start = $from !== null ? $byId[$from] : ['x' => $this->coord($item, 'x'), 'y' => $this->coord($item, 'y'), 'width' => 0, 'height' => 0, 'type' => 'point'];
             $end = $to !== null ? $byId[$to] : ['x' => (float) ($item['x2'] ?? $start['x'] + 200), 'y' => (float) ($item['y2'] ?? $start['y']), 'width' => 0, 'height' => 0, 'type' => 'point'];
-            $element = $this->route($element, $start, $end, $item['route'] ?? 'straight');
+            $element = $this->route($element, $start, $end, $item['route'] ?? 'straight', isset($item['detour']) ? (float) $item['detour'] : null, $item['side'] ?? 'below');
 
             if ($from !== null) {
                 $element['startBinding'] = ['elementId' => $from, 'focus' => 0, 'gap' => self::ARROW_GAP];
@@ -337,10 +337,26 @@ class ElementFactory
      * @param  array<string, mixed>  $to
      * @return array<string, mixed>
      */
-    public function route(array $arrow, array $from, array $to, string $route = 'straight'): array
+    public function route(array $arrow, array $from, array $to, string $route = 'straight', ?float $detour = null, string $side = 'below'): array
     {
         $fc = [$from['x'] + $from['width'] / 2, $from['y'] + $from['height'] / 2];
         $tc = [$to['x'] + $to['width'] / 2, $to['y'] + $to['height'] / 2];
+
+        // Contorno: sai por baixo (ou pela direita), corre na linha $detour e entra pelo mesmo lado no destino.
+        if ($route === 'around' && $detour !== null) {
+            $below = $side !== 'right';
+            $start = $below ? [$fc[0], $from['y'] + $from['height'] + self::ARROW_GAP] : [$from['x'] + $from['width'] + self::ARROW_GAP, $fc[1]];
+            $end = $below ? [$tc[0], $to['y'] + $to['height'] + self::ARROW_GAP] : [$to['x'] + $to['width'] + self::ARROW_GAP, $tc[1]];
+            $points = $below
+                ? [[0, 0], [0, $detour - $start[1]], [$end[0] - $start[0], $detour - $start[1]], [$end[0] - $start[0], $end[1] - $start[1]]]
+                : [[0, 0], [$detour - $start[0], 0], [$detour - $start[0], $end[1] - $start[1]], [$end[0] - $start[0], $end[1] - $start[1]]];
+            $arrow['x'] = round($start[0], 2);
+            $arrow['y'] = round($start[1], 2);
+            $arrow['points'] = array_map(fn ($point) => [round($point[0], 2), round($point[1], 2)], $points);
+            [$arrow['width'], $arrow['height']] = $this->pointsSize($arrow['points']);
+
+            return $arrow;
+        }
 
         $start = $this->edgePoint($from, $tc, self::ARROW_GAP);
         $end = $this->edgePoint($to, $fc, self::ARROW_GAP);

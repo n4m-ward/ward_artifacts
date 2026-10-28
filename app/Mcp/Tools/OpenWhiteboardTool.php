@@ -32,8 +32,10 @@ class OpenWhiteboardTool extends WhiteboardTool
         $request->validate(['whiteboard' => ['required', 'string']]);
 
         return $this->withBoard($request, $request->get('whiteboard'), false, function (Artifact $board) use ($state) {
-            $config = $state->appConfig($board);
-            $count = count($config['initial']['elements']);
+            // Sem o quadro na resposta: o app busca pelo ao vivo (whiteboard_live / URL assinada),
+            // e clientes sem MCP Apps não recebem milhares de elementos no contexto.
+            $config = $state->appConfig($board, withInitial: false);
+            $count = $board->whiteboardElements()->where('is_deleted', false)->count();
 
             return Response::make(Response::text(
                 "Quadro \"{$board->title}\" aberto no chat ({$count} elemento(s)). Ele atualiza sozinho a cada mudança. Link: {$board->url()}"

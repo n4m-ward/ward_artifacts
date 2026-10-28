@@ -49,7 +49,7 @@ class WhiteboardState
     /**
      * @return array<string, mixed>
      */
-    public function config(Artifact $board, ?User $user, bool $preview = false, ?string $csrf = null): array
+    public function config(Artifact $board, ?User $user, bool $preview = false, ?string $csrf = null, bool $withInitial = true): array
     {
         $liveUntil = now()->addMinutes((int) config('ward.artifacts.preview_session_minutes'));
 
@@ -93,7 +93,7 @@ class WhiteboardState
             'embedHosts' => array_values((array) config('ward.whiteboards.embed_hosts')),
             // Artboards do Ward Design no quadro: mesmo sandbox dos iframes do canvas de design.
             'artboardSandbox' => app(ContentGateway::class)->sandbox(),
-            'initial' => $this->live($board, 0, $viewer),
+            'initial' => $withInitial ? $this->live($board, 0, $viewer) : null,
         ];
     }
 
@@ -103,9 +103,11 @@ class WhiteboardState
      *
      * @return array<string, mixed>
      */
-    public function appConfig(Artifact $board): array
+    public function appConfig(Artifact $board, bool $withInitial = true): array
     {
-        return ['app' => true, 'issuedAt' => now()->getTimestampMs()] + $this->config($board, null, preview: true);
+        $config = ['app' => true, 'issuedAt' => now()->getTimestampMs()] + $this->config($board, null, preview: true, withInitial: $withInitial);
+
+        return $config;
     }
 
     public function liveUrl(Artifact $board, DateTimeInterface $expires): string
