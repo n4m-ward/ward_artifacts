@@ -6,11 +6,15 @@
         "dev": "vite"
     },
     "dependencies": {
+        "@excalidraw/excalidraw": "0.18.1",
+        "@excalidraw/mermaid-to-excalidraw": "^3.1.0",
         "@tailwindcss/vite": "^4.0.7",
         "autoprefixer": "^10.4.20",
         "axios": "^1.7.4",
         "concurrently": "^9.0.1",
         "laravel-vite-plugin": "^1.0",
+        "react": "^19.3.1",
+        "react-dom": "^19.3.1",
         "tailwindcss": "^4.0.7",
         "vite": "^6.0"
     },

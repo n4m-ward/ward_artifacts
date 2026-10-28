@@ -35,6 +35,10 @@ class GetArtifactSourceTool extends WardTool
             return Response::error('Artifact não encontrado.');
         }
 
+        if ($artifact->isWhiteboard()) {
+            return Response::error('Este artifact é um whiteboard: use get_whiteboard.');
+        }
+
         if ($artifact->isDesign()) {
             return Response::error('Este artifact é um design: use get_design e get_artboard_source.');
         }

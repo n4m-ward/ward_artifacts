@@ -79,7 +79,7 @@ new class extends Component {
 
         return $query
             ->with('user', 'project', 'currentVersion')
-            ->withCount('boards')
+            ->withCount(['boards', 'whiteboardElements' => fn ($query) => $query->where('is_deleted', false)])
             ->when($this->search, fn ($query, $search) => $query->where('title', 'like', "%{$search}%"))
             ->paginate(20);
     }
@@ -197,7 +197,9 @@ new class extends Component {
                             {{ '@'.$artifact->user->username }} ·
                         @endif
                         {{ $artifact->project->name }}
-                        @if ($artifact->isDesign())
+                        @if ($artifact->isWhiteboard())
+                            · whiteboard · {{ $artifact->whiteboard_elements_count }} elemento{{ $artifact->whiteboard_elements_count === 1 ? '' : 's' }}
+                        @elseif ($artifact->isDesign())
                             · design · {{ $artifact->boards_count }} artboard{{ $artifact->boards_count === 1 ? '' : 's' }}
                         @else
                             · v{{ $artifact->currentVersion?->number ?? 0 }}

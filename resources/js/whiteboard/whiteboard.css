@@ -1,0 +1,419 @@
+/* Ward Whiteboard: camada do Ward por cima do Excalidraw. */
+.ward-wb {
+    position: absolute;
+    inset: 0;
+    font-family: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif;
+    --wb-bg: #ffffff;
+    --wb-fg: #1e1e1e;
+    --wb-muted: #6b7280;
+    --wb-border: #e4e4e7;
+    --wb-accent: #6965db;
+    --wb-shadow: 0 4px 18px rgba(0, 0, 0, 0.12);
+}
+
+.ward-wb .excalidraw {
+    --ui-font: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif;
+}
+
+.ward-wb-dock {
+    position: absolute;
+    bottom: 16px;
+    left: 50%;
+    z-index: 10;
+    transform: translateX(-50%);
+}
+
+.ward-wb-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 4px;
+    border-radius: 10px;
+    background: var(--island-bg-color, #fff);
+    box-shadow: var(--shadow-island, var(--wb-shadow));
+}
+
+.ward-wb-tool {
+    position: relative;
+    display: inline-flex;
+    width: 34px;
+    height: 34px;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--icon-fill-color, #1b1b1f);
+    cursor: pointer;
+}
+
+.ward-wb-tool:hover { background: var(--button-hover-bg, #f1f0ff); }
+.ward-wb-tool.is-active { background: var(--color-primary-light, #e0dfff); color: var(--color-primary, #6965db); }
+.ward-wb-tool:focus-visible { outline: 2px solid var(--wb-accent); outline-offset: 1px; }
+
+.ward-wb-tool-badge {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    min-width: 14px;
+    height: 14px;
+    padding: 0 3px;
+    border-radius: 7px;
+    background: #e03131;
+    color: #fff;
+    font-size: 9px;
+    line-height: 14px;
+}
+
+.ward-wb-sep { width: 1px; height: 20px; margin: 0 3px; background: var(--wb-border); }
+
+.ward-wb-popover {
+    position: absolute;
+    bottom: 64px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: var(--wb-bg);
+    color: var(--wb-fg);
+    box-shadow: var(--wb-shadow);
+    font-size: 13px;
+}
+
+.ward-wb-colors { display: flex; gap: 6px; }
+.ward-wb-colors button {
+    width: 26px;
+    height: 26px;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    border-radius: 6px;
+    cursor: pointer;
+}
+.ward-wb-colors button:hover { transform: scale(1.1); }
+
+.ward-wb-status-row {
+    position: absolute;
+    top: 64px;
+    left: 50%;
+    z-index: 10;
+    display: flex;
+    gap: 8px;
+    transform: translateX(-50%);
+    pointer-events: none;
+}
+.ward-wb-status-row > * { pointer-events: auto; }
+
+.ward-wb-pill {
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: #f4f4f5;
+    color: #3f3f46;
+    font-size: 12px;
+}
+.ward-wb-pill.is-warn { background: #fff3bf; color: #7c5800; }
+
+.ward-wb-timer {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 6px 4px 10px;
+    border-radius: 999px;
+    background: #1e1e1e;
+    color: #fff;
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+    box-shadow: var(--wb-shadow);
+}
+.ward-wb-timer.is-done { background: #e03131; animation: ward-wb-pulse 1s infinite; }
+.ward-wb-timer button {
+    border: 0;
+    border-radius: 999px;
+    padding: 2px 8px;
+    background: rgba(255, 255, 255, 0.15);
+    color: inherit;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+@keyframes ward-wb-pulse { 50% { opacity: 0.7; } }
+
+.ward-wb-ai {
+    position: absolute;
+    bottom: 68px;
+    left: 50%;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    max-width: min(560px, calc(100% - 32px));
+    padding: 6px 8px 6px 12px;
+    border-radius: 999px;
+    background: #fff;
+    color: #1e1e1e;
+    font-size: 13px;
+    box-shadow: var(--wb-shadow);
+    transform: translateX(-50%);
+}
+.ward-wb-ai span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ward-wb-ai-dot { width: 8px; height: 8px; flex: none; border-radius: 50%; background: #7048e8; animation: ward-wb-pulse 1.2s infinite; }
+.ward-wb-ai button {
+    flex: none;
+    border: 0;
+    border-radius: 999px;
+    padding: 3px 10px;
+    background: #f1f0ff;
+    color: #5b4bd1;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.ward-wb-present {
+    position: absolute;
+    bottom: 64px;
+    left: 50%;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px;
+    border-radius: 12px;
+    background: #1e1e1e;
+    color: #fff;
+    font-size: 14px;
+    transform: translateX(-50%);
+}
+.ward-wb-present button {
+    display: inline-flex;
+    padding: 6px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+}
+.ward-wb-present button:hover:not(:disabled) { background: rgba(255, 255, 255, 0.12); }
+.ward-wb-present button:disabled { opacity: 0.35; }
+.ward-wb-present .ward-wb-muted { color: #a1a1aa; }
+
+.ward-wb-overlays { position: absolute; inset: 0; z-index: 3; overflow: hidden; pointer-events: none; }
+
+.ward-wb-pin {
+    position: absolute;
+    min-width: 24px;
+    height: 24px;
+    padding: 0 6px;
+    border: 2px solid #fff;
+    border-radius: 12px 12px 12px 2px;
+    background: #6965db;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    transform: translate(-4px, -100%);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    cursor: pointer;
+    pointer-events: auto;
+}
+
+.ward-wb-votes {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 2px;
+    border-radius: 999px;
+    background: #1e1e1e;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    transform: translate(-100%, -100%) translate(-4px, -4px);
+    pointer-events: auto;
+}
+.ward-wb-votes.is-mine { background: #6965db; }
+.ward-wb-votes span { min-width: 18px; text-align: center; }
+.ward-wb-votes button {
+    display: inline-flex;
+    padding: 3px;
+    border: 0;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.18);
+    color: inherit;
+    cursor: pointer;
+}
+
+.ward-wb-backdrop {
+    position: absolute;
+    inset: 0;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(0, 0, 0, 0.3);
+}
+
+.ward-wb-dialog {
+    display: flex;
+    width: 100%;
+    max-width: 440px;
+    max-height: calc(100% - 32px);
+    flex-direction: column;
+    border-radius: 14px;
+    background: var(--wb-bg);
+    color: var(--wb-fg);
+    box-shadow: var(--wb-shadow);
+}
+.ward-wb-dialog.is-wide { max-width: 680px; }
+
+.ward-wb-dialog-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px 6px;
+}
+.ward-wb-dialog-head h2 { margin: 0; font-size: 16px; font-weight: 600; }
+
+.ward-wb-dialog-body { overflow: auto; padding: 8px 16px 16px; }
+
+.ward-wb-icon {
+    display: inline-flex;
+    padding: 4px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--wb-muted);
+    cursor: pointer;
+}
+.ward-wb-icon:hover { background: #f4f4f5; color: var(--wb-fg); }
+
+.ward-wb-panel {
+    position: absolute;
+    top: 64px;
+    right: 16px;
+    bottom: 72px;
+    z-index: 15;
+    display: flex;
+    width: min(360px, calc(100% - 32px));
+    flex-direction: column;
+    border-radius: 14px;
+    background: var(--wb-bg);
+    color: var(--wb-fg);
+    box-shadow: var(--wb-shadow);
+}
+.ward-wb-panel-body { display: flex; flex-direction: column; gap: 10px; overflow: auto; padding: 8px 16px 16px; font-size: 13px; }
+
+.ward-wb-form { display: flex; flex-direction: column; gap: 10px; font-size: 13px; }
+.ward-wb-form textarea,
+.ward-wb-form input,
+.ward-wb-row input {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--wb-border);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--wb-fg);
+    font: inherit;
+}
+.ward-wb-form textarea { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; resize: vertical; }
+.ward-wb-panel textarea { font-family: inherit; font-size: 13px; }
+.ward-wb-row { display: flex; align-items: center; gap: 8px; }
+.ward-wb-row > span { flex: none; }
+.ward-wb-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+.ward-wb-btn {
+    flex: none;
+    padding: 7px 12px;
+    border: 1px solid var(--wb-border);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--wb-fg);
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+}
+.ward-wb-btn:hover { background: #f4f4f5; }
+.ward-wb-btn.is-primary { border-color: var(--wb-accent); background: var(--wb-accent); color: #fff; }
+.ward-wb-btn.is-primary:hover { background: #5b57c9; }
+.ward-wb-btn:disabled { opacity: 0.6; }
+
+.ward-wb-link { margin-left: 6px; border: 0; background: none; color: var(--wb-muted); font-size: 11px; text-decoration: underline; cursor: pointer; }
+.ward-wb-muted { color: var(--wb-muted); font-weight: 400; }
+.ward-wb-error { color: #c92a2a; }
+.ward-wb-check { display: flex; align-items: center; gap: 6px; color: var(--wb-muted); }
+
+.ward-wb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+.ward-wb-card {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px;
+    border: 1px solid var(--wb-border);
+    border-radius: 10px;
+    background: #fff;
+    color: var(--wb-fg);
+    text-align: left;
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+}
+.ward-wb-card:hover { border-color: var(--wb-accent); }
+.ward-wb-card span { color: var(--wb-muted); font-size: 12px; }
+
+.ward-wb-list { display: flex; flex-direction: column; gap: 14px; }
+.ward-wb-list h3 { margin: 0 0 6px; font-size: 13px; font-weight: 600; }
+.ward-wb-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.ward-wb-chip {
+    padding: 5px 10px;
+    border: 1px solid var(--wb-border);
+    border-radius: 999px;
+    background: #fff;
+    color: var(--wb-fg);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+}
+.ward-wb-chip:hover,
+.ward-wb-chip.is-active { border-color: var(--wb-accent); color: var(--wb-accent); }
+
+.ward-wb-versions { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.ward-wb-versions li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; border-top: 1px solid var(--wb-border); }
+.ward-wb-versions li div { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.ward-wb-versions .ward-wb-muted { font-size: 12px; }
+
+.ward-wb-ranking { display: flex; flex-direction: column; gap: 4px; margin: 0; padding-left: 18px; }
+.ward-wb-ranking li { display: flex; justify-content: space-between; gap: 8px; }
+.ward-wb-ranking button { overflow: hidden; border: 0; background: none; color: var(--wb-fg); text-align: left; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.ward-wb-ranking button:hover { text-decoration: underline; }
+
+.ward-wb-thread { display: flex; flex-direction: column; gap: 6px; padding: 10px 0; border-top: 1px solid var(--wb-border); }
+.ward-wb-thread.is-resolved { opacity: 0.6; }
+.ward-wb-thread header { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+.ward-wb-thread header .ward-wb-muted { font-size: 11px; }
+.ward-wb-pin-label { padding: 1px 6px; border: 0; border-radius: 8px; background: #6965db; color: #fff; font-size: 11px; cursor: pointer; }
+.ward-wb-message { line-height: 1.4; white-space: pre-wrap; }
+
+.ward-wb-toast {
+    position: absolute;
+    bottom: 112px;
+    left: 50%;
+    z-index: 40;
+    max-width: min(520px, calc(100% - 32px));
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: #1e1e1e;
+    color: #fff;
+    font-size: 13px;
+    transform: translateX(-50%);
+    box-shadow: var(--wb-shadow);
+}
+
+/* No celular o Excalidraw põe as ferramentas embaixo: a barra do Ward sobe. */
+@media (max-width: 730px) {
+    .ward-wb-dock { top: 64px; bottom: auto; max-width: calc(100% - 24px); overflow-x: auto; }
+    .ward-wb-popover { top: 112px; bottom: auto; }
+    .ward-wb-status-row { top: 112px; }
+    .ward-wb-ai, .ward-wb-present { bottom: 120px; }
+    .ward-wb-panel { top: auto; bottom: 110px; height: 55%; }
+}

@@ -9,4 +9,7 @@ enum ArtifactType: string
 
     /** Um canvas de design com artboards (Ward Design). */
     case Design = 'design';
+
+    /** Um quadro branco no estilo Miro, desenhado com o Excalidraw (Ward Whiteboard). */
+    case Whiteboard = 'whiteboard';
 }

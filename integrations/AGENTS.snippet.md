@@ -13,3 +13,5 @@ jogo, simulação, diagrama), entregue como artifact no Ward Artifacts usando o 
 - Nunca coloque segredos, tokens ou dados pessoais no HTML.
 - Várias telas, mockups ou posts lado a lado: use um **design** (`create_design`, `open_design`,
   `upsert_artboard`, `update_layout`), seguindo a skill `ward-design` e o `get_design_guide`.
+- Post-its, fluxogramas, mapas mentais, retros e diagramas: use um **whiteboard** (`create_whiteboard`,
+  `open_whiteboard`, `create_diagram`, `add_elements`), seguindo a skill `ward-whiteboard`.

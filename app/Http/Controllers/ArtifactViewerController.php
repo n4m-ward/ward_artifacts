@@ -6,6 +6,7 @@ use App\Actions\Artifacts\RecordArtifactView;
 use App\Artifacts\ContentGateway;
 use App\Designs\DesignView;
 use App\Models\Artifact;
+use App\Whiteboards\WhiteboardView;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Symfony\Component\HttpFoundation\Response;
@@ -24,12 +25,13 @@ class ArtifactViewerController extends Controller
         ContentGateway $gateway,
         RecordArtifactView $recordView,
         DesignView $designView,
+        WhiteboardView $whiteboardView,
     ): Response {
         abort_unless(preg_match('/([0-9a-f]{32})\.html$/', $file, $match), 404);
 
         $artifact = Artifact::with('user', 'project', 'currentVersion')->where('uuid', $match[1])->first();
 
-        abort_if($artifact === null || (! $artifact->isDesign() && $artifact->currentVersion === null), 404);
+        abort_if($artifact === null || (! $artifact->isCanvas() && $artifact->currentVersion === null), 404);
 
         if (Gate::denies('view', $artifact)) {
             // Não revela que o artifact existe para quem já está logado.
@@ -43,6 +45,12 @@ class ArtifactViewerController extends Controller
 
         if ($request->user()) {
             $recordView->handle($request->user(), $artifact);
+        }
+
+        if ($artifact->isWhiteboard()) {
+            return $whiteboardView->render($artifact)
+                ->header('X-Robots-Tag', 'noindex, nofollow')
+                ->header('Referrer-Policy', 'same-origin');
         }
 
         if ($artifact->isDesign()) {

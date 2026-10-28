@@ -11,6 +11,8 @@ use App\Http\Controllers\DesignLiveController;
 use App\Http\Controllers\DesignPresenceController;
 use App\Http\Controllers\DesignPrintController;
 use App\Http\Controllers\DesignSystemController;
+use App\Http\Controllers\WhiteboardController;
+use App\Http\Controllers\WhiteboardLiveController;
 use App\Models\User;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Support\Facades\Route;
@@ -36,6 +38,9 @@ Route::middleware(['auth'])->group(function () {
     Volt::route('design-systems', 'design-systems.index')->name('design-systems.index');
     Route::get('design-systems/search', [DesignSystemController::class, 'search'])->name('design-systems.search');
     Route::get('d/{artifact}/docs', [DesignSystemController::class, 'docs'])->where('artifact', '[0-9a-f]{32}')->name('design-systems.docs');
+
+    // Whiteboards (estilo Miro): os meus e os compartilhados comigo.
+    Volt::route('whiteboards', 'whiteboards.index')->name('whiteboards.index');
 
     Volt::route('users', 'users.index')
         ->middleware('can:viewAny,'.User::class)
@@ -91,6 +96,42 @@ Route::middleware(['auth', 'throttle:600,1'])->where(['artifact' => '[0-9a-f]{32
     Route::get('d/{artifact}/assets/{name}', [DesignAssetController::class, 'show'])->where('name', '[a-z0-9.-]+')->name('designs.assets.show');
     Route::delete('d/{artifact}/assets/{name}', [DesignAssetController::class, 'destroy'])->where('name', '[a-z0-9.-]+')->name('designs.assets.destroy');
 });
+
+// Ao vivo do whiteboard: o quadro pergunta a cada ~1,5 s o que mudou (até ~700 ms com outras pessoas).
+Route::get('w/{artifact}/live', WhiteboardLiveController::class)
+    ->where('artifact', '[0-9a-f]{32}')
+    ->middleware('throttle:600,1')
+    ->name('whiteboards.live');
+
+// Imagem de um quadro: link assinado (o quadro mostra também para quem abriu por link público).
+Route::get('w/{artifact}/files/{file}', [WhiteboardController::class, 'showFile'])
+    ->where(['artifact' => '[0-9a-f]{32}', 'file' => '[A-Za-z0-9_-]{1,64}'])
+    ->middleware('throttle:1200,1')
+    ->name('whiteboards.files.show');
+
+// Edição do whiteboard (dono, admin ou convidado editor); comentar, votar e aparecer no quadro, quem vê.
+Route::middleware(['auth', 'throttle:1200,1'])->where(['artifact' => '[0-9a-f]{32}', 'comment' => '[0-9]+', 'number' => '[0-9]+'])->group(function () {
+    Route::post('w/{artifact}/elements', [WhiteboardController::class, 'elements'])->name('whiteboards.elements');
+    Route::post('w/{artifact}/files', [WhiteboardController::class, 'storeFile'])->name('whiteboards.files.store');
+    Route::post('w/{artifact}/presence', [WhiteboardController::class, 'presence'])->name('whiteboards.presence');
+    Route::post('w/{artifact}/comments', [WhiteboardController::class, 'storeComment'])->name('whiteboards.comments.store');
+    Route::patch('w/{artifact}/comments/{comment}', [WhiteboardController::class, 'updateComment'])->name('whiteboards.comments.update');
+    Route::delete('w/{artifact}/comments/{comment}', [WhiteboardController::class, 'destroyComment'])->name('whiteboards.comments.destroy');
+    Route::post('w/{artifact}/votes', [WhiteboardController::class, 'vote'])->name('whiteboards.votes');
+    Route::post('w/{artifact}/voting', [WhiteboardController::class, 'voting'])->name('whiteboards.voting');
+    Route::post('w/{artifact}/timer', [WhiteboardController::class, 'timer'])->name('whiteboards.timer');
+    Route::get('w/{artifact}/versions', [WhiteboardController::class, 'versions'])->name('whiteboards.versions.index');
+    Route::post('w/{artifact}/versions', [WhiteboardController::class, 'saveVersion'])->name('whiteboards.versions.store');
+    Route::post('w/{artifact}/versions/{number}/restore', [WhiteboardController::class, 'restoreVersion'])->name('whiteboards.versions.restore');
+    Route::post('w/{artifact}/template', [WhiteboardController::class, 'template'])->name('whiteboards.template');
+    Route::get('w/{artifact}/artboards', [WhiteboardController::class, 'artboards'])->name('whiteboards.artboards');
+});
+
+// Artboard do Ward Design embutido num quadro: link estável que vira o link assinado do conteúdo.
+Route::get('w/artboard/{design}/{board}', [WhiteboardController::class, 'artboard'])
+    ->where(['design' => '[0-9a-f]{32}', 'board' => '[0-9]+'])
+    ->middleware(['auth', 'throttle:600,1'])
+    ->name('whiteboards.artboard');
 
 Route::get('artifacts/{artifact}/download', ArtifactDownloadController::class)
     ->name('artifacts.download');

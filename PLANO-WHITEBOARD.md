@@ -5,7 +5,9 @@ elementos, frames, texto, caneta e imagens num canvas infinito, para fazer diagr
 retrospectivas e brainstorms. A pessoa edita à mão, várias pessoas editam juntas, e a IA lê e desenha
 no quadro pelo MCP.
 
-Este documento é o levantamento antes de implementar. Nada daqui foi implementado ainda.
+Este documento começou como levantamento. **Tudo foi implementado em 28/10/2026** (WB1 a WB5), testado
+localmente e está esperando a validação do Gabriel antes do deploy. O que mudou em relação ao rascunho
+está em "Implementação", no fim.
 
 ## Decisões tomadas (28/10/2026)
 
@@ -254,15 +256,52 @@ artifact_members   artifact_id, user_id, role (editor), invited_by, timestamps
 
 | # | Fase | Entrega |
 |---|---|---|
-| WB1 | Quadro básico | `type=whiteboard`, aba Whiteboards, página com Excalidraw (pt-BR, estilo limpo), salvar elementos, ao vivo por consulta curta com `reconcileElements`, ferramenta Post-it, exportar |
-| WB2 | IA | Conversor PHP, `create_whiteboard`, `get_whiteboard`, `add/update/delete_elements`, `create_diagram` com layout, `show_in_canvas` no quadro, skill `ward-whiteboard` |
-| WB3 | Colaboração | Convidados editores (`artifact_members`, Compartilhar, "Compartilhados comigo"), cursores e quem está online, seguir alguém, comentários em elementos |
-| WB4 | Conteúdo | Imagens como assets, versões, biblioteca Ward de formas, templates, colar Mermaid, artboard do design no quadro |
-| WB5 | Extras | MCP App, `arrange_elements`, votação, cronômetro, apresentação por frames |
+| WB1 ✅ | Quadro básico | `type=whiteboard`, aba Whiteboards, página com Excalidraw (pt-BR, estilo limpo), salvar elementos, ao vivo por consulta curta com `reconcileElements`, ferramenta Post-it, exportar |
+| WB2 ✅ | IA | Conversor PHP, `create_whiteboard`, `get_whiteboard`, `add/update/delete_elements`, `create_diagram` com layout, `show_in_canvas` no quadro, skill `ward-whiteboard` |
+| WB3 ✅ | Colaboração | Convidados editores (`artifact_members`, Compartilhar, "Compartilhados comigo"), cursores e quem está online, seguir alguém, comentários em elementos |
+| WB4 ✅ | Conteúdo | Imagens como assets, versões, biblioteca Ward de formas, templates, colar Mermaid, artboard do design no quadro |
+| WB5 ✅ | Extras | MCP App, `arrange_elements`, votação, cronômetro, apresentação por frames |
 
 Cada fase: testes (Pest para gravação/conflito de versões, permissões, conversor e MCP), conferência no
 navegador do painel em `localhost:8000`, commit + push (deploy automático) e checagem curta em produção.
 
-## Decisões em aberto
+## Implementação (28/10/2026)
 
-1. **Ordem das fases**: confirmar a sugestão acima antes de começar.
+Feito na ordem WB1 → WB5. Testes: `tests/Feature/Whiteboards` (gravação e conflito de versões,
+permissões, ao vivo, convidados, comentários, votos, cronômetro, versões, arquivos, artboard, download,
+página Whiteboards, conversor, layouts, todas as ferramentas MCP e o MCP App). Conferido no navegador
+em `localhost:8000`: modelo, post-it (botão e tecla N), IA desenhando ao vivo com cursor e câmera,
+Mermaid, artboard embutido, imagem, comentários, votação, cronômetro, apresentação, versões, cursor de
+outra pessoa, só leitura, celular e o MCP App num host falso.
+
+**Onde está:**
+
+| Parte | Arquivos |
+|---|---|
+| Dados | migration `2026_10_28_000001_create_whiteboard_tables` (`whiteboard_elements`, `whiteboard_files`, `artifact_members`, `whiteboard_presences`, `whiteboard_votes`, `artifacts.whiteboard_seq/whiteboard_state`); modelos `WhiteboardElement`, `WhiteboardFile`, `ArtifactMember`, `WhiteboardPresence`, `WhiteboardVote` |
+| Servidor | `app/Whiteboards/*` (Store, ElementSanitizer, ElementFactory, DiagramLayout, Editor, Summary, Files, Versions, Presence, Session, Comments, Templates, State, View); `WhiteboardController`, `WhiteboardLiveController`; ações `CreateWhiteboard`, `WhiteboardEditors`; policy `edit` |
+| Página | `resources/views/artifacts/whiteboard.blade.php`; `resources/js/whiteboard/*` (main, App, sync, elements, panels, css); aba `livewire/whiteboards/index`; convidados em `livewire/artifacts/manage` |
+| MCP | `create_whiteboard`, `get_whiteboard`, `add_elements`, `update_elements`, `delete_elements`, `create_diagram`, `arrange_elements`, `open_whiteboard` (+ `whiteboard_live`, só do app); `show_in_canvas`, `save_design_version`, `resolve_comment` e `list_artifacts` aceitam quadros; `WhiteboardApp` (MCP App) |
+| Skill | `integrations/claude-code/ward-artifacts/skills/ward-whiteboard` |
+| Outros | fontes do Excalidraw copiadas para `public/build/excalidraw/fonts` no build (`vite.config.js`); CORS dos pacotes em `public/.htaccess` (o MCP App carrega o pacote do quadro); `ward:purge-whiteboards` diário |
+
+**Diferenças em relação ao rascunho:**
+
+- **MCP App**: ferramenta própria `open_whiteboard` (o `open_design` continua só de designs, porque cada
+  ferramenta abre um app). No chat o quadro é **só leitura** ao vivo, seguindo a IA, com "Pedir mudança"
+  (vai para o chat) e "Abrir para editar". Editar dentro do chat exigiria passar cada gravação pela
+  conexão do app; fica para depois se fizer falta.
+- **Barra do Ward** fica embaixo, no centro (no celular, em cima), e não no topo à direita: lá ela
+  cortava as ações em telas menores.
+- **Presença** em tabela (`whiteboard_presences`), não no cache: o cache em arquivo perderia gravações
+  de várias pessoas ao mesmo tempo.
+- **Artboard embutido** usa um iframe nosso (`renderEmbeddable`) com o sandbox dos artboards: o sandbox
+  padrão do Excalidraw tira `allow-same-origin` e o artboard não abria.
+- **Comentários do quadro** são só texto (sem imagens, ao contrário do design).
+- **Votos** valem para post-its, formas e imagens; os selos somem quando o elemento fica pequeno na tela.
+- **Modelos, Mermaid e artboards** entram num lugar livre à direita do conteúdo, e a câmera vai até eles.
+- O "+" do Miro para criar post-it ligado não foi feito: o Excalidraw já tem Ctrl/Cmd + seta.
+
+**Para o deploy:** a migration roda sozinha (`ward:post-deploy`); `npm ci` + `npm run build` no CI
+geram o pacote e copiam as fontes. Conferir em produção que `/build/assets/*.js` sai com
+`Access-Control-Allow-Origin: *` (MCP App) e que o LiteSpeed respeita o `public/.htaccess`.
