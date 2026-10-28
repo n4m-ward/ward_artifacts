@@ -16,6 +16,12 @@ class DiagramLayout
 
     private const GAP_CROSS = 50;
 
+    /** Distância do contorno das setas de volta até as formas (cabe no padding do frame). */
+    private const DETOUR_GAP = 30;
+
+    /** Camada de cada nó no último fluxograma (para achar as setas que voltam). */
+    private array $layers = [];
+
     public function __construct(private ElementFactory $factory) {}
 
     /**
@@ -101,15 +107,28 @@ class DiagramLayout
             default => 'straight',
         };
 
+        // Fluxograma: seta que volta para uma camada anterior contorna o diagrama
+        // (por baixo no LR, pela direita no TB) em vez de cruzar as formas do caminho.
+        $detour = null;
+        $backs = 0;
+        if ($kind === 'flowchart') {
+            $detour = $horizontal
+                ? max(array_map(fn ($box) => $box['y'] + $box['h'], $byId))
+                : max(array_map(fn ($box) => $box['x'] + $box['w'], $byId));
+        }
+
         foreach ($links as $index => $link) {
             $edge = $link['edge'];
+            $back = $detour !== null && ($this->layers[$link['to']] ?? 0) <= ($this->layers[$link['from']] ?? 0);
             $items[] = array_filter([
                 'id' => isset($edge['id']) ? $this->factory->id($edge['id']) : "{$link['from']}-{$link['to']}-{$index}",
                 'type' => 'arrow',
                 'from' => $link['from'],
                 'to' => $link['to'],
                 'label' => $edge['label'] ?? null,
-                'route' => $edge['route'] ?? $route,
+                'route' => $back ? 'around' : ($edge['route'] ?? $route),
+                'detour' => $back ? round(($horizontal ? $originY : $originX) + $detour + self::DETOUR_GAP + 20 * $backs++, 2) : null,
+                'side' => $back ? ($horizontal ? 'below' : 'right') : null,
                 'style' => $edge['style'] ?? null,
                 'endArrow' => $kind === 'mindmap' ? 'none' : ($edge['endArrow'] ?? null),
                 'color' => $edge['color'] ?? null,
@@ -201,6 +220,7 @@ class DiagramLayout
             }
         }
 
+        $this->layers = $layer;
         $layers = [];
         foreach ($ids as $id) {
             $layers[$layer[$id]][] = $id;

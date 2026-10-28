@@ -222,6 +222,13 @@ class WhiteboardToolsTest extends TestCase
         $this->assertLessThan($elements['end']['y'], $elements['ok']['y'] + $elements['ok']['height']);
         $frame = collect($elements)->firstWhere('type', 'frame');
         $this->assertSame('Pagamento', $frame['name']);
+
+        // A seta que volta (não → Pagar) contorna pela direita, fora das formas e dentro do frame.
+        $back = collect($elements)->first(fn ($element) => ($element['startBinding']['elementId'] ?? null) === 'ok' && ($element['endBinding']['elementId'] ?? null) === 'pay');
+        $this->assertCount(4, $back['points']);
+        $rightmost = max(array_map(fn ($id) => $elements[$id]['x'] + $elements[$id]['width'], ['start', 'pay', 'ok', 'end']));
+        $this->assertGreaterThan($rightmost, $back['x'] + $back['points'][1][0]);
+        $this->assertLessThan($frame['x'] + $frame['width'], $back['x'] + $back['points'][1][0]);
         $this->assertSame($frame['id'], $elements['pay']['frameId']);
 
         WardServer::actingAs($this->user)->tool(CreateDiagramTool::class, [
@@ -308,11 +315,11 @@ class WhiteboardToolsTest extends TestCase
                 ->where('app.app', true)
                 ->where('app.canEdit', false)
                 ->has('app.liveUrl')
-                ->has('app.initial.elements', 7)
+                ->where('app.initial', null)
                 ->etc());
 
         $live = WardServer::actingAs($this->user)->tool(WhiteboardLiveTool::class, ['whiteboard' => $board->uuid, 'since' => 0]);
-        $live->assertOk()->assertStructuredContent(fn (AssertableJson $json) => $json->where('changed', true)->where('full', true)->etc());
+        $live->assertOk()->assertStructuredContent(fn (AssertableJson $json) => $json->where('changed', true)->where('full', true)->has('elements', 7)->etc());
 
         $seq = $board->fresh()->whiteboard_seq;
         WardServer::actingAs($this->user)->tool(WhiteboardLiveTool::class, ['whiteboard' => $board->uuid, 'since' => $seq, 'p' => app(WhiteboardPresence::class)->signature($board)])

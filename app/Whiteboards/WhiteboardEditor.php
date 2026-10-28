@@ -153,6 +153,15 @@ class WhiteboardEditor
             }
         }
 
+        // Contorno das setas de volta (fluxogramas de templates) acompanha o deslocamento.
+        if ($relative) {
+            foreach ($items as $index => $item) {
+                if (isset($item['detour'])) {
+                    $items[$index]['detour'] = $item['detour'] + (($item['side'] ?? 'below') === 'right' ? $origin[0] : $origin[1]);
+                }
+            }
+        }
+
         return [$items, $frame];
     }
 
@@ -441,10 +450,16 @@ class WhiteboardEditor
         $minX = min(array_column($shapes, 'x'));
         $minY = min(array_column($shapes, 'y'));
         $pad = $frame !== null ? 60 : 0;
+        $dx = -$minX + $ox + $pad;
+        $dy = -$minY + $oy + $pad + ($frame !== null ? 20 : 0);
         foreach ($items as $index => $item) {
             if (isset($item['x'])) {
-                $items[$index]['x'] = $item['x'] - $minX + $ox + $pad;
-                $items[$index]['y'] = $item['y'] - $minY + $oy + $pad + ($frame !== null ? 20 : 0);
+                $items[$index]['x'] = $item['x'] + $dx;
+                $items[$index]['y'] = $item['y'] + $dy;
+            }
+            // A linha de contorno das setas de volta anda junto com o diagrama.
+            if (isset($item['detour'])) {
+                $items[$index]['detour'] = $item['detour'] + (($item['side'] ?? 'below') === 'right' ? $dx : $dy);
             }
         }
 
