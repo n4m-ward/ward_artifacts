@@ -174,6 +174,7 @@ contexto do modelo sem chamada de ferramenta) entra no Ward Code, que é nosso: 
 ## D7 — Post-its (no fim, depois de tudo pronto)
 
 Post-its no canvas, como num Miro. Ficam para depois de todas as outras fases.
+O whiteboard (`PLANO-WHITEBOARD.md`) é uma feature separada, com Excalidraw; não substitui a D7.
 
 - **Para que serve**: um aviso para **outras pessoas** sobre algo específico do design ("esta tela
   ainda depende da API", "cor aprovada pelo cliente"). **Não é comentário para a IA.** Comentários
